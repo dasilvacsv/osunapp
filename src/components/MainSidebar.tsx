@@ -1,0 +1,168 @@
+"use client"
+
+import React from "react"
+import {
+  LayoutDashboard,
+  Users,
+  PackageSearch,
+  Receipt,
+  Map,
+  Wallet,
+  Settings2,
+  BookOpen,
+  AlertCircle,
+  LineChart,
+  UserPlus
+} from "lucide-react"
+
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail,
+} from "@/components/ui/sidebar"
+import Image from "next/image"
+import { NavMain } from "./NavMain"
+import { NavUser } from "./NavUser"
+
+// Estructura de navegación en español
+const navItems = [
+  {
+    title: "Panel Principal",
+    url: "/",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Clientes",
+    url: "/clients",
+    icon: Users,
+    items: [
+      {
+        title: "Lista de Clientes",
+        url: "/clients",
+      },
+      {
+        title: "Nuevo Cliente",
+        url: "/clients/new",
+      }
+    ],
+  },
+  {
+    title: "Productos",
+    url: "/products",
+    icon: PackageSearch,
+    items: [
+      {
+        title: "Lista de Productos",
+        url: "/products",
+      },
+      {
+        title: "Nuevo Producto",
+        url: "/products/new",
+      }
+    ],
+  },
+  {
+    title: "Ventas",
+    url: "/sales",
+    icon: Receipt,
+    items: [
+      {
+        title: "Lista de Ventas",
+        url: "/sales",
+      },
+      {
+        title: "Nueva Venta",
+        url: "/sales/new",
+      }
+    ],
+  },
+  {
+    title: "Rutas",
+    url: "/rutas",
+    icon: Map,
+    items: [
+      {
+        title: "Lista de Rutas",
+        url: "/rutas",
+      },
+      {
+        title: "Nueva Ruta",
+        url: "/rutas/new",
+      }
+    ],
+  },
+  {
+    title: "Pagos",
+    url: "/payments",
+    icon: Wallet,
+    items: [
+      {
+        title: "Lista de Pagos",
+        url: "/payments",
+      },
+      {
+        title: "Nuevo Pago",
+        url: "/payments/new",
+      }
+    ],
+  }
+];
+
+export function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const user = {
+    name: "Usuario Administrador",
+    email: "admin@example.com",
+    avatar: "/avatars/user.jpg",
+  };
+
+  return (
+    <Sidebar collapsible="icon" {...props}>
+      <SidebarHeader className="pb-2">
+        <div className="relative transition-all duration-200">
+          {/* Logo en estado expandido */}
+          <div className="flex items-center px-3 py-2 group-data-[collapsible=icon]:hidden">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
+                <Image
+                  src="/logo.png"
+                  alt="Logo de la Empresa"
+                  width={24}
+                  height={24}
+                  className="object-contain"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-base font-semibold text-sidebar-foreground">Ventas a Crédito</span>
+                <span className="text-xs text-sidebar-foreground/70">Sistema de Gestión</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Logo en estado colapsado */}
+          <div className="hidden items-center justify-center py-2 group-data-[collapsible=icon]:flex">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
+              <Image
+                src="/logo.png"
+                alt="Logo de la Empresa"
+                width={24}
+                height={24}
+                className="object-contain"
+              />
+            </div>
+          </div>
+        </div>
+      </SidebarHeader>
+      <SidebarContent>
+        <NavMain items={navItems} />
+      </SidebarContent>
+      <SidebarFooter>
+        <NavUser user={user} />
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
+  );
+}
+
+export default MainSidebar;
