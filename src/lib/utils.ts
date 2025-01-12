@@ -34,17 +34,6 @@ export function formatEventDate(dateString: string): string {
   }
 }
 
-export function getDaysUntilEvent(dateString: string): number {
-  try {
-    const eventDate = new Date(dateString)
-    const today = new Date()
-    return Math.max(0, differenceInDays(eventDate, today))
-  } catch (error) {
-    console.error('Error calculating days until event:', error)
-    return 0
-  }
-}
-
 /**
  * Redirects to a specified path with an encoded message as a query parameter.
  * @param {('error' | 'success')} type - The type of message, either 'error' or 'success'.

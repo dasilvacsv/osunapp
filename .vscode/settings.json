@@ -5,7 +5,36 @@
         "**/.hg": true,
         "**/CVS": true,
         "**/.DS_Store": true,
-        "**/Thumbs.db": true
+        "**/Thumbs.db": true,
+        "node_modules": true,
+        ".next": true,
+        "postcss.config.js": true,
+        "tsconfig.json": true,
+        "tailwind.config.ts": true,
+        "README.md": true,
+        "next-env.d.ts": true,
+        "components.json": true,
+        ".gitignore": true,
+        "next.config.js": true,
+        "package-lock.json": true,
+        "src/utils/supabase": true,
+        "src/utils": true,
+        "src/app/favicon.ico": true
     },
-    "hide-files.files": []
+    "hide-files.files": [
+        "node_modules",
+        ".next",
+        "postcss.config.js",
+        "tsconfig.json",
+        "tailwind.config.ts",
+        "README.md",
+        "next-env.d.ts",
+        "components.json",
+        ".gitignore",
+        "next.config.js",
+        "package-lock.json",
+        "src/utils/supabase",
+        "src/utils",
+        "src/app/favicon.ico"
+    ]
 }
