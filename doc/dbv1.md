@@ -1,3 +1,4 @@
+```typescript
 import {
   varchar,
   uuid,
@@ -172,3 +173,4 @@ export const organizationMembers = pgTable("organization_members", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
+```
