@@ -4,15 +4,16 @@ import React from "react"
 import {
   LayoutDashboard,
   Users,
-  PackageSearch,
+  GraduationCap,
+  Camera,
+  Package,
   Receipt,
-  Map,
-  Wallet,
+  School,
+  BadgeCheck,
   Settings2,
-  BookOpen,
-  AlertCircle,
-  LineChart,
-  UserPlus
+  ImagePlus,
+  UserPlus,
+  FolderPlus
 } from "lucide-react"
 
 import {
@@ -26,7 +27,6 @@ import Image from "next/image"
 import { NavMain } from "./NavMain"
 import { NavUser } from "./NavUser"
 
-// Estructura de navegación en español
 const navItems = [
   {
     title: "Panel Principal",
@@ -35,76 +35,88 @@ const navItems = [
   },
   {
     title: "Clientes",
-    url: "/clients",
+    url: "/clientes",
     icon: Users,
     items: [
       {
         title: "Lista de Clientes",
-        url: "/clients",
+        url: "/clientes",
       },
       {
         title: "Nuevo Cliente",
-        url: "/clients/new",
+        url: "/clientes/nuevo",
+      },
+      {
+        title: "Registrar Hijo",
+        url: "/clientes/hijo/nuevo",
+      }
+    ],
+  },
+  {
+    title: "Paquetes Escolares",
+    url: "/paquetes-escolares",
+    icon: GraduationCap,
+    items: [
+      {
+        title: "Gestión de Paquetes",
+        url: "/paquetes-escolares",
+      },
+      {
+        title: "Nueva Venta Escolar",
+        url: "/paquetes-escolares/venta",
+      },
+      {
+        title: "Inventario Medallas",
+        url: "/paquetes-escolares/medallas",
+      },
+      {
+        title: "Colegios",
+        url: "/paquetes-escolares/colegios",
+      }
+    ],
+  },
+  {
+    title: "Servicios Fotográficos",
+    url: "/servicios",
+    icon: Camera,
+    items: [
+      {
+        title: "Catálogo de Servicios",
+        url: "/servicios",
+      },
+      {
+        title: "Nueva Sesión",
+        url: "/servicios/nueva-sesion",
       }
     ],
   },
   {
     title: "Productos",
-    url: "/products",
-    icon: PackageSearch,
+    url: "/productos",
+    icon: Package,
     items: [
       {
-        title: "Lista de Productos",
-        url: "/products",
+        title: "Inventario",
+        url: "/productos",
       },
       {
-        title: "Nuevo Producto",
-        url: "/products/new",
+        title: "Agregar Producto",
+        url: "/productos/nuevo",
       }
     ],
   },
   {
     title: "Ventas",
-    url: "/sales",
+    url: "/ventas",
     icon: Receipt,
     items: [
       {
-        title: "Lista de Ventas",
-        url: "/sales",
+        title: "Historial de Ventas",
+        url: "/ventas",
       },
       {
         title: "Nueva Venta",
-        url: "/sales/new",
-      }
-    ],
-  },
-  {
-    title: "Rutas",
-    url: "/rutas",
-    icon: Map,
-    items: [
-      {
-        title: "Lista de Rutas",
-        url: "/rutas",
-      },
-      {
-        title: "Nueva Ruta",
-        url: "/rutas/new",
-      }
-    ],
-  },
-  {
-    title: "Pagos",
-    url: "/payments",
-    icon: Wallet,
-    items: [
-      {
-        title: "Lista de Pagos",
-        url: "/payments",
-      },
-      {
-        title: "Nuevo Pago",
-        url: "/payments/new",
+        url: "/ventas/nueva",
       }
     ],
   }
@@ -112,8 +124,8 @@ const navItems = [
 
 export function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const user = {
-    name: "Usuario Administrador",
-    email: "admin@example.com",
+    name: "Fotógrafo Admin",
+    email: "admin@fotografia.com",
     avatar: "/avatars/user.jpg",
   };
 
@@ -127,14 +139,14 @@ export function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) 
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary">
                 <Image
                   src="/logo.png"
-                  alt="Logo de la Empresa"
+                  alt="Logo Estudio Fotográfico"
                   width={24}
                   height={24}
                   className="object-contain"
                 />
               </div>
               <div className="flex flex-col">
-                <span className="text-base font-semibold text-sidebar-foreground">Ventas a Crédito</span>
+                <span className="text-base font-semibold text-sidebar-foreground">Estudio Fotográfico</span>
                 <span className="text-xs text-sidebar-foreground/70">Sistema de Gestión</span>
               </div>
             </div>
@@ -145,7 +157,7 @@ export function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) 
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary">
               <Image
                 src="/logo.png"
-                alt="Logo de la Empresa"
+                alt="Logo Estudio Fotográfico"
                 width={24}
                 height={24}
                 className="object-contain"

@@ -19,7 +19,8 @@
         "package-lock.json": true,
         "src/utils/supabase": true,
         "src/utils": true,
-        "src/app/favicon.ico": true
+        "src/app/favicon.ico": true,
+        "src/app/(auth)": true
     },
     "hide-files.files": [
         "node_modules",
@@ -35,6 +36,7 @@
         "package-lock.json",
         "src/utils/supabase",
         "src/utils",
-        "src/app/favicon.ico"
+        "src/app/favicon.ico",
+        "src/app/(auth)"
     ]
 }
