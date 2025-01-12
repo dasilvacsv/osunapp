@@ -11,12 +11,23 @@ I understand that you need a system to manage a photography business with two ma
 
 Let me propose a data model approach first, then we can discuss the implementation:
 
+
 ```
+Organization
+- id
+- name
+- type (school, company, etc)
+- address
+- contact_info
+- status (active/inactive)
+
 Client
 - id
 - name
 - contact_info
 - children[] (relationship)
+- organization_id (optional, relationship)
+- role (parent, employee, individual)
 
 Child
 - id
@@ -30,6 +41,8 @@ Bundle
 - name
 - description
 - components[] (relationship)
+- organization_id (optional, for org-specific bundles)
+- type (school_package, organization_package, regular)
 
 BundleComponent
 - id
@@ -41,6 +54,7 @@ Purchase
 - id
 - client_id
 - child_id (optional, for school packages)
+- organization_id (optional)
 - bundle_id (optional)
 - status
 - total_amount
@@ -53,7 +67,16 @@ PurchaseItem
 - item_id
 - quantity
 - price
+
+OrganizationMember
+- id
+- organization_id
+- client_id
+- role (admin, member)
+- status
+- join_date
 ```
+
 
 For the UI/UX, I would suggest:
 
@@ -75,3 +98,11 @@ For the UI/UX, I would suggest:
 4. Regular Services:
    - Service catalog
    - Quick purchase flow
+
+5. Organization Management:
+   - Organization list with type filter
+   - Organization profile/details
+   - Member management
+   - Organization-specific bundles
+   - Organization purchase history
+
