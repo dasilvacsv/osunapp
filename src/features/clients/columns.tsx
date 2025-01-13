@@ -47,7 +47,15 @@ export const columns: ColumnDef<Client>[] = [
   },
   {
     accessorKey: "name",
-    header: ({ column }) => <SortableHeader column={column} title="Name" />,
+    header: ({ column }) => <SortableHeader column={column} title="Nombre" />,
+  },
+  {
+    accessorKey: "document",
+    header: ({ column }) => <SortableHeader column={column} title="Cédula" />,
+    cell: ({ row }) => {
+      const document = row.getValue("document") as string | null;
+      return document || "-";
+    },
   },
   {
     accessorKey: "role",

@@ -67,6 +67,7 @@ export const organizations = pgTable("organizations", {
 export const clients = pgTable("clients", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
+  document: varchar("document", {length: 255}),
   contactInfo: jsonb("contact_info"), // Store phone, email, etc.
   organizationId: uuid("organization_id").references(() => organizations.id),
   role: clientRoleEnum("role").notNull(),

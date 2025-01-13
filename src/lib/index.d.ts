@@ -1,6 +1,7 @@
 export interface Client {
   id: string;
   name: string;
+  document: string | null; // Add this line
   contactInfo: {
     email: string;
     phone?: string;
