@@ -1,7 +1,6 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { 
   Table, 
   TableBody, 
@@ -10,10 +9,12 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { BadgeCheck, Building2, Users, UserRound, DollarSign, ShoppingCart } from 'lucide-react'
+import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, Pie, Cell } from "recharts"
+import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { Button } from "@/components/ui/button"
+import { BadgeDelta } from "./badge-delta"
+import { MoreHorizontal, ArrowRight, Package, Building2, Users2, UserRound, DollarSign } from 'lucide-react'
 
 interface DashboardProps {
   data: {
@@ -42,249 +43,224 @@ interface DashboardProps {
       totalPurchases: number
       totalRevenue: string | null
     }>
-    // New data for charts
     revenueOverTime: Array<{
       date: string
       revenue: number
     }>
-    purchasesByOrganization: Array<{
-      organizationName: string
-      purchases: number
-    }>
   }
 }
 
-export function Component({ data }: DashboardProps) {
-  // Transform data for charts
-  const revenueOverTime = data.recentPurchases.map(purchase => ({
-    date: purchase.purchaseDate,
-    revenue: Number(purchase.totalAmount)
-  }));
-
-  const purchasesByOrganization = data.organizationStats.map(org => ({
-    organizationName: org.organizationName,
-    purchases: org.totalPurchases
-  }));
-
-  const chartData = {
-    ...data,
-    revenueOverTime,
-    purchasesByOrganization
-  };
-
+export function DashboardComponent({ data }: DashboardProps) {
   const formatCurrency = (amount: string | number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(Number(amount))
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    })
+
+  const calculateChange = (current: number, previous: number) => {
+    const percentageChange = ((current - previous) / previous) * 100
+    return {
+      value: Math.abs(percentageChange).toFixed(0),
+      trend: percentageChange >= 0 ? "up" : "down"
+    }
   }
 
+  const pieData = [
+    { name: "Escuelas", value: data.organizationStats.filter(org => org.type === "SCHOOL").length },
+    { name: "Empresas", value: data.organizationStats.filter(org => org.type === "COMPANY").length }
+  ]
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28']
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Stats Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Panel de Control</h1>
+          <p className="text-sm text-muted-foreground">Resumen de ventas y gestión de organizaciones</p>
+        </div>
+        <Button variant="outline" size="sm">
+          Enero 2024 - Mayo 2024
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <DollarSign className="w-4 h-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data.totalRevenue)}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Organizations</CardTitle>
-            <Building2 className="w-4 h-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.totalOrganizations}</div>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Ingresos</p>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="mt-2">
+              <p className="text-2xl font-bold">{formatCurrency(data.totalRevenue)}</p>
+              <BadgeDelta trend="up" className="mt-1">20% respecto al mes anterior</BadgeDelta>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
-            <Users className="w-4 h-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.totalClients}</div>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Organizaciones</p>
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="mt-2">
+              <p className="text-2xl font-bold">{data.totalOrganizations}</p>
+              <p className="text-sm text-muted-foreground mt-1">Cuentas activas</p>
+            </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-medium">Total Children</CardTitle>
-            <UserRound className="w-4 h-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{data.totalChildren}</div>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Clientes</p>
+              <Users2 className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="mt-2">
+              <p className="text-2xl font-bold">{data.totalClients}</p>
+              <p className="text-sm text-muted-foreground mt-1">Total registrados</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Niños</p>
+              <UserRound className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="mt-2">
+              <p className="text-2xl font-bold">{data.totalChildren}</p>
+              <p className="text-sm text-muted-foreground mt-1">Niños registrados</p>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Revenue Over Time Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Revenue Over Time</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer
-            config={{
-              revenue: {
-                label: "Revenue",
-                color: "hsl(var(--chart-1))",
-              },
-            }}
-            className="h-[300px]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData.revenueOverTime}>
-                <XAxis dataKey="date" />
-                <YAxis />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line type="monotone" dataKey="revenue" stroke="var(--color-revenue)" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Recent Purchases */}
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Recent Purchases</CardTitle>
+        <Card>
+          <CardHeader className="p-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Transacciones Recientes</CardTitle>
+              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             <ScrollArea className="h-[300px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.recentPurchases.map((purchase) => (
-                    <TableRow key={purchase.id}>
-                      <TableCell className="font-medium">{purchase.clientName}</TableCell>
-                      <TableCell>{purchase.organizationName}</TableCell>
-                      <TableCell>{formatCurrency(purchase.totalAmount)}</TableCell>
-                      <TableCell>{formatDate(purchase.purchaseDate)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {data.recentPurchases.map((purchase) => (
+                <div key={purchase.id} className="flex items-center justify-between p-4 border-b">
+                  <div className="flex items-center space-x-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Package className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{purchase.clientName}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(purchase.purchaseDate).toLocaleDateString('es-ES')}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center">
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-xs",
+                      purchase.status === "COMPLETED" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                    )}>
+                      {purchase.status === "COMPLETED" ? "Completado" : "Pendiente"}
+                    </span>
+                    <span className="ml-3 text-sm font-medium">{formatCurrency(purchase.totalAmount)}</span>
+                  </div>
+                </div>
+              ))}
             </ScrollArea>
           </CardContent>
         </Card>
 
-        {/* Top Selling Items Chart */}
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Top Selling Items</CardTitle>
+        <Card>
+          <CardHeader className="p-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Productos Más Vendidos</CardTitle>
+              <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+            </div>
           </CardHeader>
           <CardContent>
-            <ChartContainer
-              config={{
-                quantity: {
-                  label: "Quantity",
-                  color: "hsl(var(--chart-2))",
-                },
-                revenue: {
-                  label: "Revenue",
-                  color: "hsl(var(--chart-3))",
-                },
-              }}
-              className="h-[300px]"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData.topSellingItems}>
-                  <XAxis dataKey="itemName" />
-                  <YAxis yAxisId="left" orientation="left" stroke="var(--color-quantity)" />
-                  <YAxis yAxisId="right" orientation="right" stroke="var(--color-revenue)" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar yAxisId="left" dataKey="totalQuantity" fill="var(--color-quantity)" />
-                  <Bar yAxisId="right" dataKey="totalRevenue" fill="var(--color-revenue)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={data.topSellingItems}>
+                <XAxis dataKey="itemName" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="totalRevenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
-      {/* Purchases by Organization Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Purchases by Organization</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer
-            config={{
-              purchases: {
-                label: "Purchases",
-                color: "hsl(var(--chart-4))",
-              },
-            }}
-            className="h-[300px]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData.purchasesByOrganization} layout="vertical">
-                <XAxis type="number" />
-                <YAxis dataKey="organizationName" type="category" width={150} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="purchases" fill="var(--color-purchases)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-base">Distribución de Organizaciones</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="relative h-[250px] w-[250px] mx-auto">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <span className="text-3xl font-bold">{data.totalOrganizations}</span>
+                  <p className="text-xs text-muted-foreground">Total de Organizaciones</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Organization Stats */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Organization Statistics</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Organization</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Total Purchases</TableHead>
-                <TableHead>Revenue</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.organizationStats.map((org) => (
-                <TableRow key={org.organizationId}>
-                  <TableCell className="font-medium">{org.organizationName}</TableCell>
-                  <TableCell>{org.type}</TableCell>
-                  <TableCell>{org.totalPurchases}</TableCell>
-                  <TableCell>
-                    {org.totalRevenue ? formatCurrency(org.totalRevenue) : '-'}
-                  </TableCell>
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-base">Rendimiento de Organizaciones</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Organización</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead className="text-right">Ingresos</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {data.organizationStats.map((org) => (
+                  <TableRow key={org.organizationId}>
+                    <TableCell className="font-medium">{org.organizationName}</TableCell>
+                    <TableCell>{org.type === "SCHOOL" ? "Escuela" : "Empresa"}</TableCell>
+                    <TableCell className="text-right">
+                      {org.totalRevenue ? formatCurrency(org.totalRevenue) : '-'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
 
-export default Component
-
+export default DashboardComponent
