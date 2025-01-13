@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
-import { Client } from "@/lib"
+import { Client } from "@/lib/types"
 import { ClientTable } from "./client-table"
 
 interface ClientListProps {

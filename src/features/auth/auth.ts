@@ -1,64 +1,63 @@
-import NextAuth, { User } from "next-auth";
-import { compare } from "bcryptjs";
-import CredentialsProvider from "next-auth/providers/credentials";
+"use server";
 
 import { eq } from "drizzle-orm";
+import { hash } from "bcryptjs";
+import { signIn } from "@/features/auth";
+import config from "@/lib/config";
+import { AuthCredentials } from "@/lib/types";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: {
-    strategy: "jwt",
-  },
-  providers: [
-    CredentialsProvider({
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+export const signInWithCredentials = async (
+  params: Pick<AuthCredentials, "email" | "password">,
+) => {
+  const { email, password } = params;
 
-        const user = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, credentials.email.toString()))
-          .limit(1);
+  try {
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
 
-        if (user.length === 0) return null;
+    if (result?.error) {
+      return { success: false, error: result.error };
+    }
 
-        const isPasswordValid = await compare(
-          credentials.password.toString(),
-          user[0].password,
-        );
+    return { success: true };
+  } catch (error) {
+    console.log(error, "Signin error");
+    return { success: false, error: "Signin error" };
+  }
+};
 
-        if (!isPasswordValid) return null;
+export const signUp = async (params: AuthCredentials) => {
+  const { fullName, email, password, } = params;
 
-        return {
-          id: user[0].id.toString(),
-          email: user[0].email,
-          name: user[0].fullName,
-        } as User;
-      },
-    }),
-  ],
-  pages: {
-    signIn: "/sign-in",
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.name = user.name;
-      }
+  const existingUser = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
 
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-        session.user.name = token.name as string;
-      }
+  if (existingUser.length > 0) {
+    return { success: false, error: "User already exists" };
+  }
 
-      return session;
-    },
-  },
-});
+  const hashedPassword = await hash(password, 10);
+
+  try {
+    await db.insert(users).values({
+      fullName,
+      email,
+      password: hashedPassword,
+    });
+
+    await signInWithCredentials({ email, password });
+
+    return { success: true };
+  } catch (error) {
+    console.log(error, "Signup error");
+    return { success: false, error: "Signup error" };
+  }
+};

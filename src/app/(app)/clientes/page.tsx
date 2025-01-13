@@ -1,7 +1,7 @@
 // app/(app)/clientes/page.tsx
 
 import ClientList from "@/features/clients/client-list"
-import { Client } from "@/lib"
+import { Client } from "@/lib/types"
 import { getClients } from "./client"
 
 

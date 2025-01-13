@@ -14,7 +14,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { columns } from "./columns"
 import { Input } from "@/components/ui/input"
-import { Client } from "@/lib"
+import { Client } from "@/lib/types"
 
 interface ClientTableProps {
   clients: Client[]

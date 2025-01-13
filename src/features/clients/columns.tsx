@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { Client } from "@/lib"
+import { Client } from "@/lib/types"
 
 
 const SortableHeader = ({ column, title }: { column: any; title: string }) => {

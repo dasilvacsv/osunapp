@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { EyeIcon, EyeOffIcon } from 'lucide-react';
 import Link from "next/link";
-import { signInAction, signUpAction } from './auth';
+import { signInAction, signUpAction } from '.';
 import ShimmerButton from '@/components/ui/shimmer-button';
 import { FormMessage,Message } from '@/features/core/FormMessage';
 
