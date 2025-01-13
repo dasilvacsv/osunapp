@@ -51,6 +51,13 @@ export const bundleTypeEnum = pgEnum("bundle_type", [
   "REGULAR",
 ]);
 
+export const ROLE_ENUM = pgEnum("role", ["USER", "ADMIN"]);
+
+export const BORROW_STATUS_ENUM = pgEnum("borrow_status", [
+  "BORROWED",
+  "RETURNED",
+]);
+
 // Organizations Table
 export const organizations = pgTable("organizations", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
@@ -174,4 +181,16 @@ export const organizationMembers = pgTable("organization_members", {
   joinDate: timestamp("join_date", { withTimezone: true }).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const users = pgTable("users", {
+  id: uuid("id").notNull().primaryKey().defaultRandom().unique(),
+  fullName: varchar("full_name", { length: 255 }).notNull(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  role: ROLE_ENUM("role").default("USER"),
+  lastActivityDate: date("last_activity_date").defaultNow(),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+  }).defaultNow(),
 });
