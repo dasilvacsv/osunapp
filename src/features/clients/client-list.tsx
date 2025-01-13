@@ -35,16 +35,21 @@ export default function ClientList({ initialClients }: ClientListProps) {
       }
     })
   }, [])
-  const handleUpdateClient = useCallback(async (id: string, data: any) => {
+  
+  const handleUpdateClient = useCallback(async (id: string, data: ClientFormData) => {
     startTransition(async () => {
       const result = await updateClient(id, data)
-      if (result.success) {
-        refreshClients(clients.map(client => client.id === id ? { ...client, ...result.data } : client))
+      if (result.success && result.data) {
+        setClients(prev => 
+          prev.map(client => 
+            client.id === id ? { ...client, ...result.data } : client
+          )
+        )
       } else {
         console.error(result.error)
       }
     })
-  }, [clients, refreshClients])
+  }, [])
 
   const handleDeleteClient = useCallback(async (id: string) => {
     startTransition(async () => {

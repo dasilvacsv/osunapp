@@ -1,3 +1,4 @@
+// components/edit-dialog.tsx
 'use client'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -11,23 +12,25 @@ interface EditClientDialogProps {
   onUpdate: (data: any) => void
 }
 
-export function EditClientDialog({ client, open, onOpenChange, onUpdate }: EditClientDialogProps) {
+export function EditClientDialog({ 
+  client, 
+  open, 
+  onOpenChange,
+  onUpdate 
+}: EditClientDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit Client</DialogTitle>
         </DialogHeader>
-        <ClientForm 
-          onSubmit={(data) => {
-            onUpdate(data)
-            onOpenChange(false)
-          }}
-          mode="edit"
+        <ClientForm
           initialData={client}
+          mode="edit"
+          closeDialog={() => onOpenChange(false)}
+          onSubmit={onUpdate}
         />
       </DialogContent>
     </Dialog>
   )
 }
-
