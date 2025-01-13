@@ -10,8 +10,10 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { BadgeCheck, Building2, Users, UserRound } from "lucide-react"
+import { BadgeCheck, Building2, Users, UserRound, DollarSign, ShoppingCart } from 'lucide-react'
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 interface DashboardProps {
   data: {
@@ -40,10 +42,36 @@ interface DashboardProps {
       totalPurchases: number
       totalRevenue: string | null
     }>
+    // New data for charts
+    revenueOverTime: Array<{
+      date: string
+      revenue: number
+    }>
+    purchasesByOrganization: Array<{
+      organizationName: string
+      purchases: number
+    }>
   }
 }
 
 export function Component({ data }: DashboardProps) {
+  // Transform data for charts
+  const revenueOverTime = data.recentPurchases.map(purchase => ({
+    date: purchase.purchaseDate,
+    revenue: Number(purchase.totalAmount)
+  }));
+
+  const purchasesByOrganization = data.organizationStats.map(org => ({
+    organizationName: org.organizationName,
+    purchases: org.totalPurchases
+  }));
+
+  const chartData = {
+    ...data,
+    revenueOverTime,
+    purchasesByOrganization
+  };
+
   const formatCurrency = (amount: string | number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -66,7 +94,7 @@ export function Component({ data }: DashboardProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-            <BadgeCheck className="w-4 h-4 text-green-600" />
+            <DollarSign className="w-4 h-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(data.totalRevenue)}</div>
@@ -104,6 +132,33 @@ export function Component({ data }: DashboardProps) {
         </Card>
       </div>
 
+      {/* Revenue Over Time Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Revenue Over Time</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer
+            config={{
+              revenue: {
+                label: "Revenue",
+                color: "hsl(var(--chart-1))",
+              },
+            }}
+            className="h-[300px]"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData.revenueOverTime}>
+                <XAxis dataKey="date" />
+                <YAxis />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Line type="monotone" dataKey="revenue" stroke="var(--color-revenue)" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-2">
         {/* Recent Purchases */}
         <Card className="col-span-1">
@@ -136,35 +191,66 @@ export function Component({ data }: DashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Top Selling Items */}
+        {/* Top Selling Items Chart */}
         <Card className="col-span-1">
           <CardHeader>
             <CardTitle>Top Selling Items</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[300px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Revenue</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.topSellingItems.map((item) => (
-                    <TableRow key={item.itemId}>
-                      <TableCell className="font-medium">{item.itemName}</TableCell>
-                      <TableCell>{item.totalQuantity}</TableCell>
-                      <TableCell>{formatCurrency(item.totalRevenue)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
+            <ChartContainer
+              config={{
+                quantity: {
+                  label: "Quantity",
+                  color: "hsl(var(--chart-2))",
+                },
+                revenue: {
+                  label: "Revenue",
+                  color: "hsl(var(--chart-3))",
+                },
+              }}
+              className="h-[300px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData.topSellingItems}>
+                  <XAxis dataKey="itemName" />
+                  <YAxis yAxisId="left" orientation="left" stroke="var(--color-quantity)" />
+                  <YAxis yAxisId="right" orientation="right" stroke="var(--color-revenue)" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar yAxisId="left" dataKey="totalQuantity" fill="var(--color-quantity)" />
+                  <Bar yAxisId="right" dataKey="totalRevenue" fill="var(--color-revenue)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
       </div>
+
+      {/* Purchases by Organization Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Purchases by Organization</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer
+            config={{
+              purchases: {
+                label: "Purchases",
+                color: "hsl(var(--chart-4))",
+              },
+            }}
+            className="h-[300px]"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData.purchasesByOrganization} layout="vertical">
+                <XAxis type="number" />
+                <YAxis dataKey="organizationName" type="category" width={150} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="purchases" fill="var(--color-purchases)" />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </CardContent>
+      </Card>
 
       {/* Organization Stats */}
       <Card>
@@ -201,3 +287,4 @@ export function Component({ data }: DashboardProps) {
 }
 
 export default Component
+
