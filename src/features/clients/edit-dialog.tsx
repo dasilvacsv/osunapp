@@ -1,26 +1,28 @@
 'use client'
 
-import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-
 import { Client } from "@/lib/types"
-import { ClientForm } from './create-client-form'
+import { ClientForm } from "./create-client-form"
 
 interface EditClientDialogProps {
   client: Client
-  onOpenChange: (open: boolean) => void
   open: boolean
+  onOpenChange: (open: boolean) => void
+  onUpdate: (data: any) => void
 }
 
-export function EditClientDialog({ client, open, onOpenChange }: EditClientDialogProps) {
+export function EditClientDialog({ client, open, onOpenChange, onUpdate }: EditClientDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Edit Client</DialogTitle>
         </DialogHeader>
-        <ClientForm
-          closeDialog={() => onOpenChange(false)}
+        <ClientForm 
+          onSubmit={(data) => {
+            onUpdate(data)
+            onOpenChange(false)
+          }}
           mode="edit"
           initialData={client}
         />
@@ -28,3 +30,4 @@ export function EditClientDialog({ client, open, onOpenChange }: EditClientDialo
     </Dialog>
   )
 }
+

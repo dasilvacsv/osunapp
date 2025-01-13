@@ -22,72 +22,66 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { DialogFooter } from "@/components/ui/dialog"
 import { Client } from "@/lib/types"
-import { createClient, updateClient } from "@/app/(app)/clientes/client"
+import { ClientFormData, createClient, updateClient } from "@/app/(app)/clientes/client"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
 
 interface ClientFormProps {
-  closeDialog: () => void
-  initialData?: Client
-  mode: 'create' | 'edit'
+  closeDialog: () => void;
+  initialData?: Client;
+  mode: 'create' | 'edit';
+  onSubmit: (data: ClientFormData) => Promise<void>;
 }
 
-export function ClientForm({ closeDialog, initialData, mode }: ClientFormProps) {
+export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientFormProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const form = useForm({
+  
+  const form = useForm<ClientFormData>({
     defaultValues: {
       name: initialData?.name || "",
+      document: initialData?.document || "",
+      phone: initialData?.phone || "",
+      whatsapp: initialData?.whatsapp || "",
       contactInfo: {
         email: initialData?.contactInfo?.email || "",
         phone: initialData?.contactInfo?.phone || "",
       },
       role: (initialData?.role || "INDIVIDUAL") as "PARENT" | "EMPLOYEE" | "INDIVIDUAL",
-      phone: initialData?.phone || "",
-      whatsapp: initialData?.whatsapp || "",
-      document: initialData?.document || "",
     },
-  })
+  });
 
-  async function onSubmit(data: any) {
-    if (isSubmitting) return // Prevent double submission
+
+  async function handleSubmit(data: ClientFormData) {
+    if (isSubmitting) return;
     
-    setIsSubmitting(true)
+    setIsSubmitting(true);
     try {
-      const result = mode === 'create' 
-        ? await createClient(data)
-        : await updateClient(initialData!.id, data)
+      await onSubmit(data); // Uses the handler passed via props
       
-      if (result.error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.error,
-        })
-        return
-      }
-
       toast({
         title: "Success",
-        description: result.success,
-      })
+        description: `Client ${mode === 'create' ? 'created' : 'updated'} successfully`,
+      });
       
-      form.reset()
-      closeDialog()
+      form.reset();
+      closeDialog();
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
         description: "An unexpected error occurred",
-      })
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
   }
 
+
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
         <FormField
           control={form.control}
           name="name"

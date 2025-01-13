@@ -1,5 +1,5 @@
 'use client'
-// app/clients/components/ClientTable.tsx
+
 import React from "react"
 import {
   useReactTable,
@@ -19,7 +19,8 @@ import { Client } from "@/lib/types"
 interface ClientTableProps {
   clients: Client[]
   isLoading: boolean
-  onClientsUpdated: () => void
+  onUpdateClient: (id: string, data: any) => void
+  onDeleteClient: (id: string) => void
   selectedClients: string[]
   setSelectedClients: React.Dispatch<React.SetStateAction<string[]>>
 }
@@ -27,7 +28,8 @@ interface ClientTableProps {
 export function ClientTable({
   clients,
   isLoading,
-  onClientsUpdated,
+  onUpdateClient,
+  onDeleteClient,
   selectedClients,
   setSelectedClients,
 }: ClientTableProps) {
@@ -38,7 +40,7 @@ export function ClientTable({
 
   const table = useReactTable({
     data: clients,
-    columns,
+    columns: columns(onUpdateClient, onDeleteClient),
     state: {
       sorting,
       columnVisibility,
@@ -126,3 +128,4 @@ export function ClientTable({
     </div>
   )
 }
+

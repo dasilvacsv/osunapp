@@ -1,7 +1,6 @@
-// app/clients/columns.tsx
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
-import { ArrowUpDown, MessageSquare, MoreHorizontal, Pencil, Phone, Trash } from "lucide-react"
+import { ArrowUpDown, MessageSquare, MoreHorizontal, Pencil, Phone, Trash } from 'lucide-react'
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -13,8 +12,6 @@ import { Badge } from "@/components/ui/badge"
 import { Client } from "@/lib/types"
 import { useState } from "react"
 import { EditClientDialog } from "./edit-dialog"
-import { deleteClient } from "@/app/(app)/clientes/client"
-
 
 const SortableHeader = ({ column, title }: { column: any; title: string }) => {
   return (
@@ -28,7 +25,7 @@ const SortableHeader = ({ column, title }: { column: any; title: string }) => {
   )
 }
 
-const ActionsCell = ({ client }: { client: Client }) => {
+const ActionsCell = ({ client, onUpdate, onDelete }: { client: Client; onUpdate: (id: string, data: any) => void; onDelete: (id: string) => void }) => {
   const [showEditDialog, setShowEditDialog] = useState(false)
 
   return (
@@ -44,7 +41,7 @@ const ActionsCell = ({ client }: { client: Client }) => {
             <Pencil className="mr-2 h-4 w-4" />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => deleteClient(client.id)}>
+          <DropdownMenuItem onClick={() => onDelete(client.id)}>
             <Trash className="mr-2 h-4 w-4" />
             Delete
           </DropdownMenuItem>
@@ -55,12 +52,13 @@ const ActionsCell = ({ client }: { client: Client }) => {
         client={client}
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
+        onUpdate={(data) => onUpdate(client.id, data)}
       />
     </>
   )
 }
 
-export const columns: ColumnDef<Client>[] = [
+export const columns = (onUpdate: (id: string, data: any) => void, onDelete: (id: string) => void): ColumnDef<Client>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -105,7 +103,7 @@ export const columns: ColumnDef<Client>[] = [
     },
   },
   {
-    id: "email",  // Added id for the email column
+    id: "email",
     accessorFn: (row) => row.contactInfo?.email,
     header: ({ column }) => <SortableHeader column={column} title="Email" />,
   },
@@ -163,7 +161,7 @@ export const columns: ColumnDef<Client>[] = [
       const status = row.getValue("status") as string
       return (
         <Badge 
-          variant={status === "ACTIVE" ? "default" : "secondary"}  // Changed 'success' to 'default'
+          variant={status === "ACTIVE" ? "default" : "secondary"}
           className={status === "ACTIVE" ? "bg-green-100 text-green-800" : ""}
         >
           {status}
@@ -173,6 +171,7 @@ export const columns: ColumnDef<Client>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => <ActionsCell client={row.original} />
+    cell: ({ row }) => <ActionsCell client={row.original} onUpdate={onUpdate} onDelete={onDelete} />
   }
 ]
+

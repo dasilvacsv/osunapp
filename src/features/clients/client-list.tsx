@@ -1,38 +1,61 @@
 'use client'
 
-import React, { useCallback, useState } from "react"
-import { PlusIcon } from "lucide-react"
+import React, { useCallback, useState, useTransition } from "react"
+import { PlusIcon } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Client } from "@/lib/types"
 import { ClientTable } from "./client-table"
 import { ClientForm } from "./create-client-form"
-import { useRouter } from "next/navigation"
+import { ClientFormData, createClient, deleteClient, updateClient } from "@/app/(app)/clientes/client"
+
 
 interface ClientListProps {
   initialClients: Client[]
 }
 
 export default function ClientList({ initialClients }: ClientListProps) {
-  const router = useRouter()
   const [clients, setClients] = useState<Client[]>(initialClients)
-  const [isLoading, setIsLoading] = useState(false)
   const [selectedClients, setSelectedClients] = useState<string[]>([])
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  // Function to refresh data
-  const refreshData = useCallback(() => {
-    setIsLoading(true)
-    // This will trigger a server-side revalidation
-    router.refresh()
-    setIsLoading(false)
-  }, [router])
+  const refreshClients = useCallback((newClients: Client[]) => {
+    setClients(newClients)
+  }, [])
 
-  // Function to handle dialog close and data refresh
-  const handleDialogClose = useCallback(() => {
-    setShowCreateDialog(false)
-    refreshData()
-  }, [refreshData])
+  const handleCreateClient = useCallback(async (data: ClientFormData) => {
+    startTransition(async () => {
+      const result = await createClient(data) // Server action call happens here
+      if (result.success && result.data) {
+        setShowCreateDialog(false)
+        setClients(prev => [...prev, result.data]) // Optimistic update
+      } else {
+        console.error(result.error)
+      }
+    })
+  }, [])
+  const handleUpdateClient = useCallback(async (id: string, data: any) => {
+    startTransition(async () => {
+      const result = await updateClient(id, data)
+      if (result.success) {
+        refreshClients(clients.map(client => client.id === id ? { ...client, ...result.data } : client))
+      } else {
+        console.error(result.error)
+      }
+    })
+  }, [clients, refreshClients])
+
+  const handleDeleteClient = useCallback(async (id: string) => {
+    startTransition(async () => {
+      const result = await deleteClient(id)
+      if (result.success) {
+        refreshClients(clients.filter(client => client.id !== id))
+      } else {
+        console.error(result.error)
+      }
+    })
+  }, [clients, refreshClients])
 
   return (
     <div className="space-y-6">
@@ -52,19 +75,22 @@ export default function ClientList({ initialClients }: ClientListProps) {
             <DialogTitle>Create New Client</DialogTitle>
           </DialogHeader>
           <ClientForm 
-            closeDialog={handleDialogClose}
-            mode="create" 
+            closeDialog={() => setShowCreateDialog(false)}
+            mode="create"
+            onSubmit={handleCreateClient} // Pass the handler to ClientForm
           />
         </DialogContent>
       </Dialog>
 
       <ClientTable
         clients={clients}
-        isLoading={isLoading}
-        onClientsUpdated={refreshData}
+        isLoading={isPending}
+        onUpdateClient={handleUpdateClient}
+        onDeleteClient={handleDeleteClient}
         selectedClients={selectedClients}
         setSelectedClients={setSelectedClients}
       />
     </div>
   )
 }
+

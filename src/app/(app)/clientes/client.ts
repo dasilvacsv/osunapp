@@ -5,14 +5,19 @@ import { clients } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+// app/actions/clients.ts
 export type ClientFormData = {
   name: string;
+  document?: string;
+  phone?: string;
+  whatsapp?: string;
   contactInfo: {
     email: string;
     phone?: string;
   };
   organizationId?: string;
   role: "PARENT" | "EMPLOYEE" | "INDIVIDUAL";
+  status?: "ACTIVE" | "INACTIVE";
 };
 
 export async function getClients() {
@@ -39,16 +44,20 @@ export async function getClient(id: string) {
 
 export async function createClient(data: ClientFormData) {
   try {
-    await db.insert(clients).values({
+    const newClient = await db.insert(clients).values({
       name: data.name,
+      document: data.document,
+      phone: data.phone,
+      whatsapp: data.whatsapp,
       contactInfo: data.contactInfo,
       organizationId: data.organizationId,
       role: data.role,
-    });
+      status: "ACTIVE",
+    })
+    .returning();
     
-    // Revalidate multiple paths if needed
     revalidatePath("/clientes");
-    return { success: "Client created successfully" };
+    return { success: "Client created successfully", data: newClient[0] };
   } catch (error) {
     return { error: "Failed to create client" };
   }
@@ -56,18 +65,22 @@ export async function createClient(data: ClientFormData) {
 
 export async function updateClient(id: string, data: ClientFormData) {
   try {
-    await db.update(clients)
+    const updatedClient = await db.update(clients)
       .set({
         name: data.name,
+        document: data.document,
+        phone: data.phone,
+        whatsapp: data.whatsapp,
         contactInfo: data.contactInfo,
         organizationId: data.organizationId,
         role: data.role,
         updatedAt: new Date(),
       })
-      .where(eq(clients.id, id));
+      .where(eq(clients.id, id))
+      .returning();
     
     revalidatePath("/clientes");
-    return { success: "Client updated successfully" };
+    return { success: "Client updated successfully", data: updatedClient[0] };
   } catch (error) {
     return { error: "Failed to update client" };
   }
