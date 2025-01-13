@@ -6,8 +6,6 @@
         "**/CVS": true,
         "**/.DS_Store": true,
         "**/Thumbs.db": true,
-        "node_modules": true,
-        ".next": true,
         "postcss.config.js": true,
         "tailwind.config.ts": true,
         "README.md": true,
@@ -21,8 +19,6 @@
         "src/app/(auth)": true
     },
     "hide-files.files": [
-        "node_modules",
-        ".next",
         "postcss.config.js",
         "tailwind.config.ts",
         "README.md",
