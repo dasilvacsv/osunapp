@@ -46,7 +46,8 @@ export async function createClient(data: ClientFormData) {
       role: data.role,
     });
     
-    revalidatePath("/clients");
+    // Revalidate multiple paths if needed
+    revalidatePath("/clientes");
     return { success: "Client created successfully" };
   } catch (error) {
     return { error: "Failed to create client" };
@@ -65,7 +66,7 @@ export async function updateClient(id: string, data: ClientFormData) {
       })
       .where(eq(clients.id, id));
     
-    revalidatePath("/clients");
+    revalidatePath("/clientes");
     return { success: "Client updated successfully" };
   } catch (error) {
     return { error: "Failed to update client" };
@@ -81,7 +82,7 @@ export async function deleteClient(id: string) {
       })
       .where(eq(clients.id, id));
     
-    revalidatePath("/clients");
+    revalidatePath("/clientes");
     return { success: "Client deleted successfully" };
   } catch (error) {
     return { error: "Failed to delete client" };

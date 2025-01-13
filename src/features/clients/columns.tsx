@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Client } from "@/lib/types"
 import { useState } from "react"
 import { EditClientDialog } from "./edit-dialog"
+import { deleteClient } from "@/app/(app)/clientes/client"
 
 
 const SortableHeader = ({ column, title }: { column: any; title: string }) => {
@@ -43,7 +44,7 @@ const ActionsCell = ({ client }: { client: Client }) => {
             <Pencil className="mr-2 h-4 w-4" />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => console.log("Delete", client.id)}>
+          <DropdownMenuItem onClick={() => deleteClient(client.id)}>
             <Trash className="mr-2 h-4 w-4" />
             Delete
           </DropdownMenuItem>

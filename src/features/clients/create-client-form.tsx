@@ -23,6 +23,8 @@ import { useToast } from "@/hooks/use-toast"
 import { DialogFooter } from "@/components/ui/dialog"
 import { Client } from "@/lib/types"
 import { createClient, updateClient } from "@/app/(app)/clientes/client"
+import { useState } from "react"
+import { Loader2 } from "lucide-react"
 
 interface ClientFormProps {
   closeDialog: () => void
@@ -32,6 +34,7 @@ interface ClientFormProps {
 
 export function ClientForm({ closeDialog, initialData, mode }: ClientFormProps) {
   const { toast } = useToast()
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const form = useForm({
     defaultValues: {
       name: initialData?.name || "",
@@ -47,26 +50,39 @@ export function ClientForm({ closeDialog, initialData, mode }: ClientFormProps) 
   })
 
   async function onSubmit(data: any) {
-    const result = mode === 'create' 
-      ? await createClient(data)
-      : await updateClient(initialData!.id, data)
+    if (isSubmitting) return // Prevent double submission
     
-    if (result.error) {
+    setIsSubmitting(true)
+    try {
+      const result = mode === 'create' 
+        ? await createClient(data)
+        : await updateClient(initialData!.id, data)
+      
+      if (result.error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.error,
+        })
+        return
+      }
+
+      toast({
+        title: "Success",
+        description: result.success,
+      })
+      
+      form.reset()
+      closeDialog()
+    } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: result.error,
+        description: "An unexpected error occurred",
       })
-      return
+    } finally {
+      setIsSubmitting(false)
     }
-
-    toast({
-      title: "Success",
-      description: result.success,
-    })
-    
-    form.reset()
-    closeDialog()
   }
 
   return (
@@ -168,11 +184,26 @@ export function ClientForm({ closeDialog, initialData, mode }: ClientFormProps) 
         />
         
         <DialogFooter>
-          <Button variant="outline" type="button" onClick={closeDialog}>
+          <Button 
+            variant="outline" 
+            type="button" 
+            onClick={closeDialog}
+            disabled={isSubmitting}
+          >
             Cancel
           </Button>
-          <Button type="submit">
-            {mode === 'create' ? 'Create' : 'Update'}
+          <Button 
+            type="submit" 
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {mode === 'create' ? 'Creating...' : 'Updating...'}
+              </>
+            ) : (
+              mode === 'create' ? 'Create' : 'Update'
+            )}
           </Button>
         </DialogFooter>
       </form>
