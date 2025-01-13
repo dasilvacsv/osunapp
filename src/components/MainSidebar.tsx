@@ -146,7 +146,7 @@ export function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) 
                 />
               </div>
               <div className="flex flex-col">
-                <span className="text-base font-semibold text-sidebar-foreground">Estudio Fotográfico</span>
+                <span className="text-base font-semibold text-sidebar-foreground">Osuna Fotografías</span>
                 <span className="text-xs text-sidebar-foreground/70">Sistema de Gestión</span>
               </div>
             </div>
