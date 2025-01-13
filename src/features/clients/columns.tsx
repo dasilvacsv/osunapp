@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { Client } from "@/lib/types"
+import { useState } from "react"
+import { EditClientDialog } from "./edit-dialog"
 
 
 const SortableHeader = ({ column, title }: { column: any; title: string }) => {
@@ -22,6 +24,38 @@ const SortableHeader = ({ column, title }: { column: any; title: string }) => {
       {title}
       <ArrowUpDown className="ml-2 h-4 w-4" />
     </Button>
+  )
+}
+
+const ActionsCell = ({ client }: { client: Client }) => {
+  const [showEditDialog, setShowEditDialog] = useState(false)
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => console.log("Delete", client.id)}>
+            <Trash className="mr-2 h-4 w-4" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <EditClientDialog 
+        client={client}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+      />
+    </>
   )
 }
 
@@ -138,28 +172,6 @@ export const columns: ColumnDef<Client>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => {
-      const client = row.original
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => console.log("Edit", client.id)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => console.log("Delete", client.id)}>
-              <Trash className="mr-2 h-4 w-4" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
-  },
+    cell: ({ row }) => <ActionsCell client={row.original} />
+  }
 ]

@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Client } from "@/lib/types"
 import { ClientTable } from "./client-table"
-import { CreateForm } from "./create-client-form"
+import { ClientForm } from "./create-client-form"
+
 
 
 interface ClientListProps {
@@ -36,7 +37,7 @@ export default function ClientList({ initialClients }: ClientListProps) {
           <DialogHeader>
             <DialogTitle>Create New Client</DialogTitle>
           </DialogHeader>
-          <CreateForm closeDialog={() => setShowCreateDialog(false)} />
+          <ClientForm closeDialog={() => setShowCreateDialog(false)} />
         </DialogContent>
       </Dialog>
 

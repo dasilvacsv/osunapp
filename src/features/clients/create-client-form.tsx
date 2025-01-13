@@ -21,27 +21,35 @@ import {
 
 import { useToast } from "@/hooks/use-toast"
 import { DialogFooter } from "@/components/ui/dialog"
-import { createClient } from "@/app/(app)/clientes/client"
+import { Client } from "@/lib/types"
+import { createClient, updateClient } from "@/app/(app)/clientes/client"
 
-interface CreateFormProps {
+interface ClientFormProps {
   closeDialog: () => void
+  initialData?: Client
+  mode: 'create' | 'edit'
 }
 
-export function CreateForm({ closeDialog }: CreateFormProps) {
+export function ClientForm({ closeDialog, initialData, mode }: ClientFormProps) {
   const { toast } = useToast()
   const form = useForm({
     defaultValues: {
-      name: "",
+      name: initialData?.name || "",
       contactInfo: {
-        email: "",
-        phone: "",
+        email: initialData?.contactInfo?.email || "",
+        phone: initialData?.contactInfo?.phone || "",
       },
-      role: "INDIVIDUAL" as const,
+      role: (initialData?.role || "INDIVIDUAL") as "PARENT" | "EMPLOYEE" | "INDIVIDUAL",
+      phone: initialData?.phone || "",
+      whatsapp: initialData?.whatsapp || "",
+      document: initialData?.document || "",
     },
   })
 
   async function onSubmit(data: any) {
-    const result = await createClient(data)
+    const result = mode === 'create' 
+      ? await createClient(data)
+      : await updateClient(initialData!.id, data)
     
     if (result.error) {
       toast({
@@ -80,26 +88,56 @@ export function CreateForm({ closeDialog }: CreateFormProps) {
         
         <FormField
           control={form.control}
+          name="document"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Document/ID</FormLabel>
+              <FormControl>
+                <Input placeholder="123456789" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Phone</FormLabel>
+                <FormControl>
+                  <Input placeholder="+1234567890" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="whatsapp"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>WhatsApp</FormLabel>
+                <FormControl>
+                  <Input placeholder="+1234567890" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <FormField
+          control={form.control}
           name="contactInfo.email"
           render={({ field }) => (
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
                 <Input type="email" placeholder="john@example.com" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="contactInfo.phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone (optional)</FormLabel>
-              <FormControl>
-                <Input placeholder="+1234567890" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -133,7 +171,9 @@ export function CreateForm({ closeDialog }: CreateFormProps) {
           <Button variant="outline" type="button" onClick={closeDialog}>
             Cancel
           </Button>
-          <Button type="submit">Create</Button>
+          <Button type="submit">
+            {mode === 'create' ? 'Create' : 'Update'}
+          </Button>
         </DialogFooter>
       </form>
     </Form>
