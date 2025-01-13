@@ -1,4 +1,5 @@
 // app/actions/clients.ts
+"use server"
 import { db } from "@/db";
 import { clients } from "@/db/schema";
 import { eq } from "drizzle-orm";

@@ -1,17 +1,21 @@
+// app/(app)/clientes/page.tsx
 
-
+import ClientList from "@/features/clients/client-list"
+import { Client } from "@/lib"
 import { getClients } from "./client"
-import ClientComponent from "./comp"
 
 
-export default async function Page() {
-    const data = await getClients()
+export const dynamic = 'force-dynamic'
 
-    return (
-        <div>
-    
-    <ClientComponent data={data}/>
-        </div>
-      )
-    
+export default async function ClientPage() {
+  const { data } = await getClients()
+  
+  // Ensure we always pass an array, even if empty
+  const initialClients: Client[] = data || []
+
+  return (
+    <div className="container mx-auto px-4">
+      <ClientList initialClients={initialClients} />
+    </div>
+  )
 }
