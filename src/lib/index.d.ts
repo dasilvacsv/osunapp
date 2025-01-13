@@ -1,7 +1,9 @@
 export interface Client {
   id: string;
   name: string;
-  document: string | null; // Add this line
+  document: string | null;
+  phone: string | null;    // Add this
+  whatsapp: string | null; // Add this
   contactInfo: {
     email: string;
     phone?: string;

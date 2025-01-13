@@ -1,7 +1,7 @@
 // app/clients/columns.tsx
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
-import { ArrowUpDown, MoreHorizontal, Pencil, Trash } from "lucide-react"
+import { ArrowUpDown, MessageSquare, MoreHorizontal, Pencil, Phone, Trash } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -73,6 +73,53 @@ export const columns: ColumnDef<Client>[] = [
     id: "email",  // Added id for the email column
     accessorFn: (row) => row.contactInfo?.email,
     header: ({ column }) => <SortableHeader column={column} title="Email" />,
+  },
+  {
+    id: "phone",
+    header: ({ column }) => <SortableHeader column={column} title="Phone" />,
+    cell: ({ row }) => {
+      const phone = row.original.phone
+      if (!phone) return "-"
+      
+      return (
+        <div className="flex items-center space-x-2">
+          <span className="text-sm">{phone}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => window.location.href = `tel:${phone}`}
+          >
+            <Phone className="h-4 w-4 text-blue-600" />
+          </Button>
+        </div>
+      )
+    },
+  },
+  {
+    id: "whatsapp",
+    header: ({ column }) => <SortableHeader column={column} title="WhatsApp" />,
+    cell: ({ row }) => {
+      const whatsapp = row.original.whatsapp
+      if (!whatsapp) return "-"
+      
+      const formattedNumber = whatsapp.replace(/\D/g, '') // Remove non-digits
+      const whatsappUrl = `https://wa.me/${formattedNumber}`
+      
+      return (
+        <div className="flex items-center space-x-2">
+          <span className="text-sm">{whatsapp}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => window.open(whatsappUrl, '_blank')}
+          >
+            <MessageSquare className="h-4 w-4 text-green-600" />
+          </Button>
+        </div>
+      )
+    },
   },
   {
     accessorKey: "status",
