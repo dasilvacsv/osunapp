@@ -6,6 +6,8 @@ interface ClientProps {
 
 
 export function ClientComponent({ data }: ClientProps) {
+    console.log(data);
+    
   
 
   return (
