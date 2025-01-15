@@ -15,7 +15,7 @@
         "package-lock.json": true,
         "src/utils/supabase": true,
         "src/utils": true,
-        "src/app/favicon.ico": true,
+        "src/app/favicon.ico": true
     },
     "hide-files.files": [
         "postcss.config.js",

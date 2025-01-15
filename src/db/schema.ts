@@ -152,6 +152,7 @@ export const purchases = pgTable("purchases", {
   purchaseDate: timestamp("purchase_date", { withTimezone: true }).defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  paymentMethod: varchar("payment_method")
 });
 
 // Purchase Items Table
