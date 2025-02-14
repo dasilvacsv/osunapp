@@ -1,78 +1,111 @@
-'use server';
+'use server'
 
-import { db } from '@/db';
-import { inventoryItems } from '@/db/schema';
-import { eq } from 'drizzle-orm';
-import { revalidatePath } from 'next/cache';
-import { CreateInventoryItemInput, UpdateInventoryItemInput, StockLevelUpdate } from './types';
+import { db } from "@/db";
+import { inventoryItems, inventoryTransactions } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { 
+  CreateInventoryItemInput, 
+  StockTransactionInput, 
+  UpdateInventoryItemInput 
+} from "./types";
+import { inventoryItemSchema, stockTransactionSchema } from "./validation";
+import { z } from "zod";
 
-// ... (previous CRUD operations remain unchanged)
-
-export async function updateStockLevel(data: StockLevelUpdate) {
+export async function createInventoryItem(input: CreateInventoryItemInput) {
   try {
-    const item = await db
+    // Validate input
+    const validated = inventoryItemSchema.parse(input);
+    
+    const [item] = await db.insert(inventoryItems).values(validated).returning();
+    
+    revalidatePath('/inventory');
+    return { success: true, data: item };
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof z.ZodError 
+        ? "Invalid input data" 
+        : "Failed to create inventory item"
+    };
+  }
+}
+
+export async function getInventoryItems() {
+  try {
+    const items = await db.select().from(inventoryItems);
+    return { success: true, data: items };
+  } catch (error) {
+    return { success: false, error: 'Failed to fetch inventory items' };
+  }
+}
+
+export async function stockIn({ itemId, quantity, notes }: StockTransactionInput) {
+  try {
+    const validated = stockTransactionSchema.parse({ itemId, quantity, notes });
+    await db.transaction(async (tx) => {
+      // Update inventory item
+      await tx
+        .update(inventoryItems)
+        .set({ 
+          currentStock: inventoryItems.currentStock + quantity,
+          updatedAt: new Date()
+        })
+        .where(eq(inventoryItems.id, itemId));
+
+      // Create transaction record
+      await tx.insert(inventoryTransactions).values({
+        itemId,
+        quantity,
+        transactionType: 'IN',
+        notes
+      });
+    });
+
+    revalidatePath('/inventory');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: 'Failed to process stock-in transaction' };
+  }
+}
+
+export async function stockOut({ itemId, quantity, notes }: StockTransactionInput) {
+  try {
+    const [item] = await db
       .select()
       .from(inventoryItems)
-      .where(eq(inventoryItems.id, data.itemId))
-      .limit(1);
+      .where(eq(inventoryItems.id, itemId));
 
-    if (!item[0]) {
+    if (!item) {
       return { success: false, error: 'Item not found' };
     }
 
-    let newStock = item[0].currentStock || 0;
-    
-    switch (data.adjustmentType) {
-      case 'INCREMENT':
-        newStock += data.quantity;
-        break;
-      case 'DECREMENT':
-        newStock -= data.quantity;
-        break;
-      case 'SET':
-        newStock = data.quantity;
-        break;
+    if (item.currentStock < quantity) {
+      return { success: false, error: 'Insufficient stock' };
     }
 
-    const [updatedItem] = await db
-      .update(inventoryItems)
-      .set({ currentStock: newStock })
-      .where(eq(inventoryItems.id, data.itemId))
-      .returning();
+    await db.transaction(async (tx) => {
+      // Update inventory item
+      await tx
+        .update(inventoryItems)
+        .set({ 
+          currentStock: item.currentStock - quantity,
+          updatedAt: new Date()
+        })
+        .where(eq(inventoryItems.id, itemId));
+
+      // Create transaction record
+      await tx.insert(inventoryTransactions).values({
+        itemId,
+        quantity: -quantity,
+        transactionType: 'OUT',
+        notes
+      });
+    });
 
     revalidatePath('/inventory');
-    revalidatePath(`/inventory/${data.itemId}`);
-    return { success: true, data: updatedItem };
+    return { success: true };
   } catch (error) {
-    return { success: false, error: 'Failed to update stock level' };
+    return { success: false, error: 'Failed to process stock-out transaction' };
   }
-}
-
-export async function getLowStockItems() {
-  try {
-    const items = await db
-      .select()
-      .from(inventoryItems)
-      .where(eq(inventoryItems.status, 'ACTIVE'))
-      .where(eq(inventoryItems.currentStock, inventoryItems.minimumStock))
-      .orderBy(inventoryItems.name);
-
-    return { success: true, data: items };
-  } catch (error) {
-    return { success: false, error: 'Failed to fetch low stock items' };
-  }
-}
-
-export async function getInventoryHistory(itemId: string) {
-  try {
-    const history = await db
-      .select()
-      .from(inventoryHistory)
-      .where(eq(inventoryHistory.itemId, itemId))
-      .orderBy(inventoryHistory.createdAt);
-
-    return { success: true, data: history };
-  } catch (error) {
-    return { success: false, error: 'Failed to fetch inventory history' };
-  }
-}
+} 

@@ -10,6 +10,8 @@ import {
   decimal,
   boolean,
   jsonb,
+  uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 
 // Enums
@@ -102,31 +104,34 @@ export const children = pgTable("children", {
 export const inventoryItems = pgTable("inventory_items", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
+  sku: varchar("sku", { length: 100 }).notNull().unique(),
   description: text("description"),
   type: itemTypeEnum("type").notNull(),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
   currentStock: integer("current_stock").notNull().default(0),
-  reservedStock: integer("reserved_stock").notNull().default(0), // For pre-sales
-  minimumStock: integer("minimum_stock"),
+  reservedStock: integer("reserved_stock").notNull().default(0),
+  minimumStock: integer("minimum_stock").notNull().default(0),
   expectedRestock: timestamp("expected_restock", { withTimezone: true }),
-  metadata: jsonb("metadata"), // For additional item properties
+  metadata: jsonb("metadata"),
   status: statusEnum("status").default("ACTIVE"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+}, (table) => {
+  return {
+    skuIdx: uniqueIndex("inventory_items_sku_idx").on(table.sku),
+    statusIdx: index("inventory_items_status_idx").on(table.status),
+    stockIdx: index("inventory_items_stock_idx").on(table.currentStock),
+  }
 });
 
 // New table for inventory transactions
 export const inventoryTransactions = pgTable("inventory_transactions", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
-  itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
-  type: pgEnum("transaction_type", [
-    "STOCK_IN",
-    "STOCK_OUT",
-    "RESERVE",
-    "RESERVE_RELEASE",
-    "ADJUSTMENT"
-  ])("type").notNull(),
+  itemId: uuid("item_id")
+    .notNull()
+    .references(() => inventoryItems.id),
   quantity: integer("quantity").notNull(),
+  transactionType: varchar("transaction_type", { length: 50 }).notNull(),
   reference: jsonb("reference"), // Store related purchase/bundle info
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

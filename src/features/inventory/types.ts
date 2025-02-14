@@ -1,50 +1,43 @@
-// Core inventory types
-export type InventoryItem = {
+export type InventoryTransactionType = "IN" | "OUT" | "ADJUSTMENT" | "RESERVATION" | "FULFILLMENT";
+
+export interface InventoryItem {
   id: string;
   name: string;
-  description: string | null;
+  sku: string;
+  description?: string;
   type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE';
-  basePrice: string;
-  currentStock: number | null;
-  minimumStock: number | null;
-  metadata: Record<string, unknown> | null;
+  basePrice: number;
+  currentStock: number;
+  reservedStock: number;
+  minimumStock: number;
+  expectedRestock?: Date;
+  metadata?: Record<string, unknown>;
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: Date;
   updatedAt: Date;
-};
+}
 
-export type CreateInventoryItemInput = {
-  name: string;
-  description?: string;
-  type: 'PHYSICAL' | 'DIGITAL' | 'SERVICE';
-  basePrice: string;
-  currentStock?: number;
-  minimumStock?: number;
-  metadata?: Record<string, unknown>;
-};
-
-export type UpdateInventoryItemInput = Partial<CreateInventoryItemInput> & {
-  id: string;
-};
-
-export type StockLevelUpdate = {
-  itemId: string;
-  quantity: number;
-  adjustmentType: 'INCREMENT' | 'DECREMENT' | 'SET';
-};
-
-export type InventoryHistoryEntry = {
+export interface InventoryTransaction {
   id: string;
   itemId: string;
-  changeType: 'STOCK_ADJUSTMENT' | 'PURCHASE' | 'RETURN';
   quantity: number;
-  previousStock: number;
-  newStock: number;
-  metadata: Record<string, unknown> | null;
+  transactionType: InventoryTransactionType;
+  reference?: Record<string, unknown>;
+  notes?: string;
   createdAt: Date;
-};
+  createdBy?: string;
+}
 
-export type InventoryItemWithStock = InventoryItem & {
-  stockHistory: InventoryHistoryEntry[];
-  isLowStock: boolean;
+export type CreateInventoryItemInput = Omit<
+  InventoryItem,
+  "id" | "createdAt" | "updatedAt" | "currentStock" | "reservedStock"
+>;
+
+export type UpdateInventoryItemInput = Partial<CreateInventoryItemInput>;
+
+export type StockTransactionInput = {
+  itemId: string;
+  quantity: number;
+  notes?: string;
+  reference?: Record<string, unknown>;
 };
