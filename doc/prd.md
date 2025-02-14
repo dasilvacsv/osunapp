@@ -149,3 +149,4 @@ Primary personas:
 - What payment processing options should we support?
 
 I want to make that the schools i can put the goals in this case an i can track the thing
+/organizations/ etc

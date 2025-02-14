@@ -105,12 +105,32 @@ export const inventoryItems = pgTable("inventory_items", {
   description: text("description"),
   type: itemTypeEnum("type").notNull(),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
-  currentStock: integer("current_stock"),
+  currentStock: integer("current_stock").notNull().default(0),
+  reservedStock: integer("reserved_stock").notNull().default(0), // For pre-sales
   minimumStock: integer("minimum_stock"),
+  expectedRestock: timestamp("expected_restock", { withTimezone: true }),
   metadata: jsonb("metadata"), // For additional item properties
   status: statusEnum("status").default("ACTIVE"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// New table for inventory transactions
+export const inventoryTransactions = pgTable("inventory_transactions", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
+  type: pgEnum("transaction_type", [
+    "STOCK_IN",
+    "STOCK_OUT",
+    "RESERVE",
+    "RESERVE_RELEASE",
+    "ADJUSTMENT"
+  ])("type").notNull(),
+  quantity: integer("quantity").notNull(),
+  reference: jsonb("reference"), // Store related purchase/bundle info
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  createdBy: uuid("created_by").references(() => users.id),
 });
 
 // Bundles Table
