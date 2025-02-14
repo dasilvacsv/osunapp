@@ -1,7 +1,17 @@
+import { InventoryTable } from "@/features/inventory/inventory-table"
 import { getInventoryItems } from "@/features/inventory/actions"
-import { InventoryLogger } from "@/features/inventory/inventory-logger"
 
 export default async function InventoryPage() {
-  const { data } = await getInventoryItems() // Fetch all inventory items
-  return <InventoryLogger data={data} />
+  const { data, error } = await getInventoryItems()
+  
+  if (error) {
+    return <div>Error loading inventory items: {error}</div>
+  }
+
+  return (
+    <div className="container mx-auto py-10">
+      <h1 className="text-2xl font-bold tracking-tight mb-6">Inventory</h1>
+      <InventoryTable data={data || []} />
+    </div>
+  )
 } 

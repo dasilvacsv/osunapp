@@ -12,7 +12,7 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <MainSidebar />
       <SidebarInset>
         {/* Header */}

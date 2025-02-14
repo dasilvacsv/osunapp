@@ -20,4 +20,21 @@ interface AuthCredentials {
   password: string;
 }
 
+export interface InventoryItem {
+  id: string
+  name: string
+  sku: string | null
+  description: string | null
+  type: "PHYSICAL" | "DIGITAL" | "SERVICE"
+  basePrice: string
+  currentStock: number
+  reservedStock: number
+  minimumStock: number
+  expectedRestock: Date | null
+  metadata: Record<string, any> | null
+  status: "ACTIVE" | "INACTIVE"
+  createdAt: Date
+  updatedAt: Date
+}
+
 
