@@ -104,7 +104,7 @@ export const children = pgTable("children", {
 export const inventoryItems = pgTable("inventory_items", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
-  sku: varchar("sku", { length: 100 }).notNull().unique(),
+  sku: varchar("sku", { length: 100 }).unique(),
   description: text("description"),
   type: itemTypeEnum("type").notNull(),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
