@@ -1,12 +1,18 @@
-import { getInventoryItems } from "@/features/inventory/actions"
+import { getInventoryItems, getBundleCategories } from "@/features/inventory/actions"
 import { InventoryManager } from "@/features/inventory/inventory-manager"
 
 export default async function InventoryPage() {
-  const { data: items } = await getInventoryItems()
+  const [itemsResult, categoriesResult] = await Promise.all([
+    getInventoryItems(),
+    getBundleCategories()
+  ])
   
   return (
     <div className="container mx-auto py-6">
-      <InventoryManager initialData={items || []} />
+      <InventoryManager 
+        initialData={itemsResult.data || []}
+        bundleCategories={categoriesResult.data || []}
+      />
     </div>
   )
 } 

@@ -8,12 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { InventoryItem } from '@/lib/types'
 import { StockTransactionInput } from './types'
 import { stockIn, stockOut } from './actions'
+import { BundleManager } from './bundle-manager'
 
 interface InventoryManagerProps {
   initialData: InventoryItem[]
+  bundleCategories: BundleCategory[]
 }
 
-export function InventoryManager({ initialData }: InventoryManagerProps) {
+export function InventoryManager({ initialData, bundleCategories }: InventoryManagerProps) {
   const [items, setItems] = useState<InventoryItem[]>(initialData)
   const [activeTab, setActiveTab] = useState('inventory')
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null)
@@ -69,7 +71,10 @@ export function InventoryManager({ initialData }: InventoryManagerProps) {
               <CardTitle>Bundle Management</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* TODO: Add BundleManager component */}
+              <BundleManager 
+                categories={bundleCategories}
+                items={initialData}
+              />
             </CardContent>
           </Card>
         </TabsContent>

@@ -24,6 +24,18 @@ import { useState } from "react"
 import { InventoryItem } from "./types"
 import { formatCurrency } from "@/lib/utils"
 import { bundleSchema } from "@/features/inventory/validation"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 interface BundleFormProps {
   categoryId: string
@@ -75,6 +87,45 @@ export function BundleForm({ categoryId, items, onSubmit }: BundleFormProps) {
     await onSubmit(bundleData)
   }
 
+  const ItemSelector = ({ items, onSelect }: { 
+    items: InventoryItem[], 
+    onSelect: (item: InventoryItem) => void 
+  }) => {
+    const [open, setOpen] = useState(false)
+
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="w-full justify-start">
+            Select an item to add
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[400px] p-0">
+          <Command>
+            <CommandInput placeholder="Search items..." />
+            <CommandEmpty>No items found.</CommandEmpty>
+            <CommandGroup>
+              {items.map((item) => (
+                <CommandItem
+                  key={item.id}
+                  onSelect={() => {
+                    onSelect(item)
+                    setOpen(false)
+                  }}
+                >
+                  <span>{item.name}</span>
+                  <span className="ml-2 text-gray-500">
+                    ({formatCurrency(item.basePrice)})
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
@@ -111,7 +162,17 @@ export function BundleForm({ categoryId, items, onSubmit }: BundleFormProps) {
         <div className="border rounded-lg p-4">
           <h3 className="font-semibold mb-4">Bundle Items</h3>
           
-          <div className="space-y-4">
+          <ItemSelector 
+            items={items.filter(item => !selectedItems[item.id])}
+            onSelect={(item) => {
+              setSelectedItems(prev => ({
+                ...prev,
+                [item.id]: { quantity: 1 }
+              }))
+            }}
+          />
+          
+          <div className="space-y-4 mt-4">
             {items.map(item => {
               const itemData = selectedItems[item.id]
               return (
