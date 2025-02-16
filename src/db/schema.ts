@@ -151,6 +151,7 @@ export const bundles = pgTable("bundles", {
   status: statusEnum("status").default("ACTIVE"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  categoryId: uuid("category_id").references(() => bundleCategories.id),
 });
 
 // Bundle Items Table (Connects Bundles with Inventory Items)
@@ -220,4 +221,14 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", {
     withTimezone: true,
   }).defaultNow(),
+});
+
+export const bundleCategories = pgTable("bundle_categories", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  organizationId: uuid("organization_id").references(() => organizations.id),
+  status: statusEnum("status").default("ACTIVE"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });

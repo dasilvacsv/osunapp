@@ -43,6 +43,13 @@
       "when": 1739574546768,
       "tag": "0005_chemical_argent",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1739673960232,
+      "tag": "0006_remarkable_romulus",
+      "breakpoints": true
     }
   ]
 }

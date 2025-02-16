@@ -41,3 +41,56 @@ export type StockTransactionInput = {
   notes?: string;
   reference?: Record<string, unknown>;
 };
+
+export interface BundleCategory {
+  id: string;
+  name: string;
+  description?: string;
+  organizationId?: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type CreateBundleCategoryInput = Omit<
+  BundleCategory,
+  'id' | 'createdAt' | 'updatedAt'
+>;
+
+export interface BundleWithItems extends Bundle {
+  items: {
+    item: InventoryItem;
+    quantity: number;
+    overridePrice?: number;
+  }[];
+  totalBasePrice: number;
+  totalDiscountedPrice: number;
+  savings: number;
+  savingsPercentage: number;
+}
+
+export interface Bundle {
+  id: string;
+  name: string;
+  description?: string;
+  categoryId: string;
+  type: 'SCHOOL_PACKAGE' | 'ORGANIZATION_PACKAGE' | 'REGULAR';
+  basePrice: number;
+  discountPercentage?: number;
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type CreateBundleInput = {
+  name: string;
+  description?: string;
+  categoryId: string;
+  items: {
+    itemId: string;
+    quantity: number;
+    overridePrice?: number;
+  }[];
+  totalBasePrice: number;
+  savingsPercentage: number;
+};

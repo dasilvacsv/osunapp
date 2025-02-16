@@ -1,13 +1,15 @@
 'use server'
 
 import { db } from "@/db";
-import { inventoryItems, inventoryTransactions } from "@/db/schema";
+import { inventoryItems, inventoryTransactions, bundleCategories, bundles, bundleItems } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { 
   CreateInventoryItemInput, 
   StockTransactionInput, 
-  UpdateInventoryItemInput 
+  UpdateInventoryItemInput,
+  CreateBundleCategoryInput,
+  CreateBundleInput
 } from "./types";
 import { inventoryItemSchema, stockTransactionSchema } from "./validation";
 import { z } from "zod";
@@ -122,5 +124,67 @@ export async function getInventoryTransactions(itemId: string) {
     return { success: true, data: transactions };
   } catch (error) {
     return { success: false, error: 'Failed to fetch transaction history' };
+  }
+}
+
+export async function createBundleCategory(input: CreateBundleCategoryInput) {
+  try {
+    const [category] = await db
+      .insert(bundleCategories)
+      .values(input)
+      .returning();
+    
+    revalidatePath('/inventory/bundles');
+    return { success: true, data: category };
+  } catch (error) {
+    return { success: false, error: 'Failed to create bundle category' };
+  }
+}
+
+export async function getBundleCategories() {
+  try {
+    const categories = await db
+      .select()
+      .from(bundleCategories)
+      .where(eq(bundleCategories.status, 'ACTIVE'));
+    
+    return { success: true, data: categories };
+  } catch (error) {
+    return { success: false, error: 'Failed to fetch bundle categories' };
+  }
+}
+
+export async function createBundle(input: CreateBundleInput) {
+  try {
+    return await db.transaction(async (tx) => {
+      // Create bundle
+      const [bundle] = await tx
+        .insert(bundles)
+        .values({
+          name: input.name,
+          description: input.description,
+          categoryId: input.categoryId,
+          basePrice: input.totalBasePrice,
+          discountPercentage: input.savingsPercentage,
+          type: 'REGULAR',
+          status: 'ACTIVE',
+        })
+        .returning();
+
+      // Create bundle items
+      await tx.insert(bundleItems).values(
+        input.items.map(item => ({
+          bundleId: bundle.id,
+          itemId: item.itemId,
+          quantity: item.quantity,
+          overridePrice: item.overridePrice,
+        }))
+      );
+
+      revalidatePath('/inventory/bundles');
+      return { success: true, data: bundle };
+    });
+  } catch (error) {
+    return { success: false, error: 'Failed to create bundle' };
   }
 } 
