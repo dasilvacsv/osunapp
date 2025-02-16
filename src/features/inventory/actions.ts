@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { inventoryItems, inventoryTransactions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { 
   CreateInventoryItemInput, 
@@ -107,5 +107,20 @@ export async function stockOut({ itemId, quantity, notes }: StockTransactionInpu
     return { success: true };
   } catch (error) {
     return { success: false, error: 'Failed to process stock-out transaction' };
+  }
+}
+
+export async function getInventoryTransactions(itemId: string) {
+  try {
+    const transactions = await db
+      .select()
+      .from(inventoryTransactions)
+      .where(eq(inventoryTransactions.itemId, itemId))
+      .orderBy(desc(inventoryTransactions.createdAt))
+      .limit(10);
+    
+    return { success: true, data: transactions };
+  } catch (error) {
+    return { success: false, error: 'Failed to fetch transaction history' };
   }
 } 
