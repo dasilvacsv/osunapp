@@ -44,7 +44,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <Badge variant={row.getValue("status") === "ACTIVE" ? "success" : "secondary"}>
+      <Badge variant={row.getValue("status") === "ACTIVE" ? "default" : "secondary"}>
         {row.getValue("status")}
       </Badge>
     ),

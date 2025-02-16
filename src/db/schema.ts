@@ -12,6 +12,7 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  numeric,
 } from "drizzle-orm/pg-core";
 
 // Enums

@@ -5,6 +5,7 @@ import {
   getCoreRowModel,
   flexRender,
   getPaginationRowModel,
+  RowSelectionState,
 } from "@tanstack/react-table"
 import {
   Table,
@@ -16,17 +17,25 @@ import {
 } from "@/components/ui/table"
 import { columns } from "./columns"
 import { InventoryItem } from "@/lib/types"
+import { useState } from "react"
 
 interface InventoryTableProps {
   data: InventoryItem[]
+  onSelect?: (item: InventoryItem) => void
 }
 
-export function InventoryTable({ data }: InventoryTableProps) {
+export function InventoryTable({ data, onSelect }: InventoryTableProps) {
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    onRowSelectionChange: setRowSelection,
+    state: {
+      rowSelection,
+    },
   })
 
   return (
@@ -49,7 +58,11 @@ export function InventoryTable({ data }: InventoryTableProps) {
         <TableBody>
           {table.getRowModel().rows.length ? (
             table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow 
+                key={row.id}
+                onClick={() => onSelect?.(row.original)}
+                className={onSelect ? "cursor-pointer hover:bg-muted" : ""}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
