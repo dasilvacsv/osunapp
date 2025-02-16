@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type InventoryTransactionType = "IN" | "OUT" | "ADJUSTMENT" | "RESERVATION" | "FULFILLMENT";
 
 export interface InventoryItem {
@@ -16,6 +18,12 @@ export interface InventoryItem {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export const StockTransactionInputSchema = z.object({
+  itemId: z.string().uuid(),
+  quantity: z.number().positive(),
+  notes: z.string().optional()
+});
 
 export interface InventoryTransaction {
   id: string;
@@ -70,6 +78,7 @@ export interface BundleWithItems extends Bundle {
 }
 
 export interface Bundle {
+  items: any;
   id: string;
   name: string;
   description?: string;
@@ -94,3 +103,4 @@ export type CreateBundleInput = {
   totalBasePrice: number;
   savingsPercentage: number;
 };
+

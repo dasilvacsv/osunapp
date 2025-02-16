@@ -61,6 +61,18 @@ export const BORROW_STATUS_ENUM = pgEnum("borrow_status", [
   "RETURNED",
 ]);
 
+// New Enums for Inventory Items
+export const inventoryItemTypeEnum = pgEnum("inventory_item_type", [
+  "PHYSICAL",
+  "DIGITAL",
+  "SERVICE",
+]);
+
+export const inventoryItemStatusEnum = pgEnum("inventory_item_status", [
+  "ACTIVE",
+  "INACTIVE",
+]);
+
 // Organizations Table
 export const organizations = pgTable("organizations", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),

@@ -1,14 +1,17 @@
 import { z } from "zod";
+import { inventoryItemTypeEnum, inventoryItemStatusEnum } from "@/db/schema"
 
 export const inventoryItemSchema = z.object({
-  name: z.string().min(1).max(255),
-  sku: z.string().regex(/^[A-Z0-9]+-[A-Z0-9]+$/),
-  description: z.string().optional(),
-  type: z.enum(["PHYSICAL", "DIGITAL", "SERVICE"]),
-  basePrice: z.number().positive(),
-  minimumStock: z.number().min(0),
-  status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
-});
+  name: z.string().min(1, "El nombre es requerido"),
+  sku: z.string().min(1, "El SKU es requerido"),
+  type: z.enum(inventoryItemTypeEnum.enumValues),
+  basePrice: z.number().min(0, "El precio base debe ser mayor o igual a 0"),
+  currentStock: z.number().int().min(0, "El stock actual debe ser un número entero mayor o igual a 0"),
+  reservedStock: z.number().int().min(0, "El stock reservado debe ser un número entero mayor o igual a 0"),
+  minimumStock: z.number().int().min(0, "El stock mínimo debe ser un número entero mayor o igual a 0"),
+  status: z.enum(inventoryItemStatusEnum.enumValues),
+})
+
 
 export const stockTransactionSchema = z.object({
   itemId: z.string().uuid(),
@@ -36,3 +39,4 @@ export const bundleSchema = z.object({
   totalBasePrice: z.number().min(0),
   savingsPercentage: z.number().min(0).max(100),
 }); 
+
