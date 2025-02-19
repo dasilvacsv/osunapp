@@ -32,9 +32,10 @@ export const clientRoleEnum = pgEnum("client_role", [
 
 export const purchaseStatusEnum = pgEnum("purchase_status", [
   "PENDING",
-  "PROCESSING",
+  "APPROVED", 
+  "IN_PROGRESS",
   "COMPLETED",
-  "CANCELLED",
+  "CANCELLED"
 ]);
 
 export const organizationMemberRoleEnum = pgEnum("organization_member_role", [
@@ -184,7 +185,7 @@ export const purchases = pgTable("purchases", {
   childId: uuid("child_id").references(() => children.id),
   bundleId: uuid("bundle_id").references(() => bundles.id),
   organizationId: uuid("organization_id").references(() => organizations.id),
-  status: purchaseStatusEnum("status").default("PENDING"),
+  status: purchaseStatusEnum("status").notNull().default('PENDING'),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
   paymentStatus: text("payment_status"),
   paymentMetadata: jsonb("payment_metadata"),

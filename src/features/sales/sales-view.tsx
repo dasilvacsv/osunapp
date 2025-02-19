@@ -56,7 +56,7 @@ const columns = [
   {
     id: "actions",
     cell: ({ row }) => (
-      <Link href={`/sales/${row.original.id}`}>
+      <Link href={`/sales/${row.original.id}`} passHref>
         <Button variant="ghost" size="sm">
           <Eye className="h-4 w-4" />
         </Button>

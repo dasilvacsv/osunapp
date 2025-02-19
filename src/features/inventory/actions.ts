@@ -46,6 +46,19 @@ export async function createInventoryItem(input: CreateInventoryItemInput) {
   }
 }
 
+export async function searchInventory(query: string) {
+  try {
+    const data = await db.select()
+      .from(inventoryItems)
+      .where(sql`LOWER(${inventoryItems.name}) LIKE ${'%' + query.toLowerCase() + '%'}`)
+      .limit(10)
+
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: "Error buscando productos" }
+  }
+}
+
 export async function getInventoryItems() {
   try {
     const items = await db.select().from(inventoryItems);

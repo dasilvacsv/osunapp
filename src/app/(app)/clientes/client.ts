@@ -1,7 +1,7 @@
 // app/actions/clients.ts
 "use server"
 import { db } from "@/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { 
   clients, 
@@ -66,6 +66,19 @@ export async function getClient(id: string) {
     return { data: data[0] };
   } catch (error) {
     return { error: "Failed to fetch client" };
+  }
+}
+
+export async function searchClients(query: string) {
+  try {
+    const data = await db.select()
+      .from(clients)
+      .where(sql`LOWER(${clients.name}) LIKE ${'%' + query.toLowerCase() + '%'}`)
+      .limit(10)
+
+    return { success: true, data }
+  } catch (error) {
+    return { success: false, error: "Error buscando clientes" }
   }
 }
 
