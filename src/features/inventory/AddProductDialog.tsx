@@ -44,16 +44,18 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-
+  
     try {
+      const stockValue = currentStock === "" ? 0 : Number.parseInt(currentStock)
+      
       const result = await createInventoryItem({
         name,
         sku,
         type,
         basePrice: Number.parseFloat(basePrice),
-        currentStock: Number.parseInt(currentStock),
-        reservedStock: Number.parseInt(reservedStock),
-        minimumStock: Number.parseInt(minimumStock),
+        currentStock: stockValue,
+        reservedStock: Number.parseInt(reservedStock) || 0,
+        minimumStock: Number.parseInt(minimumStock) || 0,
         status,
       })
 
