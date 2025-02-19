@@ -50,6 +50,13 @@
       "when": 1739673960232,
       "tag": "0006_remarkable_romulus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1739982495122,
+      "tag": "0007_absent_vulture",
+      "breakpoints": true
     }
   ]
 }
