@@ -56,7 +56,7 @@ export async function getInventoryItems() {
   }
 }
 
-export async function stockIn({ itemId, quantity, notes }: StockTransactionInput) {
+export async function stockIn({ itemId, quantity, notes, transactionType = 'IN' }: StockTransactionInput & { transactionType?: 'IN' | 'INITIAL' }) {
   try {
     if (!itemId || quantity <= 0) {
       throw new Error("Datos inválidos: itemId y cantidad deben ser proporcionados y válidos.");
@@ -80,7 +80,7 @@ export async function stockIn({ itemId, quantity, notes }: StockTransactionInput
     await db.insert(inventoryTransactions).values({
       itemId,
       quantity,
-      transactionType: 'IN',
+      transactionType,
       notes
     });
 
