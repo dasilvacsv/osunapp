@@ -38,3 +38,19 @@ export interface InventoryItem {
 }
 
 
+export interface Sale {
+  id: string;
+  client: Client;
+  purchaseDate: Date;
+  totalAmount: number;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "CANCELLED";
+  paymentMethod: string;
+  items: {
+    inventoryItem: InventoryItem;
+    quantity: number;
+    unitPrice: number;
+  }[];
+  transactionReference?: string;
+  bookingMethod?: string;
+}
+
