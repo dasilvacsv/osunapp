@@ -198,6 +198,15 @@ export const purchases = pgTable("purchases", {
   bookingMethod: varchar("booking_method", { length: 50 }),
 });
 
+export const paymentMethods = pgTable("payment_methods", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  name: varchar("name", { length: 50 }).notNull(),
+  description: text("description"),
+  status: statusEnum("status").default("ACTIVE"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 // Purchase Items Table
 export const purchaseItems = pgTable("purchase_items", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
