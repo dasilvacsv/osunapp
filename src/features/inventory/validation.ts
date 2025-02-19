@@ -6,9 +6,9 @@ export const inventoryItemSchema = z.object({
   sku: z.string().min(1, "El SKU es requerido"),
   type: z.enum(inventoryItemTypeEnum.enumValues),
   basePrice: z.number().min(0, "El precio base debe ser mayor o igual a 0"),
-  currentStock: z.number().int().min(0, "El stock actual debe ser un número entero mayor o igual a 0"),
-  reservedStock: z.number().int().min(0, "El stock reservado debe ser un número entero mayor o igual a 0"),
-  minimumStock: z.number().int().min(0, "El stock mínimo debe ser un número entero mayor o igual a 0"),
+  currentStock: z.number().int().min(0).optional().default(0),
+  reservedStock: z.number().int().min(0).optional().default(0),
+  minimumStock: z.number().int().min(0).optional().default(0),
   status: z.enum(inventoryItemStatusEnum.enumValues),
 })
 
