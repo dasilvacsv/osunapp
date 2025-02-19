@@ -17,7 +17,21 @@ import { z } from "zod";
 export async function createInventoryItem(input: CreateInventoryItemInput) {
   try {
     const validated = inventoryItemSchema.parse(input)
+    
+    // Crear el item de inventario
     const [item] = await db.insert(inventoryItems).values(validated).returning()
+
+    // Crear transacción de inventario inicial si el stock es mayor a 0
+    if (validated.currentStock > 0) {
+      await db.insert(inventoryTransactions).values({
+        itemId: item.id,
+        quantity: validated.currentStock,
+        transactionType: 'INITIAL',
+        notes: 'Initial inventory stock',
+        createdAt: new Date(),
+      })
+    }
+
     revalidatePath("/inventory")
     return { success: true, data: item }
   } catch (error) {
