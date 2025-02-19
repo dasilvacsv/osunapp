@@ -18,6 +18,7 @@ export const stockTransactionSchema = z.object({
   quantity: z.number(),
   notes: z.string().optional(),
   reference: z.record(z.unknown()).optional(),
+  transactionType: z.enum(["INITIAL", "IN", "OUT", "ADJUSTMENT", "RESERVATION", "FULFILLMENT"]).optional(),
 });
 
 export const bundleCategorySchema = z.object({
