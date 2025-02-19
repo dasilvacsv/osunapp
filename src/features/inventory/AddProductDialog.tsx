@@ -184,7 +184,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                   value={currentStock}
                   onChange={(e) => setCurrentStock(e.target.value)}
                   className="w-full"
-                  required
+                  placeholder="Leave empty for 0"
                 />
               </div>
               <div className="space-y-2">
