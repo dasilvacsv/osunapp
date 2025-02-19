@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export type InventoryTransactionType = "IN" | "OUT" | "ADJUSTMENT" | "RESERVATION" | "FULFILLMENT";
+export type InventoryTransactionType = "INITIAL" | "IN" | "OUT" | "ADJUSTMENT" | "RESERVATION" | "FULFILLMENT";
 
 export interface InventoryItem {
   id: string;
@@ -103,4 +103,5 @@ export type CreateBundleInput = {
   totalBasePrice: number;
   savingsPercentage: number;
 };
+
 
