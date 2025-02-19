@@ -14,3 +14,11 @@ ALTER TABLE "purchases" ALTER COLUMN "payment_method" SET DEFAULT 'CASH';--> sta
 ALTER TABLE "purchases" ALTER COLUMN "payment_method" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "purchases" ADD COLUMN "transaction_reference" varchar(255);--> statement-breakpoint
 ALTER TABLE "purchases" ADD COLUMN "booking_method" varchar(50);
+
+ALTER TABLE purchases ADD COLUMN payment_method VARCHAR(50);
+
+UPDATE purchases SET payment_method = 'CASH' WHERE payment_method IS NULL;
+
+ALTER TABLE purchases 
+  ALTER COLUMN payment_method SET NOT NULL,
+  ALTER COLUMN payment_method SET DEFAULT 'CASH';
