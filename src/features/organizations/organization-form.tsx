@@ -193,14 +193,14 @@ export function OrganizationForm({ closeDialog, initialData, mode, onSubmit }: O
             type="button" 
             onClick={closeDialog}
             disabled={isSubmitting}
-            className="transition-all duration-200 hover:bg-gray-100"
+            className="transition-all duration-200 hover:bg-muted"
           >
             Cancelar
           </Button>
           <Button 
             type="submit" 
             disabled={isSubmitting}
-            className="bg-primary hover:bg-primary/90 transition-all duration-200"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-200"
           >
             {isSubmitting ? (
               <>
