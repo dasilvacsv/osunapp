@@ -1,7 +1,8 @@
-'use client'
+// create-client-form.tsx
+'use client';
 
-import { useForm } from "react-hook-form"
-import { Button } from "@/components/ui/button"
+import { useForm } from "react-hook-form";
+import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -9,22 +10,22 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-
-import { useToast } from "@/hooks/use-toast"
-import { DialogFooter } from "@/components/ui/dialog"
-import { Client } from "@/lib/types"
-import { ClientFormData, createClient, updateClient } from "@/app/(app)/clientes/client"
-import { useState } from "react"
-import { Loader2 } from "lucide-react"
+} from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { DialogFooter } from "@/components/ui/dialog";
+import { Client } from "@/lib/types";
+import { ClientFormData, createClient, updateClient } from "@/app/(app)/clientes/client";
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { getOrganizations } from "@/app/(app)/clientes/client";
 
 interface ClientFormProps {
   closeDialog: () => void;
@@ -34,9 +35,18 @@ interface ClientFormProps {
 }
 
 export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientFormProps) {
-  const { toast } = useToast()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [organizations, setOrganizations] = useState<any[]>([]);
   
+  useEffect(() => {
+    const fetchOrganizations = async () => {
+      const { data } = await getOrganizations();
+      setOrganizations(data || []);
+    };
+    fetchOrganizations();
+  }, []);
+
   const form = useForm<ClientFormData>({
     defaultValues: {
       name: initialData?.name || "",
@@ -47,23 +57,21 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
         email: initialData?.contactInfo?.email || "",
         phone: initialData?.contactInfo?.phone || "",
       },
+      organizationId: initialData?.organizationId || undefined,
       role: (initialData?.role || "INDIVIDUAL") as "PARENT" | "EMPLOYEE" | "INDIVIDUAL",
     },
   });
 
-
   async function handleSubmit(data: ClientFormData) {
     if (isSubmitting) return;
-    
+
     setIsSubmitting(true);
     try {
-      await onSubmit(data); // Uses the handler passed via props
-      
+      await onSubmit(data);
       toast({
         title: "Success",
         description: `Client ${mode === 'create' ? 'created' : 'updated'} successfully`,
       });
-      
       form.reset();
       closeDialog();
     } catch (error) {
@@ -77,8 +85,6 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
     }
   }
 
-
-
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -89,118 +95,48 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
             <FormItem>
               <FormLabel>Name</FormLabel>
               <FormControl>
-                <Input placeholder="John Doe" {...field} />
+                <Input placeholder="Enter name" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
         <FormField
           control={form.control}
-          name="document"
+          name="organizationId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Document/ID</FormLabel>
-              <FormControl>
-                <Input placeholder="123456789" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Phone</FormLabel>
-                <FormControl>
-                  <Input placeholder="+1234567890" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          <FormField
-            control={form.control}
-            name="whatsapp"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>WhatsApp</FormLabel>
-                <FormControl>
-                  <Input placeholder="+1234567890" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        
-        <FormField
-          control={form.control}
-          name="contactInfo.email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" placeholder="john@example.com" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="role"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Role</FormLabel>
+              <FormLabel>Organization</FormLabel>
               <Select onValueChange={field.onChange} defaultValue={field.value}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a role" />
+                    <SelectValue placeholder="Select organization" />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="PARENT">Parent</SelectItem>
-                  <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                  <SelectItem value="INDIVIDUAL">Individual</SelectItem>
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
-        
         <DialogFooter>
-          <Button 
-            variant="outline" 
-            type="button" 
-            onClick={closeDialog}
-            disabled={isSubmitting}
-          >
+          <Button type="button" variant="outline" onClick={closeDialog}>
             Cancel
           </Button>
-          <Button 
-            type="submit" 
-            disabled={isSubmitting}
-          >
+          <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {mode === 'create' ? 'Creating...' : 'Updating...'}
-              </>
-            ) : (
-              mode === 'create' ? 'Create' : 'Update'
-            )}
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            {mode === 'create' ? 'Create' : 'Update'}
           </Button>
         </DialogFooter>
       </form>
     </Form>
-  )
+  );
 }
