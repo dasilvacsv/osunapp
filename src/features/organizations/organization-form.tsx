@@ -25,7 +25,7 @@ import { motion } from "framer-motion"
 
 interface OrganizationFormData {
   name: string
-  type: "ESCUELA" | "EMPRESA" | "OTRO"
+  type: "SCHOOL" | "COMPANY" | "OTHER"
   address?: string
   contactInfo: {
     email?: string
@@ -47,7 +47,7 @@ export function OrganizationForm({ closeDialog, initialData, mode, onSubmit }: O
   const form = useForm<OrganizationFormData>({
     defaultValues: {
       name: initialData?.name || "",
-      type: initialData?.type || "EMPRESA",
+      type: initialData?.type || "COMPANY",
       address: initialData?.address || "",
       contactInfo: {
         email: initialData?.contactInfo?.email || "",
@@ -121,9 +121,9 @@ export function OrganizationForm({ closeDialog, initialData, mode, onSubmit }: O
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="ESCUELA">Escuela</SelectItem>
-                    <SelectItem value="EMPRESA">Empresa</SelectItem>
-                    <SelectItem value="OTRO">Otro</SelectItem>
+                    <SelectItem value="SCHOOL">Escuela</SelectItem>
+                    <SelectItem value="COMPANY">Empresa</SelectItem>
+                    <SelectItem value="OTHER">Otro</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

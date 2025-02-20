@@ -121,9 +121,9 @@ export const organizationColumns = (
     cell: ({ row }) => {
       const type = row.getValue("type") as string
       const typeLabels: Record<string, string> = {
-        ESCUELA: "Escuela",
-        EMPRESA: "Empresa",
-        OTRO: "Otro"
+        SCHOOL: "Escuela",
+        COMPANY: "Empresa",
+        OTHER: "Otro"
       }
       return (
         <Badge variant="outline" className="font-medium">
