@@ -13,18 +13,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Package, User, Calendar, CreditCard } from 'lucide-react'
 import { updatePurchaseStatus } from '@/features/sales/actions'
 import { useToast } from '@/hooks/use-toast'
+import { StatusTimeline } from '@/features/sales/status-timeline'
+
+const statusLabels = {
+  PENDING: "Pendiente",
+  APPROVED: "Aprobado",
+  IN_PROGRESS: "En Proceso",
+  COMPLETED: "Completado",
+  CANCELLED: "Cancelado"
+}
 
 export function SaleDetails({ sale }: { sale: any }) {
   const router = useRouter()
   const { toast } = useToast()
   const [currentStatus, setCurrentStatus] = useState(sale.status)
   const [isPending, startTransition] = useTransition()
-
-  const statusOrder = ['PENDING', 'APPROVED', 'IN_PROGRESS', 'COMPLETED']
-  const currentIndex = statusOrder.indexOf(currentStatus)
 
   const handleStatusChange = (newStatus: string) => {
     startTransition(async () => {
@@ -34,15 +40,16 @@ export function SaleDetails({ sale }: { sale: any }) {
         if (result.success) {
           setCurrentStatus(newStatus)
           toast({
-            title: "✅ Estado actualizado",
-            description: `El estado se cambió a ${newStatus.toLowerCase().replace('_', ' ')}`,
+            title: "Estado actualizado",
+            description: `La venta ahora está ${statusLabels[newStatus as keyof typeof statusLabels].toLowerCase()}`,
+            className: "bg-green-500 text-white"
           })
         } else {
           throw new Error(result.error || "Error al actualizar el estado")
         }
       } catch (error) {
         toast({
-          title: "❌ Error",
+          title: "Error",
           description: error instanceof Error ? error.message : "Error desconocido",
           variant: "destructive"
         })
@@ -51,26 +58,20 @@ export function SaleDetails({ sale }: { sale: any }) {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <Button 
-        variant="ghost" 
-        onClick={() => router.back()}
-        className="mb-4"
+    <div className="p-6 max-w-4xl mx-auto space-y-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between"
       >
-        ← Volver a ventas
-      </Button>
-      
-      <div className="flex justify-between items-start">
-        <div>
-          <motion.h1 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="text-2xl font-bold"
-          >
-            Venta #{sale.id.slice(0, 8)}
-          </motion.h1>
-          <p className="text-sm text-gray-500">{formatDate(sale.purchaseDate)}</p>
-        </div>
+        <Button 
+          variant="ghost" 
+          onClick={() => router.back()}
+          className="group"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
+          Volver a ventas
+        </Button>
         
         <div className="flex items-center gap-4">
           <Select
@@ -82,13 +83,13 @@ export function SaleDetails({ sale }: { sale: any }) {
               <SelectValue placeholder="Seleccionar estado" />
             </SelectTrigger>
             <SelectContent>
-              {statusOrder.map((status) => (
+              {Object.entries(statusLabels).map(([value, label]) => (
                 <SelectItem 
-                  key={status} 
-                  value={status}
+                  key={value} 
+                  value={value}
                   className="capitalize"
                 >
-                  {status.toLowerCase().replace('_', ' ')}
+                  {label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -96,98 +97,109 @@ export function SaleDetails({ sale }: { sale: any }) {
           
           {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
         </div>
-      </div>
-
-      {/* Línea de tiempo */}
-      <div className="relative h-2 bg-gray-200 rounded-full w-full max-w-2xl my-8">
-        {statusOrder.map((status, index) => (
-          <div 
-            key={status} 
-            className="absolute -top-3.5" 
-            style={{ left: `${(index * 100) / (statusOrder.length - 1)}%` }}
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className={`
-                w-8 h-8 rounded-full flex items-center justify-center border-2
-                ${index <= currentIndex ? 'bg-primary border-primary' : 'bg-background border-gray-300'}
-              `}
-            >
-              {index < currentIndex && (
-                <motion.svg
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="w-4 h-4 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </motion.svg>
-              )}
-            </motion.div>
-            
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="absolute top-8 left-1/2 -translate-x-1/2 text-xs font-medium capitalize whitespace-nowrap"
-            >
-              {status.toLowerCase().replace('_', ' ')}
-            </motion.div>
-          </div>
-        ))}
-        
-        <motion.div
-          className="absolute h-full bg-primary rounded-full"
-          initial={{ width: 0 }}
-          animate={{ width: `${(currentIndex * 100) / (statusOrder.length - 1)}%` }}
-          transition={{ duration: 0.5 }}
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <h3 className="font-semibold">Cliente</h3>
-          <p>{sale.client?.name || 'Cliente no registrado'}</p>
-          <p className="text-sm text-gray-500">{sale.client?.document}</p>
-        </div>
-        
-        <div className="space-y-2">
-          <h3 className="font-semibold">Método de Pago</h3>
-          <Badge variant="outline">{sale.paymentMethod}</Badge>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="font-semibold mb-4">Productos</h3>
-        <div className="space-y-2">
-          {sale.items.map((item: any, index: number) => (
-            <motion.div
-              key={item.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="flex justify-between items-center p-3 border rounded"
-            >
-              <div>
-                <p className="font-medium">{(item as any).inventoryItem?.name || 'Producto eliminado'}</p>
-                <p className="text-sm text-gray-500">
-                  {item.quantity} x {formatCurrency(item.unitPrice)}
-                </p>
-              </div>
-              <p>{formatCurrency(item.totalPrice)}</p>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+      </motion.div>
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="text-right text-xl font-bold"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="bg-card rounded-lg p-6 shadow-lg border"
       >
-        Total: {formatCurrency(sale.totalAmount)}
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">
+              Venta #{sale.id.slice(0, 8)}
+            </h1>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Calendar className="h-4 w-4" />
+              {formatDate(sale.purchaseDate)}
+            </div>
+          </div>
+        </div>
+
+        <StatusTimeline currentStatus={currentStatus} />
+
+        <div className="grid md:grid-cols-2 gap-8 mt-8">
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="space-y-4"
+          >
+            <div className="flex items-center gap-2 text-lg font-semibold">
+              <User className="h-5 w-5" />
+              Información del Cliente
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <p className="font-medium">{sale.client?.name || 'Cliente no registrado'}</p>
+              <p className="text-muted-foreground">{sale.client?.document}</p>
+            </div>
+          </motion.div>
+          
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-4"
+          >
+            <div className="flex items-center gap-2 text-lg font-semibold">
+              <CreditCard className="h-5 w-5" />
+              Método de Pago
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <Badge variant="outline" className="text-base">
+                {sale.paymentMethod === 'CASH' ? 'Efectivo' :
+                 sale.paymentMethod === 'CARD' ? 'Tarjeta' :
+                 sale.paymentMethod === 'TRANSFER' ? 'Transferencia' :
+                 sale.paymentMethod}
+              </Badge>
+            </div>
+          </motion.div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-8 space-y-4"
+        >
+          <div className="flex items-center gap-2 text-lg font-semibold">
+            <Package className="h-5 w-5" />
+            Productos
+          </div>
+          <div className="space-y-3">
+            {sale.items.map((item: any, index: number) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 + 0.5 }}
+                className="flex justify-between items-center p-4 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors"
+              >
+                <div>
+                  <p className="font-medium">{item.inventoryItem?.name || 'Producto eliminado'}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {item.quantity} x {formatCurrency(item.unitPrice)}
+                  </p>
+                </div>
+                <p className="font-semibold tabular-nums">
+                  {formatCurrency(item.totalPrice)}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.6 }}
+          className="mt-8 pt-4 border-t flex justify-end"
+        >
+          <div className="text-2xl font-bold">
+            Total: {formatCurrency(sale.totalAmount)}
+          </div>
+        </motion.div>
       </motion.div>
     </div>
   )
