@@ -12,7 +12,6 @@ export default async function ClientPage() {
 
   // Ensure we always pass an array, even if empty
   const initialClients: Client[] = data || [];
-  const clients2 = await getOrganizationsWithClients();
 
-  return <ClientList initialClients={initialClients} data={clients2}/>;
+  return <ClientList initialClients={initialClients}/>;
 }

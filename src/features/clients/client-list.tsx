@@ -12,11 +12,11 @@ import { OrganizationWithClients } from "@/features/clients/byorg/actions"
 
 interface ClientListProps {
   initialClients: Client[]
-  data: OrganizationWithClients[]
+
 }
 
-export default function ClientList({ initialClients, data }: ClientListProps) {
-  console.log(data);
+export default function ClientList({ initialClients}: ClientListProps) {
+
   const [clients, setClients] = useState<Client[]>(initialClients)
   const [selectedClients, setSelectedClients] = useState<string[]>([])
   const [showCreateDialog, setShowCreateDialog] = useState(false)
