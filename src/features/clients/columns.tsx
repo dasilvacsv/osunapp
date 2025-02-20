@@ -130,12 +130,21 @@ export const columns = (onUpdate: (id: string, data: any) => void, onDelete: (id
       )
     }
   },
+
   {
     accessorKey: "document",
     header: ({ column }) => <SortableHeader column={column} title="Cédula" />,
     cell: ({ row }) => {
       const document = row.getValue("document") as string | null;
       return document || "-";
+    },
+  },
+  {
+    accessorKey: "organization",
+    header: "Organization",
+    cell: ({ row }) => {
+      const organization = row.original.organization;
+      return organization ? organization.name : "-";
     },
   },
   {
