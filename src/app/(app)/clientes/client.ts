@@ -57,10 +57,27 @@ export type OrganizationFormData = {
   };
 };
 
-export async function getClients() {
+export async function getClients(organizationId?: string) {
   try {
-    const data = await db.select().from(clients).where(eq(clients.status, "ACTIVE"));
-    return { data };
+    let query = db.select({
+      client: clients,
+      organization: organizations
+    })
+    .from(clients)
+    .leftJoin(organizations, eq(clients.organizationId, organizations.id))
+
+    if (organizationId) {
+      query = query.where(eq(clients.organizationId, organizationId))
+    }
+
+    const data = await query
+    
+    return { 
+      data: data.map(row => ({
+        ...row.client,
+        organization: row.organization
+      })) 
+    };
   } catch (error) {
     return { error: "Failed to fetch clients" };
   }
