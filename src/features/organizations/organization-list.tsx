@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { OrganizationForm } from "./organization-form"
 import { OrganizationTable } from "./organization-table"
+import { motion, AnimatePresence } from "framer-motion"
 import { OrganizationFormData, createOrganization, deleteOrganization, updateOrganization } from "@/app/(app)/organizations/organization"
 
 interface OrganizationListProps {
@@ -61,29 +62,44 @@ export default function OrganizationList({ initialOrganizations }: OrganizationL
   }, [organizations, refreshOrganizations])
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow">
-        <h1 className="text-2xl font-bold text-gray-800">Organizations</h1>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-6 p-6"
+    >
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-6 rounded-xl shadow-md">
+        <h1 className="text-3xl font-bold text-gray-800 tracking-tight">
+          Organizaciones
+        </h1>
         <div className="flex items-center gap-4">
-          <Button onClick={() => setShowCreateDialog(true)}>
+          <Button 
+            onClick={() => setShowCreateDialog(true)}
+            className="bg-primary hover:bg-primary/90 text-white transition-all duration-200"
+          >
             <PlusIcon className="mr-2 h-4 w-4" />
-            Create Organization
+            Crear Organización
           </Button>
         </div>
       </div>
 
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Organization</DialogTitle>
-          </DialogHeader>
-          <OrganizationForm 
-            closeDialog={() => setShowCreateDialog(false)}
-            mode="create"
-            onSubmit={handleCreateOrganization}
-          />
-        </DialogContent>
-      </Dialog>
+      <AnimatePresence>
+        {showCreateDialog && (
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-semibold">
+                  Crear Nueva Organización
+                </DialogTitle>
+              </DialogHeader>
+              <OrganizationForm 
+                closeDialog={() => setShowCreateDialog(false)}
+                mode="create"
+                onSubmit={handleCreateOrganization}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+      </AnimatePresence>
 
       <OrganizationTable
         organizations={organizations}
@@ -93,6 +109,6 @@ export default function OrganizationList({ initialOrganizations }: OrganizationL
         selectedOrganizations={selectedOrganizations}
         setSelectedOrganizations={setSelectedOrganizations}
       />
-    </div>
+    </motion.div>
   )
 }
