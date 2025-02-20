@@ -1,22 +1,21 @@
-'use client'
-
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { formatCurrency, formatDate } from "@/lib/utils"
+'use client';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { ArrowLeft, Loader2, Package, User, Calendar, CreditCard } from 'lucide-react'
-import { updatePurchaseStatus } from '@/features/sales/actions'
-import { useToast } from '@/hooks/use-toast'
-import { StatusTimeline } from '@/features/sales/status-timeline'
+} from "@/components/ui/select";
+import { ArrowLeft, Loader2, Package, User, Calendar, CreditCard } from 'lucide-react';
+import { updatePurchaseStatus } from '@/features/sales/actions';
+import { useToast } from '@/hooks/use-toast';
+import { StatusTimeline } from '@/features/sales/status-timeline';
 
 const statusLabels = {
   PENDING: "Pendiente",
@@ -24,38 +23,52 @@ const statusLabels = {
   IN_PROGRESS: "En Proceso",
   COMPLETED: "Completado",
   CANCELLED: "Cancelado"
-}
+};
 
 export function SaleDetails({ sale }: { sale: any }) {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [currentStatus, setCurrentStatus] = useState(sale.status)
-  const [isPending, startTransition] = useTransition()
+  const router = useRouter();
+  const { toast } = useToast();
+  const [currentStatus, setCurrentStatus] = useState(sale.status);
+  const [isPending, startTransition] = useTransition();
+
+  // Validar que el estado esté dentro de los valores permitidos
+  const isValidStatus = (status: string): boolean => {
+    return Object.keys(statusLabels).includes(status);
+  };
 
   const handleStatusChange = (newStatus: string) => {
+    if (!isValidStatus(newStatus)) {
+      toast({
+        title: "Error",
+        description: "El estado seleccionado no es válido.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     startTransition(async () => {
       try {
-        const result = await updatePurchaseStatus(sale.id, newStatus)
-        
+        const result = await updatePurchaseStatus(sale.id, newStatus);
+
         if (result.success) {
-          setCurrentStatus(newStatus)
+          setCurrentStatus(newStatus);
           toast({
             title: "Estado actualizado",
             description: `La venta ahora está ${statusLabels[newStatus as keyof typeof statusLabels].toLowerCase()}`,
             className: "bg-green-500 text-white"
-          })
+          });
         } else {
-          throw new Error(result.error || "Error al actualizar el estado")
+          throw new Error(result.error || "Error al actualizar el estado");
         }
       } catch (error) {
         toast({
           title: "Error",
           description: error instanceof Error ? error.message : "Error desconocido",
           variant: "destructive"
-        })
+        });
       }
-    })
-  }
+    });
+  };
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-8">
@@ -72,7 +85,7 @@ export function SaleDetails({ sale }: { sale: any }) {
           <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" />
           Volver a ventas
         </Button>
-        
+
         <div className="flex items-center gap-4">
           <Select
             value={currentStatus}
@@ -94,11 +107,10 @@ export function SaleDetails({ sale }: { sale: any }) {
               ))}
             </SelectContent>
           </Select>
-          
+
           {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
         </div>
       </motion.div>
-
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -116,9 +128,7 @@ export function SaleDetails({ sale }: { sale: any }) {
             </div>
           </div>
         </div>
-
         <StatusTimeline currentStatus={currentStatus} />
-
         <div className="grid md:grid-cols-2 gap-8 mt-8">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -135,7 +145,7 @@ export function SaleDetails({ sale }: { sale: any }) {
               <p className="text-muted-foreground">{sale.client?.document}</p>
             </div>
           </motion.div>
-          
+
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -156,7 +166,6 @@ export function SaleDetails({ sale }: { sale: any }) {
             </div>
           </motion.div>
         </div>
-
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -189,7 +198,6 @@ export function SaleDetails({ sale }: { sale: any }) {
             ))}
           </div>
         </motion.div>
-
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -202,5 +210,5 @@ export function SaleDetails({ sale }: { sale: any }) {
         </motion.div>
       </motion.div>
     </div>
-  )
+  );
 }

@@ -1,6 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { Tooltip } from "@/components/ui/tooltip"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { motion } from "framer-motion"
@@ -33,12 +33,13 @@ const StatusColors = {
   CANCELLED: "text-red-500 dark:text-red-400"
 }
 
+
 export const columns: ColumnDef<Sale>[] = [
   {
     accessorKey: "id",
     header: "Referencia",
     cell: ({ row }) => {
-      const id = row.original?.id
+      const id = row.original.id
       if (!id) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -47,7 +48,6 @@ export const columns: ColumnDef<Sale>[] = [
           </div>
         )
       }
-
       return (
         <Link 
           href={`/sales/${id}`}
@@ -64,9 +64,8 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "client.name",
     header: "Cliente",
     cell: ({ row }) => {
-      const clientName = row.original?.client?.name
-      const clientId = row.original?.client?.id
-
+      const clientName = row.original.client?.name
+      const clientId = row.original.client?.id
       if (!clientName) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -75,13 +74,19 @@ export const columns: ColumnDef<Sale>[] = [
           </div>
         )
       }
-
       return (
-        <Tooltip content={`ID: ${clientId}`}>
-          <div className="font-medium text-foreground hover:text-foreground/80 transition-colors cursor-help">
-            {clientName}
-          </div>
-        </Tooltip>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger>
+              <div className="font-medium text-foreground hover:text-foreground/80 transition-colors cursor-help">
+                {clientName}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>ID: {clientId || 'No disponible'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )
     }
   },
@@ -89,7 +94,7 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "purchaseDate",
     header: "Fecha",
     cell: ({ row }) => {
-      const rawDate = row.original?.purchaseDate
+      const rawDate = row.original.purchaseDate
       if (!rawDate) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -98,48 +103,33 @@ export const columns: ColumnDef<Sale>[] = [
           </div>
         )
       }
-
       const date = new Date(rawDate)
       return (
-        <Tooltip content={date.toLocaleString()}>
-          <div className="text-muted-foreground hover:text-foreground transition-colors cursor-help">
-            {formatDate(date)}
-          </div>
-        </Tooltip>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger>
+              <div className="text-muted-foreground hover:text-foreground transition-colors cursor-help">
+                {formatDate(date)}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {date.toLocaleString()}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       )
     }
   },
   {
     accessorKey: "totalAmount",
-    header: () => (
-      <div className="flex items-center gap-2">
-        <DollarSign className="w-4 h-4" />
-        <span>Total</span>
-      </div>
-    ),
-    cell: ({ row }) => {
-      const amount = row.original?.totalAmount
-      if (typeof amount !== 'number') {
-        return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Monto no disponible</span>
-          </div>
-        )
-      }
-
-      return (
-        <div className="font-semibold tabular-nums text-foreground">
-          {formatCurrency(amount)}
-        </div>
-      )
-    }
+    header: "Total",
+    cell: ({ row }) => formatCurrency(row.getValue("totalAmount")),
   },
   {
     accessorKey: "status",
     header: "Estado",
     cell: ({ row }) => {
-      const status = row.original?.status
+      const status = row.original.status
       if (!status) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -148,24 +138,20 @@ export const columns: ColumnDef<Sale>[] = [
           </div>
         )
       }
-
       const StatusIconComponent = StatusIcon[status] || AlertCircle
       const statusColor = StatusColors[status] || "text-muted-foreground"
-
       const variants = {
         COMPLETED: "success",
         PROCESSING: "default",
         PENDING: "warning",
         CANCELLED: "destructive"
       } as const
-
       const labels = {
         COMPLETED: "Completado",
         PROCESSING: "En Proceso",
         PENDING: "Pendiente",
         CANCELLED: "Cancelado"
       }
-
       return (
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
@@ -188,7 +174,7 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "paymentMethod",
     header: "Método de Pago",
     cell: ({ row }) => {
-      const method = row.original?.paymentMethod
+      const method = row.original.paymentMethod
       if (!method) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -197,25 +183,26 @@ export const columns: ColumnDef<Sale>[] = [
           </div>
         )
       }
-
       const labels = {
         CASH: "Efectivo",
         CARD: "Tarjeta",
-        TRANSFER: "Transferencia"
+        TRANSFER: "Transferencia",
+        CREDIT: "Crédito",
+        DEBIT: "Débito"
       }
-
       const icons = {
         CASH: "💵",
         CARD: "💳",
-        TRANSFER: "🏦"
+        TRANSFER: "🏦",
+        CREDIT: "📈",
+        DEBIT: "📉"
       }
-
       return (
         <Badge 
           variant="outline" 
           className="capitalize transition-all hover:bg-accent flex items-center gap-2"
         >
-          <span>{icons[method as keyof typeof icons]}</span>
+          <span>{icons[method as keyof typeof icons] || '💸'}</span>
           {labels[method as keyof typeof labels] || method.toLowerCase()}
         </Badge>
       )
