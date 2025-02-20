@@ -8,13 +8,15 @@ import { Client } from "@/lib/types"
 import { ClientTable } from "./client-table"
 import { ClientForm } from "./create-client-form"
 import { ClientFormData, createClient, deleteClient, updateClient } from "@/app/(app)/clientes/client"
-
+import { OrganizationWithClients } from "@/features/clients/byorg/actions"
 
 interface ClientListProps {
   initialClients: Client[]
+  data: OrganizationWithClients[]
 }
 
-export default function ClientList({ initialClients }: ClientListProps) {
+export default function ClientList({ initialClients, data }: ClientListProps) {
+  console.log(data);
   const [clients, setClients] = useState<Client[]>(initialClients)
   const [selectedClients, setSelectedClients] = useState<string[]>([])
   const [showCreateDialog, setShowCreateDialog] = useState(false)
