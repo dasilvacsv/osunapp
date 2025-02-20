@@ -1,6 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
-import { ArrowUpDown, Eye, MessageSquare, MoreHorizontal, Pencil, Phone, Trash } from 'lucide-react'
+import { ArrowUpDown, Building2, Eye, MessageSquare, MoreHorizontal, Pencil, Phone, Trash } from 'lucide-react'
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
@@ -108,7 +108,7 @@ export const columns = (onUpdate: (id: string, data: any) => void, onDelete: (id
   },
   {
     accessorKey: "name",
-    header: ({ column }) => <SortableHeader column={column} title="Nombre" />,
+    header: ({ column }) => <SortableHeader column={column} title="Name" />,
     cell: ({ row }) => {
       const [showViewDialog, setShowViewDialog] = useState(false)
       return (
@@ -130,10 +130,9 @@ export const columns = (onUpdate: (id: string, data: any) => void, onDelete: (id
       )
     }
   },
-
   {
     accessorKey: "document",
-    header: ({ column }) => <SortableHeader column={column} title="Cédula" />,
+    header: ({ column }) => <SortableHeader column={column} title="Document" />,
     cell: ({ row }) => {
       const document = row.getValue("document") as string | null;
       return document || "-";
@@ -141,10 +140,20 @@ export const columns = (onUpdate: (id: string, data: any) => void, onDelete: (id
   },
   {
     accessorKey: "organization",
-    header: "Organization",
+    header: ({ column }) => <SortableHeader column={column} title="Organization" />,
     cell: ({ row }) => {
-      const organization = row.original.organization;
-      return organization ? organization.name : "-";
+      const organization = row.original.organization
+      if (!organization) return "-"
+      
+      return (
+        <div className="flex items-center space-x-2">
+          <Building2 className="h-4 w-4 text-gray-500" />
+          <span>{organization.name}</span>
+          <Badge variant="outline" className="ml-2">
+            {organization.type}
+          </Badge>
+        </div>
+      )
     },
   },
   {
@@ -231,4 +240,3 @@ export const columns = (onUpdate: (id: string, data: any) => void, onDelete: (id
     cell: ({ row }) => <ActionsCell client={row.original} onUpdate={onUpdate} onDelete={onDelete} />
   }
 ]
-

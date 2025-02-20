@@ -1,5 +1,4 @@
 'use client'
-
 import { useForm } from "react-hook-form"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,9 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
 import { getOrganizations } from "@/app/(app)/organizations/organization";
-
 
 import { useToast } from "@/hooks/use-toast"
 import { DialogFooter } from "@/components/ui/dialog"
@@ -46,6 +43,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
     };
     loadOrganizations();
   }, []);
+
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
   
@@ -60,16 +58,22 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
         phone: initialData?.contactInfo?.phone || "",
       },
       role: (initialData?.role || "INDIVIDUAL") as "PARENT" | "EMPLOYEE" | "INDIVIDUAL",
+      organizationId: initialData?.organizationId || "none", // Añade un valor predeterminado para organizationId
     },
   });
-
 
   async function handleSubmit(data: ClientFormData) {
     if (isSubmitting) return;
     
     setIsSubmitting(true);
     try {
-      await onSubmit(data); // Uses the handler passed via props
+      // Si el valor es "none", establece organizationId como undefined o null
+      const processedData = {
+        ...data,
+        organizationId: data.organizationId === "none" ? undefined : data.organizationId,
+      };
+
+      await onSubmit(processedData); // Usa el handler pasado por props
       
       toast({
         title: "Success",
@@ -88,8 +92,6 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
       setIsSubmitting(false);
     }
   }
-
-
 
   return (
     <Form {...form}>
@@ -121,7 +123,6 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
             </FormItem>
           )}
         />
-
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -188,7 +189,6 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="organizationId"
@@ -197,7 +197,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
               <FormLabel>Organization</FormLabel>
               <Select
                 onValueChange={field.onChange}
-                value={field.value || ""}
+                value={field.value}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -205,7 +205,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem> {/* Cambia "" por "none" */}
                   {organizations.map((org) => (
                     <SelectItem key={org.id} value={org.id}>
                       {org.name} ({org.type})

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from "react"
+import React from "react"
 import {
   useReactTable,
   getCoreRowModel,
@@ -15,7 +15,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { columns } from "./columns"
 import { Input } from "@/components/ui/input"
 import { Client } from "@/lib/types"
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@radix-ui/react-select"
 
 interface ClientTableProps {
   clients: Client[]
@@ -38,15 +37,6 @@ export function ClientTable({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = React.useState("")
-  const [selectedOrganization, setSelectedOrganization] = useState("")
-
-  useEffect(() => {
-    if (selectedOrganization) {
-      setColumnFilters([{ id: 'organizationId', value: selectedOrganization }])
-    } else {
-      setColumnFilters([])
-    }
-  }, [selectedOrganization])
 
   const table = useReactTable({
     data: clients,
@@ -85,26 +75,13 @@ export function ClientTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4 py-4">
+      <div className="flex items-center py-4">
         <Input
           placeholder="Search all columns..."
           value={globalFilter ?? ""}
-          onChange={(e) => setGlobalFilter(e.target.value)}
+          onChange={(event) => setGlobalFilter(event.target.value)}
           className="max-w-sm"
         />
-        <Select onValueChange={setSelectedOrganization} value={selectedOrganization}>
-          <SelectTrigger className="w-[250px]">
-            <SelectValue placeholder="Filter by organization" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All Organizations</SelectItem>
-            {props.organizations.map(org => (
-              <SelectItem key={org.id} value={org.id}>
-                {org.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <div className="rounded-md border">
         <Table>

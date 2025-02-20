@@ -65,7 +65,7 @@ const ActionsCell = ({
             initialData={organization}
             mode="edit"
             closeDialog={() => setShowEditDialog(false)}
-            onSubmit={(data) => onUpdate(organization.id, data)}
+            onSubmit={async (data) => onUpdate(organization.id, data)}
           />
         </DialogContent>
       </Dialog>

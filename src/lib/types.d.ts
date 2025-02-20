@@ -2,19 +2,45 @@ export interface Client {
   id: string;
   name: string;
   document: string | null;
-  phone: string | null;    // Add this
-  whatsapp: string | null; // Add this
+  phone: string | null;
+  whatsapp: string | null;
   contactInfo: {
     email: string;
     phone?: string;
   } | null;
   organizationId: string | null;
+  organization?: {
+    id: string;
+    name: string;
+    type: "SCHOOL" | "COMPANY" | "OTHER";
+    address?: string;
+    contactInfo?: {
+      email?: string;
+      phone?: string;
+    };
+    status: "ACTIVE" | "INACTIVE";
+  };
   role: "PARENT" | "EMPLOYEE" | "INDIVIDUAL";
   status: "ACTIVE" | "INACTIVE";
   createdAt: Date | null;
   updatedAt: Date | null;
 }
-interface AuthCredentials {
+
+export interface Organization {
+  id: string;
+  name: string;
+  type: "SCHOOL" | "COMPANY" | "OTHER";
+  address?: string;
+  contactInfo?: {
+    email?: string;
+    phone?: string;
+  };
+  status: "ACTIVE" | "INACTIVE";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface AuthCredentials {
   fullName: string;
   email: string;
   password: string;
@@ -37,7 +63,6 @@ export interface InventoryItem {
   updatedAt: Date
 }
 
-
 export interface Sale {
   id: string;
   client: Client;
@@ -53,4 +78,3 @@ export interface Sale {
   transactionReference?: string;
   bookingMethod?: string;
 }
-
