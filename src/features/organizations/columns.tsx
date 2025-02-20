@@ -19,7 +19,7 @@ const SortableHeader = ({ column, title }: { column: any; title: string }) => {
     <Button
       variant="ghost"
       onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-      className="hover:bg-gray-100 transition-colors duration-200"
+      className="hover:bg-muted transition-colors duration-200"
     >
       {title}
       <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -44,7 +44,7 @@ const ActionsCell = ({
         <DropdownMenuTrigger asChild>
           <Button 
             variant="ghost" 
-            className="h-8 w-8 p-0 hover:bg-gray-100 transition-colors duration-200"
+            className="h-8 w-8 p-0 hover:bg-muted transition-colors duration-200"
           >
             <MoreHorizontal className="h-4 w-4" />
           </Button>
@@ -52,14 +52,14 @@ const ActionsCell = ({
         <DropdownMenuContent align="end" className="w-40">
           <DropdownMenuItem 
             onClick={() => setShowEditDialog(true)}
-            className="cursor-pointer transition-colors duration-200 hover:bg-gray-100"
+            className="cursor-pointer transition-colors duration-200 hover:bg-muted"
           >
             <Pencil className="mr-2 h-4 w-4" />
             Editar
           </DropdownMenuItem>
           <DropdownMenuItem 
             onClick={() => onDelete(organization.id)}
-            className="cursor-pointer text-red-600 transition-colors duration-200 hover:bg-red-50"
+            className="cursor-pointer text-destructive transition-colors duration-200 hover:bg-destructive/10"
           >
             <Trash className="mr-2 h-4 w-4" />
             Eliminar
@@ -171,7 +171,10 @@ export const organizationColumns = (
         <Badge 
           variant={status === "ACTIVE" ? "default" : "secondary"}
           className={`
-            ${status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}
+            ${status === "ACTIVE" 
+              ? "bg-success/20 text-success dark:bg-success/30" 
+              : "bg-muted text-muted-foreground"
+            }
             transition-all duration-200 hover:scale-105
           `}
         >
