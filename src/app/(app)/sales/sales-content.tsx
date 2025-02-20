@@ -3,37 +3,73 @@
 import { DataTable } from '@/features/sales/data-table'
 import { columns } from './columns'
 import { Button } from '@/components/ui/button'
-import { PlusIcon } from 'lucide-react'
-import NewSaleDialog from '@/features/sales/new=sale-dialog'
+import { PlusIcon, RefreshCw } from 'lucide-react'
+import NewSaleDialog from '@/features/sales/new-sale-dialog'
 import { useCallback, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 
 export default function SalesPageContent({ initialSales }: { initialSales: any[] }) {
   const [sales, setSales] = useState(initialSales)
   const [showDialog, setShowDialog] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const router = useRouter()
 
   const refreshSales = useCallback(async () => {
-    const response = await fetch('/sales', { cache: 'no-store' })
-    const data = await response.json()
-    setSales(data)
+    setIsRefreshing(true)
+    try {
+      const response = await fetch('/sales', { cache: 'no-store' })
+      const data = await response.json()
+      setSales(data)
+    } finally {
+      setIsRefreshing(false)
+    }
   }, [])
 
   return (
-    <div className="p-6 space-y-4">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="p-6 space-y-6"
+    >
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Registro de Ventas</h1>
-        <Button onClick={() => setShowDialog(true)}>
-          <PlusIcon className="mr-2 h-4 w-4" />
-          Nueva Venta
-        </Button>
+        <motion.h1 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="text-3xl font-bold tracking-tight"
+        >
+          Registro de Ventas
+        </motion.h1>
+        <div className="flex gap-3">
+          <Button 
+            variant="outline"
+            size="icon"
+            onClick={refreshSales}
+            className={`transition-all duration-700 ${isRefreshing ? 'rotate-180' : ''}`}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <Button 
+            onClick={() => setShowDialog(true)}
+            className="group"
+          >
+            <PlusIcon className="mr-2 h-4 w-4 transition-transform group-hover:scale-125" />
+            Nueva Venta
+          </Button>
+        </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={sales}
-        searchKey="client.name"
-      />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        <DataTable
+          columns={columns}
+          data={sales}
+          searchKey="client.name"
+        />
+      </motion.div>
 
       <NewSaleDialog 
         open={showDialog}
@@ -43,6 +79,6 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
           router.refresh()
         }}
       />
-    </div>
+    </motion.div>
   )
 }
