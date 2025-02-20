@@ -9,8 +9,10 @@ import { createPurchase } from "./actions"
 import { useState, useEffect, useRef } from "react"
 import { searchClients } from "@/app/(app)/clientes/client"
 import { searchInventory } from "@/features/inventory/actions"
-import { ShoppingCart, User, CreditCard, Trash2, Package, Search, DollarSign } from 'lucide-react'
+import { ShoppingCart, User, CreditCard, Trash2, Package, Search, DollarSign, AlertCircle, Plus, Minus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Tooltip } from "@/components/ui/tooltip"
+import { formatCurrency } from "@/lib/utils"
 
 export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
   const { toast } = useToast()
@@ -68,19 +70,55 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
 
   const addItem = (item: any) => {
     if (item.currentStock <= 0) {
-      toast({ variant: "destructive", title: "Error", description: "Producto sin stock disponible" })
+      toast({ 
+        variant: "destructive", 
+        title: "Error", 
+        description: "Producto sin stock disponible",
+        icon: <AlertCircle className="w-4 h-4" />
+      })
       return
     }
     
-    setFormData(prev => ({
-      ...prev,
-      items: [...prev.items, { itemId: item.id, quantity: 1 }]
-    }))
+    const existingItemIndex = formData.items.findIndex(i => i.itemId === item.id)
+    
+    if (existingItemIndex !== -1) {
+      const newItems = [...formData.items]
+      if (newItems[existingItemIndex].quantity < item.currentStock) {
+        newItems[existingItemIndex].quantity += 1
+        setFormData(prev => ({ ...prev, items: newItems }))
+      } else {
+        toast({ 
+          variant: "warning", 
+          title: "Stock máximo alcanzado", 
+          description: "No hay más unidades disponibles de este producto",
+          icon: <AlertCircle className="w-4 h-4" />
+        })
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        items: [...prev.items, { itemId: item.id, quantity: 1 }]
+      }))
+    }
     
     setTimeout(() => {
       inventorySearchRef.current?.focus()
       setShowResults(prev => ({ ...prev, inventory: true }))
     }, 10)
+  }
+
+  const updateQuantity = (index: number, delta: number) => {
+    const newItems = [...formData.items]
+    const item = newItems[index]
+    const inventoryItem = inventoryResults.find(i => i.id === item.itemId)
+    
+    if (!inventoryItem) return
+
+    const newQuantity = item.quantity + delta
+    if (newQuantity > 0 && newQuantity <= inventoryItem.currentStock) {
+      newItems[index].quantity = newQuantity
+      setFormData({ ...formData, items: newItems })
+    }
   }
 
   const calculateTotal = () => {
@@ -105,7 +143,11 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
       const result = await createPurchase(formData)
       
       if (result.success) {
-        toast({ title: "¡Éxito!", description: "La venta se ha registrado correctamente", className: "bg-green-50 border-green-200" })
+        toast({ 
+          title: "¡Éxito!", 
+          description: "La venta se ha registrado correctamente",
+          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+        })
         onSuccess?.()
         onOpenChange(false)
       } else {
@@ -122,12 +164,18 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
     }
   }
 
+  const getStockClassName = (stock: number) => {
+    if (stock > 10) return 'bg-success/20 text-success-foreground'
+    if (stock > 0) return 'bg-warning/20 text-warning-foreground'
+    return 'bg-destructive/20 text-destructive-foreground'
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-white dark:bg-gray-900 shadow-2xl">
-        <DialogHeader className="border-b pb-4">
-          <DialogTitle className="flex items-center gap-2 text-2xl font-bold">
-            <ShoppingCart className="w-6 h-6 text-primary" />
+      <DialogContent className="max-w-2xl bg-background border-border">
+        <DialogHeader className="border-b border-border pb-4">
+          <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <ShoppingCart className="w-6 h-6 text-foreground" />
             Nueva Venta
           </DialogTitle>
         </DialogHeader>
@@ -135,15 +183,15 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
         <div className="space-y-6 py-4">
           {/* Búsqueda de cliente */}
           <div className="space-y-3">
-            <Label className="flex items-center gap-2 text-lg font-medium">
+            <Label className="flex items-center gap-2 text-lg font-medium text-foreground">
               <User className="w-5 h-5" />
               Cliente
             </Label>
             <div className="relative">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
                 <Input
-                  className="pl-10 transition-all duration-200 border-gray-200 hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="pl-10 transition-all duration-200 bg-background border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20"
                   placeholder="Buscar cliente por nombre o documento..."
                   value={clientSearch}
                   onChange={(e) => setClientSearch(e.target.value)}
@@ -158,12 +206,15 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
+                    className="absolute top-full left-0 right-0 bg-popover border border-border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
                   >
                     {clientResults.map(client => (
-                      <div
+                      <motion.div
                         key={client.id}
-                        className="p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="p-3 hover:bg-accent cursor-pointer transition-colors duration-150"
                         onMouseDown={(e) => {
                           e.preventDefault()
                           setFormData(prev => ({ ...prev, clientId: client.id }))
@@ -171,9 +222,9 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
                           setShowResults(prev => ({ ...prev, client: false }))
                         }}
                       >
-                        <div className="font-medium">{client.name}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">{client.document}</div>
-                      </div>
+                        <div className="font-medium text-foreground">{client.name}</div>
+                        <div className="text-sm text-muted-foreground">{client.document}</div>
+                      </motion.div>
                     ))}
                   </motion.div>
                 )}
@@ -183,16 +234,16 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
 
           {/* Búsqueda de productos */}
           <div className="space-y-3">
-            <Label className="flex items-center gap-2 text-lg font-medium">
+            <Label className="flex items-center gap-2 text-lg font-medium text-foreground">
               <Package className="w-5 h-5" />
               Productos
             </Label>
             <div className="relative">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
                 <Input
                   ref={inventorySearchRef}
-                  className="pl-10 transition-all duration-200 border-gray-200 hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  className="pl-10 transition-all duration-200 bg-background border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20"
                   placeholder="Buscar productos por nombre o SKU..."
                   value={inventorySearch}
                   onChange={(e) => setInventorySearch(e.target.value)}
@@ -207,31 +258,31 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full left-0 right-0 bg-white dark:bg-gray-800 border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
+                    className="absolute top-full left-0 right-0 bg-popover border border-border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
                   >
                     {inventoryResults.map(item => (
-                      <div
+                      <motion.div
                         key={item.id}
-                        className="p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors duration-150"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="p-3 hover:bg-accent cursor-pointer transition-colors duration-150"
                         onMouseDown={(e) => {
                           e.preventDefault()
                           addItem(item)
                         }}
                       >
                         <div className="flex justify-between items-center">
-                          <span className="font-medium">{item.name}</span>
-                          <span className={`text-sm px-2 py-1 rounded ${
-                            item.currentStock > 10 
-                              ? 'bg-green-100 text-green-800' 
-                              : item.currentStock > 0 
-                                ? 'bg-yellow-100 text-yellow-800' 
-                                : 'bg-red-100 text-red-800'
-                          }`}>
+                          <span className="font-medium text-foreground">{item.name}</span>
+                          <span className={`text-sm px-2 py-1 rounded ${getStockClassName(item.currentStock)}`}>
                             Stock: {item.currentStock}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">{item.sku}</div>
-                      </div>
+                        <div className="text-sm text-muted-foreground">{item.sku}</div>
+                        <div className="text-sm font-semibold mt-1">
+                          {formatCurrency(item.basePrice)}
+                        </div>
+                      </motion.div>
                     ))}
                   </motion.div>
                 )}
@@ -249,41 +300,66 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 20 }}
-                      className="flex items-center gap-4 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800 hover:shadow-md transition-all duration-200"
+                      className="flex items-center gap-4 p-4 border border-border rounded-lg bg-muted hover:shadow-md transition-all duration-200"
                     >
                       <div className="flex-1">
-                        <p className="font-medium">{inventoryItem?.name || 'Producto no encontrado'}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">{inventoryItem?.sku}</p>
+                        <p className="font-medium text-foreground">{inventoryItem?.name || 'Producto no encontrado'}</p>
+                        <p className="text-sm text-muted-foreground">{inventoryItem?.sku}</p>
+                        <p className="text-sm font-semibold mt-1">
+                          {formatCurrency((inventoryItem?.basePrice || 0) * item.quantity)}
+                        </p>
                       </div>
                       
                       <div className="flex items-center gap-3">
-                        <Input
-                          type="number"
-                          min="1"
-                          max={inventoryItem?.currentStock || 1}
-                          value={item.quantity}
-                          onChange={(e) => {
-                            const newItems = [...formData.items]
-                            newItems[index].quantity = Math.min(
-                              Number(e.target.value),
-                              inventoryItem?.currentStock || 1
-                            )
-                            setFormData({ ...formData, items: newItems })
-                          }}
-                          className="w-24 text-center"
-                        />
+                        <div className="flex items-center gap-2 bg-background rounded-lg border border-input p-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => updateQuantity(index, -1)}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </Button>
+                          
+                          <Input
+                            type="number"
+                            min="1"
+                            max={inventoryItem?.currentStock || 1}
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const newItems = [...formData.items]
+                              newItems[index].quantity = Math.min(
+                                Number(e.target.value),
+                                inventoryItem?.currentStock || 1
+                              )
+                              setFormData({ ...formData, items: newItems })
+                            }}
+                            className="w-16 text-center bg-background border-0 focus-visible:ring-0"
+                          />
+                          
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => updateQuantity(index, 1)}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
                         
-                        <Button 
-                          variant="destructive"
-                          size="icon"
-                          onClick={() => setFormData({
-                            ...formData,
-                            items: formData.items.filter((_, i) => i !== index)
-                          })}
-                          className="hover:bg-red-600 transition-colors duration-200"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <Tooltip content="Eliminar producto">
+                          <Button 
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => setFormData({
+                              ...formData,
+                              items: formData.items.filter((_, i) => i !== index)
+                            })}
+                            className="hover:bg-destructive/90 transition-colors duration-200"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </Tooltip>
                       </div>
                     </motion.div>
                   )
@@ -294,43 +370,45 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }) {
 
           {/* Método de pago */}
           <div className="space-y-3">
-            <Label className="flex items-center gap-2 text-lg font-medium">
+            <Label className="flex items-center gap-2 text-lg font-medium text-foreground">
               <CreditCard className="w-5 h-5" />
               Método de Pago
             </Label>
             <select
               value={formData.paymentMethod}
               onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-              className="w-full p-2.5 border rounded-lg bg-white dark:bg-gray-800 transition-all duration-200 border-gray-200 hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="w-full p-2.5 rounded-lg bg-background border border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20 text-foreground"
             >
-              <option value="CASH">Efectivo</option>
-              <option value="CARD">Tarjeta</option>
-              <option value="TRANSFER">Transferencia</option>
+              <option value="CASH">💵 Efectivo</option>
+              <option value="CARD">💳 Tarjeta</option>
+              <option value="TRANSFER">🏦 Transferencia</option>
             </select>
           </div>
 
           {/* Total */}
-          <div className="flex justify-between items-center p-4 bg-primary/5 rounded-lg">
-            <span className="text-lg font-medium flex items-center gap-2">
+          <motion.div 
+            className="flex justify-between items-center p-4 bg-muted rounded-lg"
+            initial={{ scale: 0.95 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 20 }}
+          >
+            <span className="text-lg font-medium flex items-center gap-2 text-foreground">
               <DollarSign className="w-5 h-5" />
               Total
             </span>
-            <span className="text-2xl font-bold text-primary">
-              {calculateTotal().toLocaleString('es-ES', {
-                style: 'currency',
-                currency: 'USD'
-              })}
+            <span className="text-2xl font-bold text-foreground">
+              {formatCurrency(calculateTotal())}
             </span>
-          </div>
+          </motion.div>
 
           <Button 
             onClick={handleSubmit} 
             disabled={loading}
-            className="w-full py-6 text-lg font-medium transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-6 text-lg font-medium transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed bg-foreground text-background hover:bg-foreground/90"
           >
             {loading ? (
               <div className="flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-background border-t-transparent rounded-full animate-spin" />
                 Procesando...
               </div>
             ) : (
