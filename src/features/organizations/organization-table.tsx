@@ -88,16 +88,16 @@ export function OrganizationTable({
           placeholder="Buscar en todas las columnas..."
           value={globalFilter ?? ""}
           onChange={(event) => setGlobalFilter(event.target.value)}
-          className="max-w-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+          className="max-w-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 dark:bg-gray-800 dark:border-gray-700"
         />
       </div>
-      <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
+      <div className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden dark:border-gray-700">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="bg-gray-50 hover:bg-gray-50">
+              <TableRow key={headerGroup.id} className="hover:bg-muted/50 dark:hover:bg-muted/50">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="font-semibold text-gray-600">
+                  <TableHead key={header.id} className="font-semibold">
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -115,10 +115,10 @@ export function OrganizationTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="transition-colors hover:bg-gray-50/50 group"
+                  className="transition-colors hover:bg-muted/50 dark:hover:bg-muted/50 group"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="group-hover:text-gray-900">
+                    <TableCell key={cell.id} className="group-hover:text-foreground">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -128,7 +128,7 @@ export function OrganizationTable({
               <TableRow>
                 <TableCell 
                   colSpan={organizationColumns.length} 
-                  className="h-24 text-center text-gray-500"
+                  className="h-24 text-center text-muted-foreground"
                 >
                   No se encontraron resultados.
                 </TableCell>
