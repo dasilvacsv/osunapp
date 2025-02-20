@@ -1,4 +1,3 @@
-// components/data-table.tsx
 'use client'
 
 import {
@@ -15,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { motion } from 'framer-motion'
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData>[]
@@ -34,13 +34,13 @@ export function DataTable<TData>({
   })
 
   return (
-    <div className="rounded-md border">
+    <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
+            <TableRow key={headerGroup.id} className="hover:bg-muted/50">
               {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
+                <TableHead key={header.id} className="font-semibold">
                   {header.isPlaceholder
                     ? null
                     : flexRender(
@@ -54,22 +54,31 @@ export function DataTable<TData>({
         </TableHeader>
         <TableBody>
           {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
+            table.getRowModel().rows.map((row, index) => (
+              <motion.tr
                 key={row.id}
-                data-state={row.getIsSelected() && "selected"}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="group transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
+                  <TableCell 
+                    key={cell.id}
+                    className="py-3 px-4"
+                  >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}
-              </TableRow>
+              </motion.tr>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                No hay resultados
+              <TableCell 
+                colSpan={columns.length} 
+                className="h-24 text-center text-muted-foreground"
+              >
+                No hay resultados disponibles
               </TableCell>
             </TableRow>
           )}
