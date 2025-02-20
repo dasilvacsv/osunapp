@@ -47,11 +47,19 @@ export type DetailedClientResponse = {
   }[];
 }
 
+export type OrganizationFormData = {
+  name: string;
+  type: "SCHOOL" | "COMPANY" | "OTHER";
+  address?: string;
+  contactInfo: {
+    phone?: string;
+    email?: string;
+  };
+};
+
 export async function getClients() {
   try {
-    const data = await db.select().from(clients).where(
-      eq(clients.status, "ACTIVE")
-    );
+    const data = await db.select().from(clients).where(eq(clients.status, "ACTIVE"));
     return { data };
   } catch (error) {
     return { error: "Failed to fetch clients" };
@@ -66,6 +74,31 @@ export async function getClient(id: string) {
     return { data: data[0] };
   } catch (error) {
     return { error: "Failed to fetch client" };
+  }
+}
+
+export async function getOrganizations() {
+  try {
+    const data = await db.select().from(organizations).where(eq(organizations.status, "ACTIVE"));
+    return { data };
+  } catch (error) {
+    return { error: "Failed to fetch organizations" };
+  }
+}
+
+export async function createOrganization(data: OrganizationFormData) {
+  try {
+    const newOrganization = await db.insert(organizations).values({
+      name: data.name,
+      type: data.type,
+      address: data.address,
+      contactInfo: data.contactInfo,
+      status: "ACTIVE",
+    }).returning();
+    revalidatePath("/clientes");
+    return { success: "Organization created successfully", data: newOrganization[0] };
+  } catch (error) {
+    return { error: "Failed to create organization" };
   }
 }
 
@@ -93,9 +126,7 @@ export async function createClient(data: ClientFormData) {
       organizationId: data.organizationId,
       role: data.role,
       status: "ACTIVE",
-    })
-    .returning();
-    
+    }).returning();
     revalidatePath("/clientes");
     return { success: "Client created successfully", data: newClient[0] };
   } catch (error) {
