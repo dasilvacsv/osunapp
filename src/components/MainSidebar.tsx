@@ -34,8 +34,23 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
+    title: "Organizaciones",
+    url: "/organizations",
+    icon: School,
+    items: [
+      {
+        title: "Lista de Organizaciones",
+        url: "/organizations",
+      },
+      {
+        title: "Nueva Organización",
+        url: "/organizations/new",
+      }
+    ],
+  },
+  {
     title: "Clientes",
-    url: "/clientes",
+    url: "/clients",
     icon: Users,
     items: [
       {
@@ -44,85 +59,70 @@ const navItems = [
       },
       {
         title: "Nuevo Cliente",
-        url: "/clientes/nuevo",
+        url: "/clients/new",
       },
       {
         title: "Registrar Hijo",
-        url: "/clientes/hijo/nuevo",
+        url: "/clients/children/new",
       }
     ],
   },
   {
-    title: "Paquetes Escolares",
-    url: "/paquetes-escolares",
-    icon: GraduationCap,
-    items: [
-      {
-        title: "Gestión de Paquetes",
-        url: "/paquetes-escolares",
-      },
-      {
-        title: "Nueva Venta Escolar",
-        url: "/paquetes-escolares/venta",
-      },
-      {
-        title: "Inventario Medallas",
-        url: "/paquetes-escolares/medallas",
-      },
-      {
-        title: "Colegios",
-        url: "/paquetes-escolares/colegios",
-      }
-    ],
-  },
-  {
-    title: "Servicios Fotográficos",
-    url: "/servicios",
-    icon: Camera,
-    items: [
-      {
-        title: "Catálogo de Servicios",
-        url: "/servicios",
-      },
-      {
-        title: "Nueva Sesión",
-        url: "/servicios/nueva-sesion",
-      }
-    ],
-  },
-  {
-    title: "Productos",
-    url: "/productos",
+    title: "Inventario",
+    url: "/inventory",
     icon: Package,
     items: [
       {
-        title: "Inventario",
-        url: "/productos",
+        title: "Lista de Items",
+        url: "/inventory",
       },
       {
-        title: "Agregar Producto",
-        url: "/productos/nuevo",
+        title: "Nuevo Item",
+        url: "/inventory/new",
+      },
+      {
+        title: "Categorías",
+        url: "/inventory/categories",
       }
     ],
   },
   {
     title: "Ventas",
-    url: "/ventas",
+    url: "/sales",
     icon: Receipt,
     items: [
       {
         title: "Historial de Ventas",
-        url: "/ventas",
+        url: "/sales",
       },
       {
         title: "Nueva Venta",
-        url: "/ventas/nueva",
+        url: "/sales/new",
+      },
+      {
+        title: "Paquetes",
+        url: "/sales/bundles",
+      }
+    ],
+  },
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: LayoutDashboard,
+    items: [
+      {
+        title: "Resumen",
+        url: "/",
+      },
+      {
+        title: "Reportes",
+        url: "/dashboard/reports",
       }
     ],
   }
 ];
 
-export function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export default function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const user = {
     name: "Fotógrafo Admin",
     email: "admin@fotografia.com",
@@ -176,5 +176,3 @@ export function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) 
     </Sidebar>
   );
 }
-
-export default MainSidebar;

@@ -14,6 +14,8 @@ interface OrganizationListProps {
 }
 
 export default function OrganizationList({ initialOrganizations }: OrganizationListProps) {
+  console.log(initialOrganizations);
+  
   const [organizations, setOrganizations] = useState(initialOrganizations)
   const [selectedOrganizations, setSelectedOrganizations] = useState<string[]>([])
   const [showCreateDialog, setShowCreateDialog] = useState(false)
