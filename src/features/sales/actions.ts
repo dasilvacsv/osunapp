@@ -1,8 +1,8 @@
 // actions/sales/actions.ts
 'use server';
 import { db } from "@/db";
-import { purchases, purchaseItems, inventoryItems, inventoryTransactions, clients } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { purchases, purchaseItems, inventoryItems, inventoryTransactions, clients, bundles, bundleItems } from "@/db/schema";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getPurchaseDetails(id: string) {
@@ -188,5 +188,43 @@ export async function updatePurchaseStatus(id: string, newStatus: string) {
       success: false,
       error: error instanceof Error ? error.message : "Error al actualizar el estado",
     };
+  }
+}
+
+export async function searchBundles(query: string) {
+  try {
+    const data = await db.select({
+      id: bundles.id,
+      name: bundles.name,
+      basePrice: bundles.basePrice,
+      type: bundles.type,
+      items: sql`json_agg(json_build_object(
+        'id', ${bundleItems.id},
+        'quantity', ${bundleItems.quantity},
+        'overridePrice', ${bundleItems.overridePrice},
+        'item', json_build_object(
+          'id', ${inventoryItems.id},
+          'name', ${inventoryItems.name},
+          'currentStock', ${inventoryItems.currentStock},
+          'basePrice', ${inventoryItems.basePrice}
+        )
+      ))`
+    })
+    .from(bundles)
+    .leftJoin(bundleItems, eq(bundles.id, bundleItems.bundleId))
+    .leftJoin(inventoryItems, eq(bundleItems.itemId, inventoryItems.id)) // This join is correct
+    .where(
+      and(
+        eq(bundles.status, "ACTIVE"),
+        sql`LOWER(${bundles.name}) LIKE ${'%' + query.toLowerCase() + '%'}`
+      )
+    )
+    .groupBy(bundles.id)
+    .limit(10);
+
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error searching bundles:", error);
+    return { success: false, error: "Error buscando paquetes" };
   }
 }

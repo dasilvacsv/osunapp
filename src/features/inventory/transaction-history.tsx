@@ -13,6 +13,7 @@ import {
 import { formatDate } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { ArrowUpCircle, ArrowDownCircle, Clock, Package } from "lucide-react"
+import Link from "next/link"
 
 interface TransactionHistoryProps {
   transactions: InventoryTransaction[]
@@ -94,7 +95,7 @@ export function TransactionHistory({ transactions }: TransactionHistoryProps) {
                   <TableCell>
                     <Badge
                       variant={
-                        transaction.transactionType === 'IN' ? 'success' :
+                        transaction.transactionType === 'IN' ? 'secondary' :
                           transaction.transactionType === 'OUT' ? 'destructive' : 'default'
                       }
                       className="flex w-fit items-center gap-1"
@@ -113,7 +114,16 @@ export function TransactionHistory({ transactions }: TransactionHistoryProps) {
                     {transaction.quantity}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {transaction.notes || '-'}
+                    {transaction.notes?.includes('Venta') ? (
+                      <Link 
+                        href={`/sales/${transaction.notes.split(' ').pop()?.replace('#', '')}`}
+                        className="text-blue-500 hover:underline"
+                      >
+                        {transaction.notes.replace('#', '')}
+                      </Link>
+                    ) : (
+                      transaction.notes || '-'
+                    )}
                   </TableCell>
                 </motion.tr>
               ))}

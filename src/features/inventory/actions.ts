@@ -336,3 +336,16 @@ export async function getBundles() {
     return { success: false, error: "Failed to fetch bundles" };
   }
 }
+
+export async function getInventoryItem(id: string) {
+  try {
+    const [item] = await db.select()
+      .from(inventoryItems)
+      .where(eq(inventoryItems.id, id));
+    
+    return { success: true, data: item };
+  } catch (error) {
+    console.error("Error fetching inventory item:", error);
+    return { success: false, error: "Error obteniendo producto" };
+  }
+}
