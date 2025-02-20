@@ -14,6 +14,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { organizationColumns } from "./columns"
 import { Input } from "@/components/ui/input"
+import { motion } from "framer-motion"
 
 interface OrganizationTableProps {
   organizations: any[]
@@ -69,26 +70,34 @@ export function OrganizationTable({
   })
 
   if (isLoading && organizations.length === 0) {
-    return <div>Loading...</div>
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-4">
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-4"
+    >
       <div className="flex items-center py-4">
         <Input
-          placeholder="Search all columns..."
+          placeholder="Buscar en todas las columnas..."
           value={globalFilter ?? ""}
           onChange={(event) => setGlobalFilter(event.target.value)}
-          className="max-w-sm"
+          className="max-w-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20"
         />
       </div>
-      <div className="rounded-md border">
+      <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="bg-gray-50 hover:bg-gray-50">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead key={header.id} className="font-semibold text-gray-600">
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -106,9 +115,10 @@ export function OrganizationTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className="transition-colors hover:bg-gray-50/50 group"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="group-hover:text-gray-900">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -116,14 +126,17 @@ export function OrganizationTable({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={organizationColumns.length} className="h-24 text-center">
-                  No results found.
+                <TableCell 
+                  colSpan={organizationColumns.length} 
+                  className="h-24 text-center text-gray-500"
+                >
+                  No se encontraron resultados.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-    </div>
+    </motion.div>
   )
 }
