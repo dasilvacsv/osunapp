@@ -67,14 +67,14 @@ export default function OrganizationList({ initialOrganizations }: OrganizationL
       animate={{ opacity: 1 }}
       className="space-y-6 p-6"
     >
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-6 rounded-xl shadow-md">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-card text-card-foreground p-6 rounded-xl shadow-md dark:border dark:border-gray-700">
+        <h1 className="text-3xl font-bold tracking-tight">
           Organizaciones
         </h1>
         <div className="flex items-center gap-4">
           <Button 
             onClick={() => setShowCreateDialog(true)}
-            className="bg-primary hover:bg-primary/90 text-white transition-all duration-200"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground transition-all duration-200"
           >
             <PlusIcon className="mr-2 h-4 w-4" />
             Crear Organización
