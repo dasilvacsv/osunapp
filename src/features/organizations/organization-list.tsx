@@ -1,65 +1,97 @@
-// features/organizations/organization-list.tsx
 'use client'
 
-import { useState } from "react"
+import React, { useCallback, useState, useTransition } from "react"
 import { PlusIcon } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { OrganizationForm } from "./organization-form"
 import { OrganizationTable } from "./organization-table"
-import { useToast } from "@/hooks/use-toast"
-import { checkPermissions } from "@/lib/auth"
+import { OrganizationFormData, createOrganization, deleteOrganization, updateOrganization } from "@/app/(app)/organizations/organization"
 
 interface OrganizationListProps {
   initialOrganizations: any[]
-  error?: string
 }
 
-export default function OrganizationList({ initialOrganizations, error }: OrganizationListProps) {
+export default function OrganizationList({ initialOrganizations }: OrganizationListProps) {
   const [organizations, setOrganizations] = useState(initialOrganizations)
+  const [selectedOrganizations, setSelectedOrganizations] = useState<string[]>([])
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const { toast } = useToast()
+  const [isPending, startTransition] = useTransition()
 
-  const canCreate = checkPermissions('organizations:write')
+  const refreshOrganizations = useCallback((newOrganizations: any[]) => {
+    setOrganizations(newOrganizations)
+  }, [])
 
-  if (error) {
-    return <div className="text-red-500">{error}</div>
-  }
+  const handleCreateOrganization = useCallback(async (data: OrganizationFormData) => {
+    startTransition(async () => {
+      const result = await createOrganization(data)
+      if (result.success && result.data) {
+        setShowCreateDialog(false)
+        setOrganizations(prev => [...prev, result.data])
+      } else {
+        console.error(result.error)
+      }
+    })
+  }, [])
+  
+  const handleUpdateOrganization = useCallback(async (id: string, data: OrganizationFormData) => {
+    startTransition(async () => {
+      const result = await updateOrganization(id, data)
+      if (result.success && result.data) {
+        setOrganizations(prev => 
+          prev.map(org => 
+            org.id === id ? { ...org, ...result.data } : org
+          )
+        )
+      } else {
+        console.error(result.error)
+      }
+    })
+  }, [])
+
+  const handleDeleteOrganization = useCallback(async (id: string) => {
+    startTransition(async () => {
+      const result = await deleteOrganization(id)
+      if (result.success) {
+        refreshOrganizations(organizations.filter(org => org.id !== id))
+      } else {
+        console.error(result.error)
+      }
+    })
+  }, [organizations, refreshOrganizations])
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow">
-        <h1 className="text-2xl font-bold">Organizaciones</h1>
-        {canCreate && (
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow">
+        <h1 className="text-2xl font-bold text-gray-800">Organizations</h1>
+        <div className="flex items-center gap-4">
           <Button onClick={() => setShowCreateDialog(true)}>
             <PlusIcon className="mr-2 h-4 w-4" />
-            Nueva Organización
+            Create Organization
           </Button>
-        )}
+        </div>
       </div>
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Crear Nueva Organización</DialogTitle>
+            <DialogTitle>Create New Organization</DialogTitle>
           </DialogHeader>
           <OrganizationForm 
-            onSuccess={(newOrg) => {
-              setOrganizations(prev => [...prev, newOrg])
-              setShowCreateDialog(false)
-              toast({
-                title: "Éxito",
-                description: "Organización creada correctamente",
-              })
-            }}
             closeDialog={() => setShowCreateDialog(false)}
+            mode="create"
+            onSubmit={handleCreateOrganization}
           />
         </DialogContent>
       </Dialog>
 
-      <OrganizationTable 
+      <OrganizationTable
         organizations={organizations}
-        setOrganizations={setOrganizations}
+        isLoading={isPending}
+        onUpdateOrganization={handleUpdateOrganization}
+        onDeleteOrganization={handleDeleteOrganization}
+        selectedOrganizations={selectedOrganizations}
+        setSelectedOrganizations={setSelectedOrganizations}
       />
     </div>
   )

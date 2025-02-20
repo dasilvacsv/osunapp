@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-import { getOrganizations } from "@/app/(app)/clientes/organizations";
+import { getOrganizations } from "@/app/(app)/organizations/organization";
 
 
 import { useToast } from "@/hooks/use-toast"
