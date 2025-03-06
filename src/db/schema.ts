@@ -74,6 +74,11 @@ export const inventoryItemStatusEnum = pgEnum("inventory_item_status", [
   "INACTIVE",
 ]);
 
+export const bundleBeneficiaryStatusEnum = pgEnum("bundle_beneficiary_status", [
+  "ACTIVE",
+  "INACTIVE"
+]);
+
 // Organizations Table
 export const organizations = pgTable("organizations", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
@@ -165,6 +170,10 @@ export const bundles = pgTable("bundles", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   categoryId: uuid("category_id").references(() => bundleCategories.id),
+  // New tracking fields
+  totalSales: integer("total_sales").notNull().default(0),
+  lastSaleDate: timestamp("last_sale_date", { withTimezone: true }),
+  totalRevenue: decimal("total_revenue", { precision: 10, scale: 2 }).notNull().default('0'),
 });
 
 // Bundle Items Table (Connects Bundles with Inventory Items)
@@ -174,6 +183,20 @@ export const bundleItems = pgTable("bundle_items", {
   itemId: uuid("item_id").notNull().references(() => inventoryItems.id),
   quantity: integer("quantity").notNull(),
   overridePrice: decimal("override_price", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+// Bundle Beneficiaries Table
+export const bundleBeneficiaries = pgTable("bundle_beneficiaries", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  bundleId: uuid("bundle_id").notNull().references(() => bundles.id),
+  firstName: varchar("first_name", { length: 255 }).notNull(),
+  lastName: varchar("last_name", { length: 255 }).notNull(),
+  school: varchar("school", { length: 255 }).notNull(),
+  level: varchar("level", { length: 50 }).notNull(),
+  section: varchar("section", { length: 50 }).notNull(),
+  status: bundleBeneficiaryStatusEnum("status").default("ACTIVE"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
