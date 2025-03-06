@@ -187,6 +187,8 @@ export const bundleItems = pgTable("bundle_items", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+
+
 // Bundle Beneficiaries Table
 export const bundleBeneficiaries = pgTable("bundle_beneficiaries", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
@@ -200,6 +202,8 @@ export const bundleBeneficiaries = pgTable("bundle_beneficiaries", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
+
+
 
 // Purchases Table
 export const purchases = pgTable("purchases", {
