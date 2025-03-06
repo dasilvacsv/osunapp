@@ -3,7 +3,9 @@
 import { BundleWithBeneficiaries } from '@/features/packages/actions';
 import { addBundleBeneficiary, removeBundleBeneficiary } from '@/features/packages/actions';
 import { useState } from 'react';
-import { PackageIcon, UserPlus, X } from 'lucide-react';
+import { Package2, UserPlus, X, Calendar, DollarSign } from 'lucide-react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) {
   const [showForm, setShowForm] = useState(false);
@@ -34,7 +36,7 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
     <div className="p-6 max-w-4xl mx-auto">
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
         <div className="flex items-center gap-4 mb-4">
-          <PackageIcon className="w-8 h-8 text-blue-600" />
+          <Package2 className="w-8 h-8 text-blue-600" />
           <h1 className="text-2xl font-bold">{bundle.name}</h1>
         </div>
         
@@ -76,13 +78,13 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
         <div className="mt-8">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Beneficiarios</h2>
-            <button
+            <Button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700"
             >
               <UserPlus className="w-4 h-4" />
               Agregar Beneficiario
-            </button>
+            </Button>
           </div>
 
           {showForm && (
@@ -160,19 +162,16 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                 </div>
               </div>
               <div className="mt-4 flex justify-end gap-2">
-                <button
+                <Button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  variant="ghost"
                 >
                   Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
+                </Button>
+                <Button type="submit">
                   Guardar
-                </button>
+                </Button>
               </div>
             </form>
           )}
@@ -190,13 +189,39 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                   <p className="text-sm text-gray-600">
                     {beneficiary.school} - {beneficiary.level} {beneficiary.section}
                   </p>
+                  
+                  {/* Detalles de compra */}
+                  {beneficiary.purchase?.purchaseDate && (
+                    <p className="flex items-center gap-2 mt-1">
+                      <Calendar className="w-4 h-4 text-gray-500" />
+                      <span className="text-gray-600">
+                        {new Date(beneficiary.purchase.purchaseDate).toLocaleDateString()}
+                      </span>
+                    </p>
+                  )}
+                  {beneficiary.purchase?.totalAmount && (
+                    <p className="flex items-center gap-2 mt-1">
+                      <DollarSign className="w-4 h-4 text-gray-500" />
+                      <span className="text-gray-600">
+                        ${beneficiary.purchase.totalAmount}
+                      </span>
+                    </p>
+                  )}
                 </div>
-                <button
-                  onClick={() => removeBundleBeneficiary(beneficiary.id)}
-                  className="text-red-600 hover:text-red-800"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                
+                <div className="flex gap-2">
+                  <Link href={`/packages/beneficiaries/${beneficiary.id}`}>
+                    <Button variant="ghost" size="sm">
+                      Ver detalles
+                    </Button>
+                  </Link>
+                  <button
+                    onClick={() => removeBundleBeneficiary(beneficiary.id)}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

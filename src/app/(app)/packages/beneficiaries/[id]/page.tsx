@@ -64,19 +64,19 @@ export default async function BeneficiaryDetailsPage({
             <p>
               <span className="font-medium">Precio base:</span> ${bundle.basePrice}
             </p>
-            {purchase && (
-              <>
-                <p className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  <span className="font-medium">Fecha de compra:</span>{" "}
-                  {new Date(purchase.purchaseDate).toLocaleDateString()}
-                </p>
-                <p className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  <span className="font-medium">Monto pagado:</span>{" "}
-                  ${purchase.totalAmount}
-                </p>
-              </>
+            {purchase?.purchaseDate && (
+              <p className="flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                <span className="font-medium">Fecha de compra:</span>{" "}
+                {new Date(purchase.purchaseDate).toLocaleDateString()}
+              </p>
+            )}
+            {purchase?.totalAmount && (
+              <p className="flex items-center gap-2">
+                <DollarSign className="w-4 h-4" />
+                <span className="font-medium">Monto pagado:</span>{" "}
+                ${purchase.totalAmount}
+              </p>
             )}
           </div>
         </div>

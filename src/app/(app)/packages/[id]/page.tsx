@@ -1,3 +1,4 @@
+// page.tsx
 import { getBundleDetails } from '@/features/packages/actions';
 import { PackageDetails } from '@/features/packages/package-details';
 

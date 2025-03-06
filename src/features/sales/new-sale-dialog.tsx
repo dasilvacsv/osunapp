@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -11,55 +11,96 @@ import { searchClients } from "@/app/(app)/clientes/client"
 import { searchInventory, getInventoryItem } from "@/features/inventory/actions"
 import { searchBundles } from "./actions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ShoppingCart, User, CreditCard, Trash2, Package, Search, DollarSign, AlertCircle, Plus, Minus, ShoppingBag } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import {
+  ShoppingCart,
+  User,
+  CreditCard,
+  Trash2,
+  Package,
+  Search,
+  DollarSign,
+  AlertCircle,
+  Plus,
+  Minus,
+  ShoppingBag,
+  CheckCircle2,
+} from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatCurrency } from "@/lib/utils"
-import { type Toast } from "@/components/ui/toast"
+import { cn } from "@/lib/utils"
 
 interface NewSaleDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess?: () => void;
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSuccess?: () => void
 }
 
 interface SaleItem {
-  itemId: string;
-  quantity: number;
-  overridePrice?: number;
+  itemId: string
+  quantity: number
+  overridePrice?: number
 }
 
 interface FormData {
-  clientId: string;
-  items: SaleItem[];
-  paymentMethod: 'CASH' | 'CARD' | 'TRANSFER';
+  clientId: string
+  items: SaleItem[]
+  paymentMethod: "CASH" | "CARD" | "TRANSFER"
+}
+
+interface BeneficiaryData {
+  firstName: string
+  lastName: string
+  school: string
+  level: string
+  section: string
 }
 
 export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogProps) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<FormData>({
-    clientId: '',
+    clientId: "",
     items: [],
-    paymentMethod: 'CASH'
+    paymentMethod: "CASH",
   })
-  
-  const [clientSearch, setClientSearch] = useState('')
+
+  const [clientSearch, setClientSearch] = useState("")
   const [clientResults, setClientResults] = useState<any[]>([])
-  const [inventorySearch, setInventorySearch] = useState('')
+  const [inventorySearch, setInventorySearch] = useState("")
   const [inventoryResults, setInventoryResults] = useState<any[]>([])
   const [showResults, setShowResults] = useState({
     client: false,
-    inventory: false
+    inventory: false,
   })
 
-  const [activeTab, setActiveTab] = useState<'items' | 'bundles'>('items')
-  const [bundleSearch, setBundleSearch] = useState('')
+  const [activeTab, setActiveTab] = useState<"items" | "bundles">("items")
+  const [bundleSearch, setBundleSearch] = useState("")
   const [bundleResults, setBundleResults] = useState<any[]>([])
   const [showBundleResults, setShowBundleResults] = useState(false)
   const [itemsCache, setItemsCache] = useState<Record<string, any>>({})
+  const [selectedBundle, setSelectedBundle] = useState<string | null>(null)
+  const [beneficiaryData, setBeneficiaryData] = useState<BeneficiaryData>({
+    firstName: "",
+    lastName: "",
+    school: "",
+    level: "",
+    section: "",
+  })
+  const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({})
+  const [bundleLoading, setBundleLoading] = useState(false)
 
   const inventorySearchRef = useRef<HTMLInputElement>(null)
+  const clientInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    // Focus client input when dialog opens
+    if (open && clientInputRef.current) {
+      setTimeout(() => {
+        clientInputRef.current?.focus()
+      }, 100)
+    }
+  }, [open])
 
   useEffect(() => {
     const handler = setTimeout(async () => {
@@ -67,11 +108,11 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
         const result = await searchClients(clientSearch)
         if (result.success) {
           setClientResults(result.data ?? [])
-          setShowResults(prev => ({ ...prev, client: true }))
+          setShowResults((prev) => ({ ...prev, client: true }))
         }
       } else {
         setClientResults([])
-        setShowResults(prev => ({ ...prev, client: false }))
+        setShowResults((prev) => ({ ...prev, client: false }))
       }
     }, 200)
 
@@ -84,18 +125,17 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
         const result = await searchInventory(inventorySearch)
         if (result.success) {
           setInventoryResults(result.data ?? [])
-          setShowResults(prev => ({ ...prev, inventory: true }))
+          setShowResults((prev) => ({ ...prev, inventory: true }))
         }
       } else {
         setInventoryResults([])
-        setShowResults(prev => ({ ...prev, inventory: false }))
+        setShowResults((prev) => ({ ...prev, inventory: false }))
       }
     }, 200)
 
     return () => clearTimeout(handler)
   }, [inventorySearch])
 
-  // Bundle search effect
   useEffect(() => {
     const handler = setTimeout(async () => {
       if (bundleSearch.length > 1) {
@@ -113,114 +153,148 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
     return () => clearTimeout(handler)
   }, [bundleSearch])
 
-  // Add effect to fetch missing items
   useEffect(() => {
     const fetchMissingItems = async () => {
       const missingItems = formData.items.filter(
-        item => !itemsCache[item.itemId] && !inventoryResults.find(i => i.id === item.itemId)
-      );
+        (item) => !itemsCache[item.itemId] && !inventoryResults.find((i) => i.id === item.itemId),
+      )
 
       if (missingItems.length > 0) {
-        const itemDetails = await Promise.all(
-          missingItems.map(item => getInventoryItem(item.itemId))
-        );
+        const itemDetails = await Promise.all(missingItems.map((item) => getInventoryItem(item.itemId)))
 
-        const newCache = { ...itemsCache };
+        const newCache = { ...itemsCache }
         itemDetails.forEach((result, index) => {
           if (result.success) {
-            newCache[missingItems[index].itemId] = result.data;
+            newCache[missingItems[index].itemId] = result.data
           }
-        });
+        })
 
-        setItemsCache(newCache);
+        setItemsCache(newCache)
       }
-    };
+    }
 
-    fetchMissingItems();
-  }, [formData.items, itemsCache, inventoryResults]);
+    fetchMissingItems()
+  }, [formData.items, itemsCache, inventoryResults])
 
-  // Add helper function to get item details
+  // Validate beneficiary data when it changes
+  useEffect(() => {
+    if (selectedBundle) {
+      const errors: Record<string, boolean> = {}
+      Object.entries(beneficiaryData).forEach(([key, value]) => {
+        errors[key] = !value
+      })
+      setValidationErrors(errors)
+    }
+  }, [beneficiaryData, selectedBundle])
+
   const getItemDetails = (itemId: string) => {
-    return itemsCache[itemId] || inventoryResults.find(i => i.id === itemId);
-  };
+    return itemsCache[itemId] || inventoryResults.find((i) => i.id === itemId)
+  }
 
-  const addBundle = (bundle: any) => {
-    // Check if all items in bundle have sufficient stock
-    const insufficientItems = bundle.items.filter(
-      (bundleItem: any) => bundleItem.item.currentStock < bundleItem.quantity
-    );
-  
-    if (insufficientItems.length > 0) {
+  const addBundle = async (bundle: any) => {
+    try {
+      setBundleLoading(true)
+
+      const insufficientItems = bundle.items.filter(
+        (bundleItem: any) => bundleItem.item.currentStock < bundleItem.quantity,
+      )
+
+      if (insufficientItems.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Stock insuficiente",
+          description: `Algunos productos del paquete no tienen suficiente stock`,
+        })
+        return
+      }
+
+      const newItems = [...formData.items]
+
+      bundle.items.forEach((bundleItem: any) => {
+        const existingItemIndex = newItems.findIndex((i) => i.itemId === bundleItem.item.id)
+
+        if (existingItemIndex !== -1) {
+          newItems[existingItemIndex].quantity += bundleItem.quantity
+        } else {
+          newItems.push({
+            itemId: bundleItem.item.id,
+            quantity: bundleItem.quantity,
+            overridePrice: bundleItem.overridePrice || bundleItem.item.basePrice,
+          })
+        }
+      })
+
+      setFormData((prev) => ({
+        ...prev,
+        items: newItems,
+      }))
+
+      setSelectedBundle(bundle.id)
+      setBundleSearch("")
+      setShowBundleResults(false)
+
+      // Reset beneficiary data
+      setBeneficiaryData({
+        firstName: "",
+        lastName: "",
+        school: "",
+        level: "",
+        section: "",
+      })
+
+      // Show success toast
+      toast({
+        title: "Paquete agregado",
+        description: `Se agregaron ${bundle.items.length} productos del paquete ${bundle.name}`,
+        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+      })
+    } catch (error) {
       toast({
         variant: "destructive",
-        title: "Stock insuficiente",
-        description: `Algunos productos del paquete no tienen suficiente stock`,
-      });
-      return;
+        title: "Error",
+        description: "No se pudo agregar el paquete",
+      })
+    } finally {
+      setBundleLoading(false)
     }
-  
-    // Add all bundle items to the sale
-    const newItems = [...formData.items];
-    
-    bundle.items.forEach((bundleItem: any) => {
-      const existingItemIndex = newItems.findIndex(i => i.itemId === bundleItem.item.id); // This was the issue
-      
-      if (existingItemIndex !== -1) {
-        // Update quantity if item exists
-        newItems[existingItemIndex].quantity += bundleItem.quantity;
-      } else {
-        // Add new item
-        newItems.push({
-          itemId: bundleItem.item.id, // This was the issue
-          quantity: bundleItem.quantity,
-          overridePrice: bundleItem.overridePrice || bundleItem.item.basePrice
-        });
-      }
-    });
-  
-    setFormData(prev => ({
-      ...prev,
-      items: newItems
-    }));
-  
-    setBundleSearch('');
-    setShowBundleResults(false);
-  };
+  }
 
   const addItem = (item: any) => {
     if (item.currentStock <= 0) {
-      toast({ 
-        variant: "destructive", 
-        title: "Error", 
+      toast({
+        variant: "destructive",
+        title: "Error",
         description: "Producto sin stock disponible",
       })
       return
     }
-    
-    const existingItemIndex = formData.items.findIndex(i => i.itemId === item.id)
-    
+
+    const existingItemIndex = formData.items.findIndex((i) => i.itemId === item.id)
+
     if (existingItemIndex !== -1) {
       const newItems = [...formData.items]
       if (newItems[existingItemIndex].quantity < item.currentStock) {
         newItems[existingItemIndex].quantity += 1
-        setFormData(prev => ({ ...prev, items: newItems }))
+        setFormData((prev) => ({ ...prev, items: newItems }))
       } else {
-        toast({ 
-          variant: "destructive", 
-          title: "Stock máximo alcanzado", 
+        toast({
+          variant: "destructive",
+          title: "Stock máximo alcanzado",
           description: "No hay más unidades disponibles de este producto",
         })
       }
     } else {
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        items: [...prev.items, { itemId: item.id, quantity: 1 }]
+        items: [...prev.items, { itemId: item.id, quantity: 1 }],
       }))
     }
-    
+
+    // Clear search and focus input for next item
+    setInventorySearch("")
     setTimeout(() => {
       inventorySearchRef.current?.focus()
-      setShowResults(prev => ({ ...prev, inventory: true }))
+      setShowResults((prev) => ({ ...prev, inventory: true }))
     }, 10)
   }
 
@@ -228,7 +302,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
     const newItems = [...formData.items]
     const item = newItems[index]
     const inventoryItem = getItemDetails(item.itemId)
-    
+
     if (!inventoryItem) return
 
     const newQuantity = item.quantity + delta
@@ -242,29 +316,69 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
     return formData.items.reduce((total, item) => {
       const inventoryItem = getItemDetails(item.itemId)
       const price = item.overridePrice || inventoryItem?.basePrice || 0
-      return total + (price * item.quantity)
+      return total + price * item.quantity
     }, 0)
+  }
+
+  const validateForm = () => {
+    const errors = []
+
+    if (!formData.clientId) {
+      errors.push("Selecciona un cliente")
+    }
+
+    if (formData.items.length === 0) {
+      errors.push("Agrega al menos un producto")
+    }
+
+    if (selectedBundle) {
+      const missingFields = Object.entries(beneficiaryData)
+        .filter(([_, value]) => !value)
+        .map(([key, _]) => {
+          const fieldNames: Record<string, string> = {
+            firstName: "Nombres",
+            lastName: "Apellidos",
+            school: "Colegio",
+            level: "Nivel",
+            section: "Sección",
+          }
+          return fieldNames[key]
+        })
+
+      if (missingFields.length > 0) {
+        errors.push(`Completa los siguientes campos del beneficiario: ${missingFields.join(", ")}`)
+      }
+    }
+
+    return errors
   }
 
   const handleSubmit = async () => {
     try {
-      setLoading(true)
-      
-      if (!formData.clientId) {
-        throw new Error("Selecciona un cliente")
-      }
-      
-      if (formData.items.length === 0) {
-        throw new Error("Agrega al menos un producto")
+      const errors = validateForm()
+
+      if (errors.length > 0) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: errors[0],
+        })
+        return
       }
 
-      const result = await createPurchase(formData)
-      
+      setLoading(true)
+
+      const result = await createPurchase({
+        ...formData,
+        bundleId: selectedBundle || undefined,
+        beneficiary: selectedBundle ? beneficiaryData : undefined,
+      })
+
       if (result.success) {
-        toast({ 
-          title: "¡Éxito!", 
+        toast({
+          title: "¡Éxito!",
           description: "La venta se ha registrado correctamente",
-          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
         })
         onSuccess?.()
         onOpenChange(false)
@@ -275,7 +389,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Error desconocido",
-        variant: "destructive"
+        variant: "destructive",
       })
     } finally {
       setLoading(false)
@@ -283,13 +397,40 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
   }
 
   const getStockClassName = (stock: number) => {
-    if (stock > 10) return 'bg-success/20 text-success-foreground'
-    if (stock > 0) return 'bg-warning/20 text-warning-foreground'
-    return 'bg-destructive/20 text-destructive-foreground'
+    if (stock > 10) return "bg-success/20 text-success-foreground"
+    if (stock > 0) return "bg-warning/20 text-warning-foreground"
+    return "bg-destructive/20 text-destructive-foreground"
+  }
+
+  const resetForm = () => {
+    setFormData({
+      clientId: "",
+      items: [],
+      paymentMethod: "CASH",
+    })
+    setClientSearch("")
+    setInventorySearch("")
+    setBundleSearch("")
+    setSelectedBundle(null)
+    setBeneficiaryData({
+      firstName: "",
+      lastName: "",
+      school: "",
+      level: "",
+      section: "",
+    })
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(newOpen) => {
+        if (!newOpen) {
+          resetForm()
+        }
+        onOpenChange(newOpen)
+      }}
+    >
       <DialogContent className="max-w-2xl bg-background border-border">
         <DialogHeader className="border-b border-border pb-4">
           <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-foreground">
@@ -303,21 +444,28 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
           <div className="space-y-3">
             <Label className="flex items-center gap-2 text-lg font-medium text-foreground">
               <User className="w-5 h-5" />
-              Cliente
+              Cliente <span className="text-destructive">*</span>
             </Label>
             <div className="relative">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
                 <Input
-                  className="pl-10 transition-all duration-200 bg-background border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20"
+                  ref={clientInputRef}
+                  className={cn(
+                    "pl-10 transition-all duration-200 bg-background border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20",
+                    !formData.clientId && "border-destructive/50 focus:border-destructive",
+                  )}
                   placeholder="Buscar cliente por nombre o documento..."
                   value={clientSearch}
                   onChange={(e) => setClientSearch(e.target.value)}
-                  onFocus={() => setShowResults(prev => ({ ...prev, client: true }))}
-                  onBlur={() => setTimeout(() => setShowResults(prev => ({ ...prev, client: false })), 200)}
+                  onFocus={() => setShowResults((prev) => ({ ...prev, client: true }))}
+                  onBlur={() => setTimeout(() => setShowResults((prev) => ({ ...prev, client: false })), 200)}
                 />
+                {formData.clientId && (
+                  <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-success w-5 h-5" />
+                )}
               </div>
-              
+
               <AnimatePresence>
                 {showResults.client && clientResults.length > 0 && (
                   <motion.div
@@ -326,7 +474,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                     exit={{ opacity: 0, y: -10 }}
                     className="absolute top-full left-0 right-0 bg-popover border border-border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
                   >
-                    {clientResults.map(client => (
+                    {clientResults.map((client) => (
                       <motion.div
                         key={client.id}
                         initial={{ opacity: 0 }}
@@ -335,9 +483,9 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                         className="p-3 hover:bg-accent cursor-pointer transition-colors duration-150"
                         onMouseDown={(e) => {
                           e.preventDefault()
-                          setFormData(prev => ({ ...prev, clientId: client.id }))
+                          setFormData((prev) => ({ ...prev, clientId: client.id }))
                           setClientSearch(client.name)
-                          setShowResults(prev => ({ ...prev, client: false }))
+                          setShowResults((prev) => ({ ...prev, client: false }))
                         }}
                       >
                         <div className="font-medium text-foreground">{client.name}</div>
@@ -352,7 +500,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
 
           {/* Products/Bundles Tabs */}
           <div className="space-y-3">
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'items' | 'bundles')}>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "items" | "bundles")}>
               <TabsList className="w-full">
                 <TabsTrigger value="items" className="flex-1">
                   <Package className="w-4 h-4 mr-2" />
@@ -375,11 +523,11 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                         placeholder="Buscar productos por nombre o SKU..."
                         value={inventorySearch}
                         onChange={(e) => setInventorySearch(e.target.value)}
-                        onFocus={() => setShowResults(prev => ({ ...prev, inventory: true }))}
-                        onBlur={() => setTimeout(() => setShowResults(prev => ({ ...prev, inventory: false })), 200)}
+                        onFocus={() => setShowResults((prev) => ({ ...prev, inventory: true }))}
+                        onBlur={() => setTimeout(() => setShowResults((prev) => ({ ...prev, inventory: false })), 200)}
                       />
                     </div>
-                    
+
                     <AnimatePresence>
                       {showResults.inventory && inventoryResults.length > 0 && (
                         <motion.div
@@ -388,7 +536,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                           exit={{ opacity: 0, y: -10 }}
                           className="absolute top-full left-0 right-0 bg-popover border border-border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
                         >
-                          {inventoryResults.map(item => (
+                          {inventoryResults.map((item) => (
                             <motion.div
                               key={item.id}
                               initial={{ opacity: 0 }}
@@ -407,9 +555,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                                 </span>
                               </div>
                               <div className="text-sm text-muted-foreground">{item.sku}</div>
-                              <div className="text-sm font-semibold mt-1">
-                                {formatCurrency(item.basePrice)}
-                              </div>
+                              <div className="text-sm font-semibold mt-1">{formatCurrency(item.basePrice)}</div>
                             </motion.div>
                           ))}
                         </motion.div>
@@ -431,7 +577,13 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                         onChange={(e) => setBundleSearch(e.target.value)}
                         onFocus={() => setShowBundleResults(true)}
                         onBlur={() => setTimeout(() => setShowBundleResults(false), 200)}
+                        disabled={bundleLoading}
                       />
+                      {bundleLoading && (
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
                     </div>
 
                     <AnimatePresence>
@@ -442,7 +594,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                           exit={{ opacity: 0, y: -10 }}
                           className="absolute top-full left-0 right-0 bg-popover border border-border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
                         >
-                          {bundleResults.map(bundle => (
+                          {bundleResults.map((bundle) => (
                             <motion.div
                               key={bundle.id}
                               initial={{ opacity: 0 }}
@@ -456,9 +608,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                             >
                               <div className="flex justify-between items-center">
                                 <span className="font-medium text-foreground">{bundle.name}</span>
-                                <span className="text-sm font-semibold">
-                                  {formatCurrency(bundle.basePrice)}
-                                </span>
+                                <span className="text-sm font-semibold">{formatCurrency(bundle.basePrice)}</span>
                               </div>
                               <div className="text-sm text-muted-foreground mt-1">
                                 {bundle.items.length} productos incluidos
@@ -484,6 +634,20 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
             {/* Selected items list */}
             <div className="space-y-3 mt-4">
               <AnimatePresence>
+                {formData.items.length === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="p-4 border border-border rounded-lg bg-muted/50 text-center"
+                  >
+                    <p className="text-muted-foreground">No hay productos seleccionados</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Busca y selecciona productos o un paquete para continuar
+                    </p>
+                  </motion.div>
+                )}
+
                 {formData.items.map((item, index) => {
                   const inventoryItem = getItemDetails(item.itemId)
                   return (
@@ -495,15 +659,13 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                       className="flex items-center gap-4 p-4 border border-border rounded-lg bg-muted hover:shadow-md transition-all duration-200"
                     >
                       <div className="flex-1">
-                        <p className="font-medium text-foreground">
-                          {inventoryItem?.name || 'Cargando...'}
-                        </p>
+                        <p className="font-medium text-foreground">{inventoryItem?.name || "Cargando..."}</p>
                         <p className="text-sm text-muted-foreground">{inventoryItem?.sku}</p>
                         <p className="text-sm font-semibold mt-1">
                           {formatCurrency((item.overridePrice || inventoryItem?.basePrice || 0) * item.quantity)}
                         </p>
                       </div>
-                      
+
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2 bg-background rounded-lg border border-input p-1">
                           <Button
@@ -514,7 +676,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                           >
                             <Minus className="w-4 h-4" />
                           </Button>
-                          
+
                           <Input
                             type="number"
                             min="1"
@@ -522,15 +684,16 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                             value={item.quantity}
                             onChange={(e) => {
                               const newItems = [...formData.items]
-                              newItems[index].quantity = Math.min(
-                                Number(e.target.value),
-                                inventoryItem?.currentStock || 1
+                              const newQuantity = Math.min(
+                                Math.max(1, Number(e.target.value) || 1),
+                                inventoryItem?.currentStock || 1,
                               )
+                              newItems[index].quantity = newQuantity
                               setFormData({ ...formData, items: newItems })
                             }}
                             className="w-16 text-center bg-background border-0 focus-visible:ring-0"
                           />
-                          
+
                           <Button
                             variant="ghost"
                             size="icon"
@@ -540,17 +703,19 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
                             <Plus className="w-4 h-4" />
                           </Button>
                         </div>
-                        
+
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button 
+                              <Button
                                 variant="destructive"
                                 size="icon"
-                                onClick={() => setFormData({
-                                  ...formData,
-                                  items: formData.items.filter((_, i) => i !== index)
-                                })}
+                                onClick={() =>
+                                  setFormData({
+                                    ...formData,
+                                    items: formData.items.filter((_, i) => i !== index),
+                                  })
+                                }
                                 className="hover:bg-destructive/90 transition-colors duration-200"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -569,6 +734,82 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
             </div>
           </div>
 
+          {/* Beneficiary data section */}
+          {selectedBundle && (
+            <div className="space-y-3 p-4 border border-border rounded-lg bg-muted/50">
+              <Label className="flex items-center gap-2 text-lg font-medium text-foreground">
+                <User className="w-5 h-5" />
+                Datos del Beneficiario <span className="text-destructive">*</span>
+              </Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName" className="text-sm font-medium">
+                    Nombres <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="firstName"
+                    placeholder="Nombres del beneficiario"
+                    value={beneficiaryData.firstName}
+                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, firstName: e.target.value }))}
+                    className={cn(validationErrors.firstName && "border-destructive/50 focus:border-destructive")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName" className="text-sm font-medium">
+                    Apellidos <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="lastName"
+                    placeholder="Apellidos del beneficiario"
+                    value={beneficiaryData.lastName}
+                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, lastName: e.target.value }))}
+                    className={cn(validationErrors.lastName && "border-destructive/50 focus:border-destructive")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="school" className="text-sm font-medium">
+                    Colegio <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="school"
+                    placeholder="Nombre del colegio"
+                    value={beneficiaryData.school}
+                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, school: e.target.value }))}
+                    className={cn(validationErrors.school && "border-destructive/50 focus:border-destructive")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="level" className="text-sm font-medium">
+                    Nivel <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="level"
+                    placeholder="Nivel educativo"
+                    value={beneficiaryData.level}
+                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, level: e.target.value }))}
+                    className={cn(validationErrors.level && "border-destructive/50 focus:border-destructive")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="section" className="text-sm font-medium">
+                    Sección <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="section"
+                    placeholder="Sección o aula"
+                    value={beneficiaryData.section}
+                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, section: e.target.value }))}
+                    className={cn(validationErrors.section && "border-destructive/50 focus:border-destructive")}
+                  />
+                </div>
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-warning" />
+                Todos los campos son obligatorios para registrar al beneficiario del paquete.
+              </div>
+            </div>
+          )}
+
           {/* Método de pago */}
           <div className="space-y-3">
             <Label className="flex items-center gap-2 text-lg font-medium text-foreground">
@@ -577,7 +818,9 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
             </Label>
             <select
               value={formData.paymentMethod}
-              onChange={(e) => setFormData(prev => ({ ...prev, paymentMethod: e.target.value as 'CASH' | 'CARD' | 'TRANSFER' }))}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, paymentMethod: e.target.value as "CASH" | "CARD" | "TRANSFER" }))
+              }
               className="w-full p-2.5 rounded-lg bg-background border border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20 text-foreground"
             >
               <option value="CASH">💵 Efectivo</option>
@@ -587,7 +830,7 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
           </div>
 
           {/* Total */}
-          <motion.div 
+          <motion.div
             className="flex justify-between items-center p-4 bg-muted rounded-lg"
             initial={{ scale: 0.95 }}
             animate={{ scale: 1 }}
@@ -597,14 +840,12 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
               <DollarSign className="w-5 h-5" />
               Total
             </span>
-            <span className="text-2xl font-bold text-foreground">
-              {formatCurrency(calculateTotal())}
-            </span>
+            <span className="text-2xl font-bold text-foreground">{formatCurrency(calculateTotal())}</span>
           </motion.div>
 
-          <Button 
-            onClick={handleSubmit} 
-            disabled={loading}
+          <Button
+            onClick={handleSubmit}
+            disabled={loading || formData.items.length === 0}
             className="w-full py-6 text-lg font-medium transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed bg-foreground text-background hover:bg-foreground/90"
           >
             {loading ? (
@@ -621,3 +862,4 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
     </Dialog>
   )
 }
+

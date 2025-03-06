@@ -1,10 +1,12 @@
-import { ColumnDef } from "@tanstack/react-table"
+"use client"
+
+import type { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { motion } from "framer-motion"
-import { FileText, ArrowRight, AlertCircle, Clock, CheckCircle2, XCircle, DollarSign } from 'lucide-react'
+import { FileText, ArrowRight, AlertCircle, Clock, CheckCircle2, XCircle } from "lucide-react"
 
 export type Sale = {
   id: string
@@ -23,22 +25,31 @@ const StatusIcon = {
   COMPLETED: CheckCircle2,
   PROCESSING: Clock,
   PENDING: Clock,
-  CANCELLED: XCircle
+  CANCELLED: XCircle,
 }
 
 const StatusColors = {
   COMPLETED: "text-green-500 dark:text-green-400",
   PROCESSING: "text-blue-500 dark:text-blue-400",
   PENDING: "text-yellow-500 dark:text-yellow-400",
-  CANCELLED: "text-red-500 dark:text-red-400"
+  CANCELLED: "text-red-500 dark:text-red-400",
 }
-
 
 export const columns: ColumnDef<Sale>[] = [
   {
     accessorKey: "id",
     header: "Referencia",
     cell: ({ row }) => {
+      // Verificar que row.original existe antes de acceder a sus propiedades
+      if (!row.original) {
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            <span>Datos no disponibles</span>
+          </div>
+        )
+      }
+
       const id = row.original.id
       if (!id) {
         return (
@@ -49,7 +60,7 @@ export const columns: ColumnDef<Sale>[] = [
         )
       }
       return (
-        <Link 
+        <Link
           href={`/sales/${id}`}
           className="group flex items-center gap-2 text-muted-foreground hover:text-foreground transition-all duration-200"
         >
@@ -58,12 +69,22 @@ export const columns: ColumnDef<Sale>[] = [
           <ArrowRight className="h-4 w-4 opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
         </Link>
       )
-    }
+    },
   },
   {
     accessorKey: "client.name",
     header: "Cliente",
     cell: ({ row }) => {
+      // Verificar que row.original existe
+      if (!row.original) {
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            <span>Datos no disponibles</span>
+          </div>
+        )
+      }
+
       const clientName = row.original.client?.name
       const clientId = row.original.client?.id
       if (!clientName) {
@@ -83,17 +104,27 @@ export const columns: ColumnDef<Sale>[] = [
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              <p>ID: {clientId || 'No disponible'}</p>
+              <p>ID: {clientId || "No disponible"}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )
-    }
+    },
   },
   {
     accessorKey: "purchaseDate",
     header: "Fecha",
     cell: ({ row }) => {
+      // Verificar que row.original existe
+      if (!row.original) {
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            <span>Datos no disponibles</span>
+          </div>
+        )
+      }
+
       const rawDate = row.original.purchaseDate
       if (!rawDate) {
         return (
@@ -112,23 +143,44 @@ export const columns: ColumnDef<Sale>[] = [
                 {formatDate(date)}
               </div>
             </TooltipTrigger>
-            <TooltipContent>
-              {date.toLocaleString()}
-            </TooltipContent>
+            <TooltipContent>{date.toLocaleString()}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )
-    }
+    },
   },
   {
     accessorKey: "totalAmount",
     header: "Total",
-    cell: ({ row }) => formatCurrency(row.getValue("totalAmount")),
+    cell: ({ row }) => {
+      // Verificar que row existe y getValue es una función
+      if (!row || typeof row.getValue !== "function") {
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            <span>Total no disponible</span>
+          </div>
+        )
+      }
+
+      const amount = row.getValue("totalAmount")
+      return formatCurrency(amount)
+    },
   },
   {
     accessorKey: "status",
     header: "Estado",
     cell: ({ row }) => {
+      // Verificar que row.original existe
+      if (!row.original) {
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            <span>Datos no disponibles</span>
+          </div>
+        )
+      }
+
       const status = row.original.status
       if (!status) {
         return (
@@ -144,13 +196,13 @@ export const columns: ColumnDef<Sale>[] = [
         COMPLETED: "success",
         PROCESSING: "default",
         PENDING: "warning",
-        CANCELLED: "destructive"
+        CANCELLED: "destructive",
       } as const
       const labels = {
         COMPLETED: "Completado",
         PROCESSING: "En Proceso",
         PENDING: "Pendiente",
-        CANCELLED: "Cancelado"
+        CANCELLED: "Cancelado",
       }
       return (
         <motion.div
@@ -160,20 +212,27 @@ export const columns: ColumnDef<Sale>[] = [
           className="flex items-center gap-2"
         >
           <StatusIconComponent className={`w-4 h-4 ${statusColor}`} />
-          <Badge 
-            variant={variants[status] || "outline"}
-            className="capitalize transition-all hover:scale-105"
-          >
-            {labels[status] || status.toLowerCase()}
+          <Badge variant={variants[status] || "outline"} className="capitalize transition-all hover:scale-105">
+            {labels[status as keyof typeof labels] || status.toLowerCase()}
           </Badge>
         </motion.div>
       )
-    }
+    },
   },
   {
     accessorKey: "paymentMethod",
     header: "Método de Pago",
     cell: ({ row }) => {
+      // Verificar que row.original existe
+      if (!row.original) {
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            <span>Datos no disponibles</span>
+          </div>
+        )
+      }
+
       const method = row.original.paymentMethod
       if (!method) {
         return (
@@ -188,24 +247,22 @@ export const columns: ColumnDef<Sale>[] = [
         CARD: "Tarjeta",
         TRANSFER: "Transferencia",
         CREDIT: "Crédito",
-        DEBIT: "Débito"
+        DEBIT: "Débito",
       }
       const icons = {
         CASH: "💵",
         CARD: "💳",
         TRANSFER: "🏦",
         CREDIT: "📈",
-        DEBIT: "📉"
+        DEBIT: "📉",
       }
       return (
-        <Badge 
-          variant="outline" 
-          className="capitalize transition-all hover:bg-accent flex items-center gap-2"
-        >
-          <span>{icons[method as keyof typeof icons] || '💸'}</span>
+        <Badge variant="outline" className="capitalize transition-all hover:bg-accent flex items-center gap-2">
+          <span>{icons[method as keyof typeof icons] || "💸"}</span>
           {labels[method as keyof typeof labels] || method.toLowerCase()}
         </Badge>
       )
-    }
-  }
+    },
+  },
 ]
+
