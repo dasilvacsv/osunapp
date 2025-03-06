@@ -1,5 +1,5 @@
 import { getBundleDetails } from '@/features/packages/actions';
-import { PackageDetails } from './package-details';
+import { PackageDetails } from '@/features/packages/package-details';
 
 export default async function PackageDetailPage({
   params
