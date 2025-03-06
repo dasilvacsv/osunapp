@@ -1,232 +1,552 @@
-'use client';
+"use client"
 
-import { BundleWithBeneficiaries } from '@/features/packages/actions';
-import { addBundleBeneficiary, removeBundleBeneficiary } from '@/features/packages/actions';
-import { useState } from 'react';
-import { Package2, UserPlus, X, Calendar, DollarSign } from 'lucide-react';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import type React from "react"
+
+import type { BundleWithBeneficiaries } from "@/features/packages/actions"
+import { addBundleBeneficiary, removeBundleBeneficiary } from "@/features/packages/actions"
+import { useState } from "react"
+import {
+  Package2,
+  UserPlus,
+  X,
+  Calendar,
+  DollarSign,
+  ShoppingCart,
+  School,
+  Users,
+  Tag,
+  Percent,
+  AlertCircle,
+  Search,
+  Edit,
+  Trash2,
+  User,
+} from "lucide-react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { formatCurrency } from "@/lib/utils"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { motion, AnimatePresence } from "framer-motion"
 
 export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) {
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    school: '',
-    level: '',
-    section: ''
-  });
+    firstName: "",
+    lastName: "",
+    school: "",
+    level: "",
+    section: "",
+  })
+  const [searchTerm, setSearchTerm] = useState("")
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState("overview")
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const result = await addBundleBeneficiary(bundle.id, formData);
-    if (result.success) {
-      setShowForm(false);
-      setFormData({
-        firstName: '',
-        lastName: '',
-        school: '',
-        level: '',
-        section: ''
-      });
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const result = await addBundleBeneficiary(bundle.id, formData)
+      if (result.success) {
+        setShowForm(false)
+        setFormData({
+          firstName: "",
+          lastName: "",
+          school: "",
+          level: "",
+          section: "",
+        })
+      }
+    } catch (error) {
+      console.error("Error al agregar beneficiario:", error)
+    } finally {
+      setLoading(false)
     }
-  };
+  }
+
+  const handleRemoveBeneficiary = async (id: string) => {
+    try {
+      await removeBundleBeneficiary(id)
+      setConfirmDelete(null)
+    } catch (error) {
+      console.error("Error al eliminar beneficiario:", error)
+    }
+  }
+
+  const filteredBeneficiaries = bundle.beneficiaries.filter((beneficiary) => {
+    if (!searchTerm) return true
+
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      beneficiary.firstName.toLowerCase().includes(searchLower) ||
+      beneficiary.lastName.toLowerCase().includes(searchLower) ||
+      beneficiary.school.toLowerCase().includes(searchLower) ||
+      beneficiary.level.toLowerCase().includes(searchLower) ||
+      beneficiary.section.toLowerCase().includes(searchLower)
+    )
+  })
+
+  const typeLabels: Record<string, string> = {
+    SCHOOL_PACKAGE: "Escolar",
+    ORGANIZATION_PACKAGE: "Organizacional",
+    REGULAR: "Regular",
+  }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <Package2 className="w-8 h-8 text-blue-600" />
-          <h1 className="text-2xl font-bold">{bundle.name}</h1>
-        </div>
-        
-        <div className="grid grid-cols-2 gap-6 mb-6">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/10 p-2.5 rounded-lg">
+            <Package2 className="w-6 h-6 text-primary" />
+          </div>
           <div>
-            <h2 className="text-lg font-semibold mb-2">Detalles del Paquete</h2>
-            <p className="text-gray-600">{bundle.description}</p>
-            <p className="mt-2">
-              <span className="font-medium">Precio Base:</span> ${bundle.basePrice}
+            <h1 className="text-2xl font-bold text-foreground">{bundle.name}</h1>
+            <p className="text-muted-foreground">
+              <Badge variant="outline" className="mr-2">
+                {typeLabels[bundle.type] || bundle.type}
+              </Badge>
+              <Badge variant={bundle.status === "ACTIVE" ? "default" : "secondary"}>
+                {bundle.status === "ACTIVE" ? "Activo" : "Inactivo"}
+              </Badge>
             </p>
-            {bundle.discountPercentage && (
-              <p className="text-green-600">
-                Descuento: {bundle.discountPercentage}%
-              </p>
-            )}
-          </div>
-          
-          <div>
-            <h2 className="text-lg font-semibold mb-2">Datos de Ventas</h2>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p>
-                <span className="font-medium">Total Ventas:</span>{' '}
-                {bundle.salesData.totalSales}
-              </p>
-              <p>
-                <span className="font-medium">Ingresos Totales:</span> $
-                {parseFloat(bundle.salesData.totalRevenue).toFixed(2)}
-              </p>
-              {bundle.salesData.lastSaleDate && (
-                <p>
-                  <span className="font-medium">Última Venta:</span>{' '}
-                  {new Date(bundle.salesData.lastSaleDate).toLocaleDateString()}
-                </p>
-              )}
-            </div>
           </div>
         </div>
 
-        <div className="mt-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold">Beneficiarios</h2>
-            <Button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white hover:bg-blue-700"
-            >
-              <UserPlus className="w-4 h-4" />
-              Agregar Beneficiario
-            </Button>
-          </div>
-
-          {showForm && (
-            <form onSubmit={handleSubmit} className="bg-gray-50 p-4 rounded-lg mb-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Nombres
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.firstName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, firstName: e.target.value })
-                    }
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Apellidos
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.lastName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lastName: e.target.value })
-                    }
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Colegio
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.school}
-                    onChange={(e) =>
-                      setFormData({ ...formData, school: e.target.value })
-                    }
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Nivel
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.level}
-                    onChange={(e) =>
-                      setFormData({ ...formData, level: e.target.value })
-                    }
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    Sección
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.section}
-                    onChange={(e) =>
-                      setFormData({ ...formData, section: e.target.value })
-                    }
-                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200"
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex justify-end gap-2">
-                <Button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  variant="ghost"
-                >
-                  Cancelar
-                </Button>
-                <Button type="submit">
-                  Guardar
-                </Button>
-              </div>
-            </form>
-          )}
-
-          <div className="space-y-2">
-            {bundle.beneficiaries.map((beneficiary) => (
-              <div
-                key={beneficiary.id}
-                className="flex justify-between items-center p-4 bg-white border rounded-lg"
-              >
-                <div>
-                  <p className="font-medium">
-                    {beneficiary.firstName} {beneficiary.lastName}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {beneficiary.school} - {beneficiary.level} {beneficiary.section}
-                  </p>
-                  
-                  {/* Detalles de compra */}
-                  {beneficiary.purchase?.purchaseDate && (
-                    <p className="flex items-center gap-2 mt-1">
-                      <Calendar className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-600">
-                        {new Date(beneficiary.purchase.purchaseDate).toLocaleDateString()}
-                      </span>
-                    </p>
-                  )}
-                  {beneficiary.purchase?.totalAmount && (
-                    <p className="flex items-center gap-2 mt-1">
-                      <DollarSign className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-600">
-                        ${beneficiary.purchase.totalAmount}
-                      </span>
-                    </p>
-                  )}
-                </div>
-                
-                <div className="flex gap-2">
-                  <Link href={`/packages/beneficiaries/${beneficiary.id}`}>
-                    <Button variant="ghost" size="sm">
-                      Ver detalles
-                    </Button>
-                  </Link>
-                  <button
-                    onClick={() => removeBundleBeneficiary(beneficiary.id)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="gap-2">
+            <Edit className="w-4 h-4" />
+            Editar
+          </Button>
+          <Button variant="default" className="gap-2">
+            <ShoppingCart className="w-4 h-4" />
+            Nueva Venta
+          </Button>
         </div>
       </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid grid-cols-3 mb-6">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <Package2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Información General</span>
+            <span className="sm:hidden">General</span>
+          </TabsTrigger>
+          <TabsTrigger value="beneficiaries" className="flex items-center gap-2">
+            <Users className="w-4 h-4" />
+            <span className="hidden sm:inline">Beneficiarios</span>
+            <span className="sm:hidden">Benef.</span>
+          </TabsTrigger>
+          <TabsTrigger value="sales" className="flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4" />
+            <span className="hidden sm:inline">Historial de Ventas</span>
+            <span className="sm:hidden">Ventas</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package2 className="w-5 h-5 text-primary" />
+                  Detalles del Paquete
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {bundle.description && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Descripción</h3>
+                    <p className="text-foreground">{bundle.description}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Precio Base</h3>
+                    <p className="text-xl font-semibold text-foreground flex items-center">
+                      <DollarSign className="w-5 h-5 text-green-500" />
+                      {formatCurrency(bundle.basePrice)}
+                    </p>
+                  </div>
+
+                  {bundle.discountPercentage && (
+                    <div>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-1">Descuento</h3>
+                      <p className="text-xl font-semibold text-green-500 flex items-center">
+                        <Percent className="w-5 h-5" />
+                        {bundle.discountPercentage}%
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Categoría</h3>
+                  <Badge variant="outline" className="capitalize">
+                    {bundle.categoryName || "Sin categoría"}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5 text-primary" />
+                  Estadísticas de Ventas
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Ventas</h3>
+                    <p className="text-xl font-semibold text-foreground">{bundle.salesData.totalSales}</p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Ingresos Totales</h3>
+                    <p className="text-xl font-semibold text-green-500">
+                      {formatCurrency(bundle.salesData.totalRevenue)}
+                    </p>
+                  </div>
+                </div>
+
+                {bundle.salesData.lastSaleDate && (
+                  <div>
+                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Última Venta</h3>
+                    <p className="flex items-center gap-2 text-foreground">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      {new Date(bundle.salesData.lastSaleDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Beneficiarios</h3>
+                  <p className="flex items-center gap-2 text-foreground">
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    {bundle.beneficiaries.length} beneficiario{bundle.beneficiaries.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Tag className="w-5 h-5 text-primary" />
+                Productos Incluidos
+              </CardTitle>
+              <CardDescription>
+                Este paquete incluye {bundle.items?.length || 0} producto{bundle.items?.length !== 1 ? "s" : ""}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!bundle.items || bundle.items.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+                  <p>No hay productos incluidos en este paquete</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {bundle.items.map((item, index) => (
+                    <div
+                      key={index}
+                      className="flex justify-between items-center p-3 rounded-md border bg-muted/30 hover:bg-muted transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">{item.item.name}</p>
+                        <p className="text-sm text-muted-foreground">SKU: {item.item.sku}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-medium">{formatCurrency(item.overridePrice || item.item.basePrice)}</p>
+                        <p className="text-sm text-muted-foreground">Cantidad: {item.quantity}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="beneficiaries" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  Beneficiarios
+                </CardTitle>
+                <CardDescription>
+                  {bundle.beneficiaries.length} beneficiario{bundle.beneficiaries.length !== 1 ? "s" : ""} registrado
+                  {bundle.beneficiaries.length !== 1 ? "s" : ""}
+                </CardDescription>
+              </div>
+
+              <Button onClick={() => setShowForm(true)} className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                Agregar
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Buscar beneficiarios..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
+              {showForm && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="bg-muted/50 p-4 rounded-lg border space-y-4"
+                >
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-medium">Nuevo Beneficiario</h3>
+                    <Button variant="ghost" size="icon" onClick={() => setShowForm(false)} className="h-8 w-8">
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="firstName">Nombres</Label>
+                        <Input
+                          id="firstName"
+                          required
+                          value={formData.firstName}
+                          onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                          placeholder="Nombres del beneficiario"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName">Apellidos</Label>
+                        <Input
+                          id="lastName"
+                          required
+                          value={formData.lastName}
+                          onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                          placeholder="Apellidos del beneficiario"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="school">Colegio</Label>
+                        <Input
+                          id="school"
+                          required
+                          value={formData.school}
+                          onChange={(e) => setFormData({ ...formData, school: e.target.value })}
+                          placeholder="Nombre del colegio"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="level">Nivel</Label>
+                        <Input
+                          id="level"
+                          required
+                          value={formData.level}
+                          onChange={(e) => setFormData({ ...formData, level: e.target.value })}
+                          placeholder="Nivel educativo"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="section">Sección</Label>
+                        <Input
+                          id="section"
+                          required
+                          value={formData.section}
+                          onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                          placeholder="Sección o aula"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" disabled={loading}>
+                        {loading ? (
+                          <>
+                            <span className="mr-2">Guardando</span>
+                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          </>
+                        ) : (
+                          "Guardar"
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </motion.div>
+              )}
+
+              {filteredBeneficiaries.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {searchTerm ? (
+                    <>
+                      <Search className="w-8 h-8 mx-auto mb-2" />
+                      <p>No se encontraron beneficiarios con "{searchTerm}"</p>
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-8 h-8 mx-auto mb-2" />
+                      <p>No hay beneficiarios registrados</p>
+                      <p className="text-sm mt-1">Agrega un beneficiario para comenzar</p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <AnimatePresence>
+                    {filteredBeneficiaries.map((beneficiary) => (
+                      <motion.div
+                        key={beneficiary.id}
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-card border rounded-lg hover:shadow-sm transition-all"
+                      >
+                        <div className="space-y-1 mb-2 sm:mb-0">
+                          <p className="font-medium flex items-center gap-2">
+                            <User className="w-4 h-4 text-muted-foreground" />
+                            {beneficiary.firstName} {beneficiary.lastName}
+                          </p>
+                          <p className="text-sm text-muted-foreground flex items-center gap-2">
+                            <School className="w-3 h-3" />
+                            {beneficiary.school} - {beneficiary.level} {beneficiary.section}
+                          </p>
+
+                          {beneficiary.purchase?.purchaseDate && (
+                            <p className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              Compra: {new Date(beneficiary.purchase.purchaseDate).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 w-full sm:w-auto justify-end">
+                          <Link href={`/packages/beneficiaries/${beneficiary.id}`}>
+                            <Button variant="outline" size="sm" className="h-8">
+                              Ver detalles
+                            </Button>
+                          </Link>
+
+                          <Dialog
+                            open={confirmDelete === beneficiary.id}
+                            onOpenChange={(open) => !open && setConfirmDelete(null)}
+                          >
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                                onClick={() => setConfirmDelete(beneficiary.id)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Confirmar eliminación</DialogTitle>
+                                <DialogDescription>
+                                  ¿Estás seguro de que deseas eliminar a este beneficiario? Esta acción no se puede
+                                  deshacer.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <DialogFooter className="mt-4">
+                                <Button variant="outline" onClick={() => setConfirmDelete(null)}>
+                                  Cancelar
+                                </Button>
+                                <Button variant="destructive" onClick={() => handleRemoveBeneficiary(beneficiary.id)}>
+                                  Eliminar
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sales" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5 text-primary" />
+                Historial de Ventas
+              </CardTitle>
+              <CardDescription>Registro de todas las ventas realizadas de este paquete</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {bundle.salesData.totalSales === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ShoppingCart className="w-8 h-8 mx-auto mb-2" />
+                  <p>No hay ventas registradas para este paquete</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Este paquete ha sido vendido {bundle.salesData.totalSales}{" "}
+                    {bundle.salesData.totalSales === 1 ? "vez" : "veces"}, generando un total de{" "}
+                    {formatCurrency(bundle.salesData.totalRevenue)} en ingresos.
+                  </p>
+
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="grid grid-cols-4 gap-4 p-3 font-medium bg-muted text-muted-foreground text-sm">
+                      <div>Fecha</div>
+                      <div>Cliente</div>
+                      <div>Beneficiario</div>
+                      <div className="text-right">Monto</div>
+                    </div>
+
+                    <div className="divide-y">
+                      {/* Aquí iría el listado de ventas si estuviera disponible en los datos */}
+                      <div className="grid grid-cols-4 gap-4 p-3 text-sm">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-muted-foreground" />
+                          {bundle.salesData.lastSaleDate
+                            ? new Date(bundle.salesData.lastSaleDate).toLocaleDateString()
+                            : "No disponible"}
+                        </div>
+                        <div>Cliente ejemplo</div>
+                        <div>Beneficiario ejemplo</div>
+                        <div className="text-right font-medium">{formatCurrency(bundle.basePrice)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
-  );
+  )
 }
+
