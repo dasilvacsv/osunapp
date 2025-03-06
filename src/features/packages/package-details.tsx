@@ -1,8 +1,7 @@
-"use client"
+"use client";
 
 import type React from "react"
-
-import type { BundleWithBeneficiaries } from "@/features/packages/actions"
+import type { BundleWithBeneficiaries, BundleType, PurchaseStatus, PaymentMethod } from "@/features/packages/types"
 import { addBundleBeneficiary, removeBundleBeneficiary } from "@/features/packages/actions"
 import { useState } from "react"
 import {
@@ -21,6 +20,11 @@ import {
   Edit,
   Trash2,
   User,
+  Clock,
+  CreditCard,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -40,6 +44,62 @@ import {
 import { formatCurrency } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { motion, AnimatePresence } from "framer-motion"
+
+// Helper function to safely format dates
+const formatDate = (date: Date | string | null): string => {
+  if (!date) return "N/A"
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date
+    return dateObj.toLocaleDateString()
+  } catch (error) {
+    console.error("Error formatting date:", error)
+    return "Invalid Date"
+  }
+}
+
+const typeLabels: Record<BundleType, string> = {
+  SCHOOL_PACKAGE: "Escolar",
+  ORGANIZATION_PACKAGE: "Organizacional",
+  REGULAR: "Regular",
+}
+
+const statusIcons: Record<PurchaseStatus, React.ReactNode> = {
+  COMPLETED: <CheckCircle2 className="w-4 h-4 text-green-500" />,
+  PENDING: <Clock className="w-4 h-4 text-yellow-500" />,
+  APPROVED: <CheckCircle2 className="w-4 h-4 text-blue-500" />,
+  IN_PROGRESS: <AlertTriangle className="w-4 h-4 text-orange-500" />,
+  CANCELLED: <XCircle className="w-4 h-4 text-red-500" />,
+}
+
+const paymentMethodIcons: Record<PaymentMethod, React.ReactNode> = {
+  CASH: <DollarSign className="w-4 h-4" />,
+  CARD: <CreditCard className="w-4 h-4" />,
+  TRANSFER: <ShoppingCart className="w-4 h-4" />,
+  OTHER: <AlertCircle className="w-4 h-4" />,
+}
+
+const paymentMethodLabels: Record<PaymentMethod, string> = {
+  CASH: "Efectivo",
+  CARD: "Tarjeta",
+  TRANSFER: "Transferencia",
+  OTHER: "Otro",
+}
+
+const statusLabels: Record<PurchaseStatus, string> = {
+  COMPLETED: "Completado",
+  PENDING: "Pendiente",
+  APPROVED: "Aprobado",
+  IN_PROGRESS: "En Proceso",
+  CANCELLED: "Cancelado",
+}
+
+const statusColors: Record<PurchaseStatus, string> = {
+  COMPLETED: "bg-green-500",
+  PENDING: "bg-yellow-500",
+  APPROVED: "bg-blue-500",
+  IN_PROGRESS: "bg-orange-500",
+  CANCELLED: "bg-red-500",
+}
 
 export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) {
   const [showForm, setShowForm] = useState(false)
@@ -100,11 +160,10 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
     )
   })
 
-  const typeLabels: Record<string, string> = {
-    SCHOOL_PACKAGE: "Escolar",
-    ORGANIZATION_PACKAGE: "Organizacional",
-    REGULAR: "Regular",
-  }
+  const completedSales = bundle.salesData?.sales?.filter((sale) => sale.status === "COMPLETED") || []
+  const averageSaleAmount = completedSales.length > 0
+    ? bundle.salesData?.totalRevenue ? bundle.salesData.totalRevenue / completedSales.length : 0
+    : 0
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
@@ -115,14 +174,19 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{bundle.name}</h1>
-            <p className="text-muted-foreground">
-              <Badge variant="outline" className="mr-2">
-                {typeLabels[bundle.type] || bundle.type}
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="outline" className="font-normal">
+                {typeLabels[bundle.type]}
               </Badge>
               <Badge variant={bundle.status === "ACTIVE" ? "default" : "secondary"}>
                 {bundle.status === "ACTIVE" ? "Activo" : "Inactivo"}
               </Badge>
-            </p>
+              {bundle.categoryName && (
+                <Badge variant="outline" className="bg-primary/5">
+                  {bundle.categoryName}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
@@ -193,13 +257,6 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                     </div>
                   )}
                 </div>
-
-                <div>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Categoría</h3>
-                  <Badge variant="outline" className="capitalize">
-                    {bundle.categoryName || "Sin categoría"}
-                  </Badge>
-                </div>
               </CardContent>
             </Card>
 
@@ -214,25 +271,22 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-1">Total Ventas</h3>
-                    <p className="text-xl font-semibold text-foreground">{bundle.salesData.totalSales}</p>
+                    <p className="text-xl font-semibold text-foreground">{completedSales.length}</p>
                   </div>
 
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-1">Ingresos Totales</h3>
                     <p className="text-xl font-semibold text-green-500">
-                      {formatCurrency(bundle.salesData.totalRevenue)}
+                      {bundle.salesData ? formatCurrency(bundle.salesData.totalRevenue) : "N/A"}
                     </p>
                   </div>
                 </div>
 
-                {bundle.salesData.lastSaleDate && (
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Última Venta</h3>
-                    <p className="flex items-center gap-2 text-foreground">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      {new Date(bundle.salesData.lastSaleDate).toLocaleDateString()}
-                    </p>
-                  </div>
+                {bundle.salesData?.lastSaleDate && (
+                  <p className="flex items-center gap-2 text-foreground">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    {formatDate(bundle.salesData.lastSaleDate)}
+                  </p>
                 )}
 
                 <div>
@@ -265,8 +319,11 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
               ) : (
                 <div className="space-y-2">
                   {bundle.items.map((item, index) => (
-                    <div
-                      key={index}
+                    <motion.div
+                      key={item.item.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
                       className="flex justify-between items-center p-3 rounded-md border bg-muted/30 hover:bg-muted transition-colors"
                     >
                       <div>
@@ -277,7 +334,7 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                         <p className="font-medium">{formatCurrency(item.overridePrice || item.item.basePrice)}</p>
                         <p className="text-sm text-muted-foreground">Cantidad: {item.quantity}</p>
                       </div>
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               )}
@@ -440,7 +497,7 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                           {beneficiary.purchase?.purchaseDate && (
                             <p className="text-xs text-muted-foreground flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
-                              Compra: {new Date(beneficiary.purchase.purchaseDate).toLocaleDateString()}
+                              Compra: {formatDate(beneficiary.purchase.purchaseDate)}
                             </p>
                           )}
                         </div>
@@ -504,40 +561,86 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
               <CardDescription>Registro de todas las ventas realizadas de este paquete</CardDescription>
             </CardHeader>
             <CardContent>
-              {bundle.salesData.totalSales === 0 ? (
+              {completedSales.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <ShoppingCart className="w-8 h-8 mx-auto mb-2" />
                   <p>No hay ventas registradas para este paquete</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-muted-foreground">
-                    Este paquete ha sido vendido {bundle.salesData.totalSales}{" "}
-                    {bundle.salesData.totalSales === 1 ? "vez" : "veces"}, generando un total de{" "}
-                    {formatCurrency(bundle.salesData.totalRevenue)} en ingresos.
-                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold">{completedSales.length}</div>
+                        <p className="text-sm text-muted-foreground">Ventas completadas</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-green-600">
+                          {formatCurrency(bundle.salesData?.totalRevenue || 0)}
+                        </div>
+                        <p className="text-sm text-muted-foreground">Ingresos totales</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold">
+                          {formatCurrency(averageSaleAmount)}
+                        </div>
+                        <p className="text-sm text-muted-foreground">Promedio por venta</p>
+                      </CardContent>
+                    </Card>
+                  </div>
 
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="grid grid-cols-4 gap-4 p-3 font-medium bg-muted text-muted-foreground text-sm">
+                  <div className="rounded-lg border overflow-hidden">
+                    <div className="grid grid-cols-6 gap-4 p-4 bg-muted text-sm font-medium text-muted-foreground">
+                      <div className="col-span-2">Cliente</div>
                       <div>Fecha</div>
-                      <div>Cliente</div>
-                      <div>Beneficiario</div>
+                      <div>Estado</div>
+                      <div>Método</div>
                       <div className="text-right">Monto</div>
                     </div>
 
                     <div className="divide-y">
-                      {/* Aquí iría el listado de ventas si estuviera disponible en los datos */}
-                      <div className="grid grid-cols-4 gap-4 p-3 text-sm">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3 text-muted-foreground" />
-                          {bundle.salesData.lastSaleDate
-                            ? new Date(bundle.salesData.lastSaleDate).toLocaleDateString()
-                            : "No disponible"}
-                        </div>
-                        <div>Cliente ejemplo</div>
-                        <div>Beneficiario ejemplo</div>
-                        <div className="text-right font-medium">{formatCurrency(bundle.basePrice)}</div>
-                      </div>
+                      {bundle.salesData?.sales?.map((sale, index) => (
+                        <motion.div
+                          key={sale.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="grid grid-cols-6 gap-4 p-4 items-center text-sm hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="col-span-2">
+                            <p className="font-medium">{sale.clientName}</p>
+                            <p className="text-xs text-muted-foreground">{sale.beneficiaryName}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-muted-foreground" />
+                            {formatDate(sale.purchaseDate)}
+                          </div>
+                          <div>
+                            <Badge
+                              variant="secondary"
+                              className="flex w-fit items-center gap-1 font-normal"
+                              style={{
+                                backgroundColor: `${statusColors[sale.status]}10`,
+                                color: statusColors[sale.status],
+                              }}
+                            >
+                              {statusIcons[sale.status]}
+                              {statusLabels[sale.status]}
+                            </Badge>
+                          </div>
+                          <div>
+                            <Badge variant="outline" className="flex w-fit items-center gap-1 font-normal">
+                              {paymentMethodIcons[sale.paymentMethod]}
+                              {paymentMethodLabels[sale.paymentMethod]}
+                            </Badge>
+                          </div>
+                          <div className="text-right font-medium">{formatCurrency(sale.amount)}</div>
+                        </motion.div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -549,4 +652,3 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
     </div>
   )
 }
-

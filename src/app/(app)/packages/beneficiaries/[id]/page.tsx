@@ -1,11 +1,77 @@
 import { getBeneficiaryDetails } from "@/features/packages/actions"
 import { Button } from "@/components/ui/button"
-import { Package2, User, Calendar, DollarSign, School, Users, ArrowLeft, ShoppingCart } from "lucide-react"
+import {
+  Package2,
+  User,
+  Calendar,
+  DollarSign,
+  School,
+  Users,
+  ArrowLeft,
+  ShoppingCart,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  CreditCard,
+  Building2,
+  GraduationCap,
+  UserCircle,
+  AlertCircle,
+} from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import type { BundleType, PurchaseStatus, PaymentMethod } from "@/features/packages/types"
+
+// Helper function to safely format dates
+const formatDate = (date: Date | string | null): string => {
+  if (!date) return "N/A"
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date
+    return dateObj.toLocaleDateString()
+  } catch (error) {
+    console.error("Error formatting date:", error)
+    return "Invalid Date"
+  }
+}
+
+const statusIcons: Record<PurchaseStatus, React.ReactNode> = {
+  COMPLETED: <CheckCircle2 className="w-4 h-4 text-green-500" />,
+  PENDING: <Clock className="w-4 h-4 text-yellow-500" />,
+  CANCELLED: <XCircle className="w-4 h-4 text-red-500" />,
+  APPROVED: <CheckCircle2 className="w-4 h-4 text-blue-500" />,
+  IN_PROGRESS: <Clock className="w-4 h-4 text-orange-500" />,
+}
+
+const statusLabels: Record<PurchaseStatus, string> = {
+  COMPLETED: "Completado",
+  PENDING: "Pendiente",
+  CANCELLED: "Cancelado",
+  APPROVED: "Aprobado",
+  IN_PROGRESS: "En Proceso",
+}
+
+const paymentMethodIcons: Record<PaymentMethod, React.ReactNode> = {
+  CASH: <DollarSign className="w-4 h-4" />,
+  CARD: <CreditCard className="w-4 h-4" />,
+  TRANSFER: <ShoppingCart className="w-4 h-4" />,
+  OTHER: <AlertCircle className="w-4 h-4" />,
+}
+
+const paymentMethodLabels: Record<PaymentMethod, string> = {
+  CASH: "Efectivo",
+  CARD: "Tarjeta",
+  TRANSFER: "Transferencia",
+  OTHER: "Otro",
+}
+
+const bundleTypeLabels: Record<BundleType, string> = {
+  SCHOOL_PACKAGE: "Escolar",
+  ORGANIZATION_PACKAGE: "Organizacional",
+  REGULAR: "Regular",
+}
 
 export default async function BeneficiaryDetailsPage({
   params,
@@ -41,12 +107,23 @@ export default async function BeneficiaryDetailsPage({
 
   const { beneficiary, bundle, purchase } = result.data
 
+  if (!bundle) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="bg-destructive/10 border border-destructive/30 text-destructive rounded-lg p-4">
+          <h2 className="font-semibold">Paquete no encontrado</h2>
+          <p className="text-sm">El beneficiario no tiene un paquete asignado</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="bg-primary/10 p-2.5 rounded-lg">
-            <User className="w-6 h-6 text-primary" />
+            <UserCircle className="w-6 h-6 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">
@@ -91,28 +168,34 @@ export default async function BeneficiaryDetailsPage({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Nombre completo</h3>
-                <p className="font-medium">
+                <p className="font-medium flex items-center gap-2">
+                  <User className="w-4 h-4 text-muted-foreground" />
                   {beneficiary.firstName} {beneficiary.lastName}
                 </p>
               </div>
 
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Colegio</h3>
-                <p className="font-medium">{beneficiary.school}</p>
+                <p className="font-medium flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                  {beneficiary.school}
+                </p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Nivel</h3>
-                <Badge variant="outline" className="font-normal">
+                <Badge variant="outline" className="font-normal flex w-fit items-center gap-1">
+                  <GraduationCap className="w-3 h-3" />
                   {beneficiary.level}
                 </Badge>
               </div>
 
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Sección</h3>
-                <Badge variant="outline" className="font-normal">
+                <Badge variant="outline" className="font-normal flex w-fit items-center gap-1">
+                  <Users className="w-3 h-3" />
                   {beneficiary.section}
                 </Badge>
               </div>
@@ -120,7 +203,15 @@ export default async function BeneficiaryDetailsPage({
 
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-1">Estado</h3>
-              <Badge variant={beneficiary.status === "ACTIVE" ? "default" : "secondary"}>
+              <Badge 
+                variant={beneficiary.status === "ACTIVE" ? "default" : "secondary"}
+                className="flex w-fit items-center gap-1"
+              >
+                {beneficiary.status === "ACTIVE" ? (
+                  <CheckCircle2 className="w-3 h-3" />
+                ) : (
+                  <XCircle className="w-3 h-3" />
+                )}
                 {beneficiary.status === "ACTIVE" ? "Activo" : "Inactivo"}
               </Badge>
             </div>
@@ -131,7 +222,7 @@ export default async function BeneficiaryDetailsPage({
               <h3 className="text-sm font-medium text-muted-foreground mb-1">Fecha de registro</h3>
               <p className="flex items-center gap-2 text-foreground">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                {new Date(beneficiary.createdAt).toLocaleDateString()}
+                {formatDate(beneficiary.createdAt)}
               </p>
             </div>
           </CardContent>
@@ -165,12 +256,9 @@ export default async function BeneficiaryDetailsPage({
 
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Tipo</h3>
-                <Badge variant="outline">
-                  {bundle.type === "SCHOOL_PACKAGE"
-                    ? "Escolar"
-                    : bundle.type === "ORGANIZATION_PACKAGE"
-                      ? "Organizacional"
-                      : "Regular"}
+                <Badge variant="outline" className="flex w-fit items-center gap-1">
+                  <Package2 className="w-3 h-3" />
+                  {bundleTypeLabels[bundle.type]}
                 </Badge>
               </div>
             </div>
@@ -190,17 +278,13 @@ export default async function BeneficiaryDetailsPage({
                           purchase.status === "COMPLETED"
                             ? "success"
                             : purchase.status === "CANCELLED"
-                              ? "destructive"
-                              : "default"
+                            ? "destructive"
+                            : "default"
                         }
+                        className="flex items-center gap-1"
                       >
-                        {purchase.status === "COMPLETED"
-                          ? "Completado"
-                          : purchase.status === "CANCELLED"
-                            ? "Cancelado"
-                            : purchase.status === "PENDING"
-                              ? "Pendiente"
-                              : purchase.status}
+                        {statusIcons[purchase.status]}
+                        {statusLabels[purchase.status]}
                       </Badge>
                     </div>
 
@@ -208,26 +292,24 @@ export default async function BeneficiaryDetailsPage({
                       <p className="text-sm text-muted-foreground">Fecha de compra</p>
                       <p className="text-sm font-medium flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {new Date(purchase.purchaseDate).toLocaleDateString()}
+                        {formatDate(purchase.purchaseDate)}
                       </p>
                     </div>
 
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-muted-foreground">Método de pago</p>
-                      <Badge variant="outline">
-                        {purchase.paymentMethod === "CASH"
-                          ? "Efectivo"
-                          : purchase.paymentMethod === "CARD"
-                            ? "Tarjeta"
-                            : purchase.paymentMethod === "TRANSFER"
-                              ? "Transferencia"
-                              : purchase.paymentMethod}
+                      <Badge variant="outline" className="flex items-center gap-1">
+                        {paymentMethodIcons[purchase.paymentMethod]}
+                        {paymentMethodLabels[purchase.paymentMethod]}
                       </Badge>
                     </div>
 
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-muted-foreground">Monto total</p>
-                      <p className="text-sm font-medium text-green-600">{formatCurrency(purchase.totalAmount)}</p>
+                      <p className="text-sm font-medium text-green-600 flex items-center gap-1">
+                        <DollarSign className="w-3 h-3" />
+                        {formatCurrency(purchase.totalAmount)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -239,4 +321,3 @@ export default async function BeneficiaryDetailsPage({
     </div>
   )
 }
-

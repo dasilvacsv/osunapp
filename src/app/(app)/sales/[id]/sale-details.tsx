@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,7 +26,10 @@ import {
   AlertCircle,
   Tag,
   Receipt,
-  ChevronDown
+  ChevronDown,
+  MapPin,
+  Phone,
+  Mail
 } from 'lucide-react';
 import { updatePurchaseStatus } from '@/features/sales/actions';
 import { useToast } from '@/hooks/use-toast';
@@ -70,6 +73,12 @@ const statusColors = {
     light: "bg-red-100 text-red-800 border-red-200",
     dark: "dark:bg-black/40 dark:text-red-300 dark:border-red-800/30"
   }
+};
+
+const paymentMethodIcons = {
+  CASH: CreditCard,
+  CARD: CreditCard,
+  TRANSFER: Receipt
 };
 
 export function SaleDetails({ sale }: { sale: any }) {
@@ -148,17 +157,20 @@ export function SaleDetails({ sale }: { sale: any }) {
     visible: { opacity: 1, y: 0 }
   };
 
+  const PaymentMethodIcon = paymentMethodIcons[sale.paymentMethod as keyof typeof paymentMethodIcons] || CreditCard;
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-black py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-black dark:to-gray-900 py-8 px-4 sm:px-6 lg:px-8">
       <motion.div 
         className="max-w-7xl mx-auto space-y-8"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
+        {/* Header Section */}
         <motion.div
           variants={itemVariants}
-          className="flex items-center justify-between bg-white dark:bg-black/40 rounded-xl p-6 shadow-lg backdrop-blur-sm border border-gray-100/50 dark:border-gray-800/50"
+          className="flex items-center justify-between bg-white dark:bg-black/40 rounded-2xl p-6 shadow-lg backdrop-blur-sm border border-gray-100/50 dark:border-gray-800/50"
         >
           <Button 
             variant="ghost" 
@@ -235,14 +247,16 @@ export function SaleDetails({ sale }: { sale: any }) {
           </div>
         </motion.div>
 
+        {/* Main Content */}
         <motion.div
           variants={itemVariants}
-          className="bg-white dark:bg-black/40 rounded-xl shadow-lg overflow-hidden backdrop-blur-sm border border-gray-100/50 dark:border-gray-800/50"
+          className="bg-white dark:bg-black/40 rounded-2xl shadow-lg overflow-hidden backdrop-blur-sm border border-gray-100/50 dark:border-gray-800/50"
         >
+          {/* Sale Header */}
           <div className="border-b border-gray-100 dark:border-gray-800/50 p-8">
             <div className="flex justify-between items-start">
               <div className="space-y-2">
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                   Venta #{sale.id.slice(0, 8)}
                 </h1>
                 <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
@@ -259,16 +273,26 @@ export function SaleDetails({ sale }: { sale: any }) {
                   "shadow-sm backdrop-blur-sm"
                 )}
               >
-                {statusLabels[currentStatus as keyof typeof statusLabels]}
+                {(() => {
+                  const StatusIcon = statusIcons[currentStatus as keyof typeof statusIcons];
+                  return (
+                    <div className="flex items-center gap-2">
+                      <StatusIcon className="h-4 w-4" />
+                      {statusLabels[currentStatus as keyof typeof statusLabels]}
+                    </div>
+                  );
+                })()}
               </Badge>
             </div>
           </div>
 
-          <div className="px-16 py-12">
+          {/* Timeline */}
+          <div className="px-16 py-12 bg-gray-50/30 dark:bg-black/20">
             <StatusTimeline currentStatus={currentStatus} />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 p-8 bg-gray-50/50 dark:bg-black/60">
+          {/* Client and Payment Info */}
+          <div className="grid md:grid-cols-2 gap-8 p-8">
             <motion.div
               variants={itemVariants}
               className="space-y-4"
@@ -277,9 +301,34 @@ export function SaleDetails({ sale }: { sale: any }) {
                 <User className="h-5 w-5" />
                 Información del Cliente
               </div>
-              <div className="bg-white dark:bg-black/40 rounded-xl p-6 shadow-lg space-y-3 border border-gray-100/50 dark:border-gray-800/50 backdrop-blur-sm">
-                <p className="font-medium text-gray-900 dark:text-gray-100">{sale.client?.name || 'Cliente no registrado'}</p>
-                <p className="text-gray-500 dark:text-gray-400">{sale.client?.document}</p>
+              <div className="bg-gray-50/50 dark:bg-black/20 rounded-xl p-6 shadow-lg space-y-4 border border-gray-100/50 dark:border-gray-800/50 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center">
+                    <User className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{sale.client?.name || 'Cliente no registrado'}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{sale.client?.document}</p>
+                  </div>
+                </div>
+                {sale.client?.address && (
+                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                    <MapPin className="h-4 w-4" />
+                    <span className="text-sm">{sale.client.address}</span>
+                  </div>
+                )}
+                {sale.client?.phone && (
+                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                    <Phone className="h-4 w-4" />
+                    <span className="text-sm">{sale.client.phone}</span>
+                  </div>
+                )}
+                {sale.client?.email && (
+                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                    <Mail className="h-4 w-4" />
+                    <span className="text-sm">{sale.client.email}</span>
+                  </div>
+                )}
               </div>
             </motion.div>
 
@@ -288,26 +337,32 @@ export function SaleDetails({ sale }: { sale: any }) {
               className="space-y-4"
             >
               <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
-                <CreditCard className="h-5 w-5" />
+                <PaymentMethodIcon className="h-5 w-5" />
                 Método de Pago
               </div>
-              <div className="bg-white dark:bg-black/40 rounded-xl p-6 shadow-lg border border-gray-100/50 dark:border-gray-800/50 backdrop-blur-sm">
-                <Badge 
-                  variant="outline" 
-                  className="text-base px-6 py-2.5 rounded-full shadow-sm backdrop-blur-sm"
-                >
-                  {sale.paymentMethod === 'CASH' ? 'Efectivo' :
-                   sale.paymentMethod === 'CARD' ? 'Tarjeta' :
-                   sale.paymentMethod === 'TRANSFER' ? 'Transferencia' :
-                   sale.paymentMethod}
-                </Badge>
+              <div className="bg-gray-50/50 dark:bg-black/20 rounded-xl p-6 shadow-lg border border-gray-100/50 dark:border-gray-800/50 backdrop-blur-sm">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center">
+                    <PaymentMethodIcon className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                  </div>
+                  <Badge 
+                    variant="outline" 
+                    className="text-base px-6 py-2.5 rounded-full shadow-sm backdrop-blur-sm"
+                  >
+                    {sale.paymentMethod === 'CASH' ? 'Efectivo' :
+                     sale.paymentMethod === 'CARD' ? 'Tarjeta' :
+                     sale.paymentMethod === 'TRANSFER' ? 'Transferencia' :
+                     sale.paymentMethod}
+                  </Badge>
+                </div>
               </div>
             </motion.div>
           </div>
 
+          {/* Products */}
           <motion.div
             variants={itemVariants}
-            className="p-8 space-y-6"
+            className="p-8 space-y-6 bg-gray-50/30 dark:bg-black/20"
           >
             <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
               <Package className="h-5 w-5" />
@@ -334,13 +389,18 @@ export function SaleDetails({ sale }: { sale: any }) {
                     onMouseEnter={() => setHoveredItem(index)}
                     onMouseLeave={() => setHoveredItem(null)}
                   >
-                    <div className="space-y-2">
-                      <p className="font-medium text-gray-900 dark:text-gray-100">
-                        {item.inventoryItem?.name || 'Producto eliminado'}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {item.quantity} x {formatCurrency(item.unitPrice)}
-                      </p>
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                        <Package className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-medium text-gray-900 dark:text-gray-100">
+                          {item.inventoryItem?.name || 'Producto eliminado'}
+                        </p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {item.quantity} x {formatCurrency(item.unitPrice)}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex flex-col items-end">
                       <p className="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
@@ -363,16 +423,17 @@ export function SaleDetails({ sale }: { sale: any }) {
             </div>
           </motion.div>
 
+          {/* Total */}
           <motion.div
             variants={itemVariants}
-            className="p-8 bg-gray-50/50 dark:bg-black/60 border-t border-gray-100 dark:border-gray-800/50"
+            className="p-8 bg-gradient-to-b from-white to-gray-50 dark:from-black/40 dark:to-black/60 border-t border-gray-100 dark:border-gray-800/50"
           >
             <div className="flex justify-end items-center">
               <div className="text-right">
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Total de la venta</p>
                 <div className="flex items-center gap-3">
-                  <Receipt className="h-7 w-7 text-gray-400 dark:text-gray-500" />
-                  <p className="text-4xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+                  <Receipt className="h-8 w-8 text-gray-400 dark:text-gray-500" />
+                  <p className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent tabular-nums">
                     {formatCurrency(sale.totalAmount)}
                   </p>
                 </div>
@@ -384,3 +445,5 @@ export function SaleDetails({ sale }: { sale: any }) {
     </div>
   );
 }
+
+export default SaleDetails

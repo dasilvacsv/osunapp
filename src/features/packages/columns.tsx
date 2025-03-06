@@ -1,12 +1,25 @@
-"use client"
+"use client";
 
 import type { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Eye, Package2, ChevronDown, ChevronRight, Users, DollarSign, ShoppingCart, Calendar } from "lucide-react"
+import { 
+  Eye, 
+  Package2, 
+  ChevronDown, 
+  ChevronRight, 
+  Users, 
+  DollarSign, 
+  ShoppingCart, 
+  Calendar,
+  School,
+  GraduationCap,
+  User
+} from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
 import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 
 export type PackageRow = {
   id: string
@@ -22,12 +35,12 @@ export type PackageRow = {
     school: string
     level: string
     section: string
+    status: "ACTIVE" | "INACTIVE"
   }>
   status: string
   lastSaleDate?: string
 }
 
-// Componente para mostrar los beneficiarios de forma colapsable
 const BeneficiariesCollapsible = ({
   beneficiaries,
   packageId,
@@ -39,44 +52,96 @@ const BeneficiariesCollapsible = ({
 
   if (!beneficiaries || beneficiaries.length === 0) {
     return (
-      <Badge variant="outline" className="bg-gray-100">
+      <Badge variant="outline" className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
         Sin beneficiarios
       </Badge>
     )
   }
 
+  const activeBeneficiaries = beneficiaries.filter(b => b.status === "ACTIVE")
+
   return (
     <div className="space-y-2">
       <Button
-        variant="ghost"
+        variant="outline"
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 p-1 h-auto text-xs"
+        className={`
+          flex items-center gap-2 h-8 px-3
+          transition-colors duration-200
+          hover:bg-gray-100 dark:hover:bg-gray-800
+          ${isOpen ? 'bg-gray-100 dark:bg-gray-800' : ''}
+        `}
       >
-        {isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-        <Users className="w-3 h-3 mr-1" />
-        {beneficiaries.length} Beneficiario{beneficiaries.length !== 1 ? "s" : ""}
+        {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        <Users className="w-4 h-4" />
+        <span className="font-medium">
+          {activeBeneficiaries.length} Activo{activeBeneficiaries.length !== 1 ? "s" : ""}
+        </span>
+        {beneficiaries.length > activeBeneficiaries.length && (
+          <Badge variant="secondary" className="ml-2 text-xs">
+            +{beneficiaries.length - activeBeneficiaries.length} inactivo{beneficiaries.length - activeBeneficiaries.length !== 1 ? "s" : ""}
+          </Badge>
+        )}
       </Button>
 
-      {isOpen && (
-        <div className="pl-4 border-l-2 border-gray-200 space-y-2 animate-in fade-in-50 slide-in-from-top-5 duration-300">
-          {beneficiaries.slice(0, 3).map((beneficiary) => (
-            <Link
-              key={beneficiary.id}
-              href={`/packages/beneficiaries/${beneficiary.id}`}
-              className="block text-xs hover:underline text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {beneficiary.firstName} {beneficiary.lastName} - {beneficiary.school}
-            </Link>
-          ))}
-
-          {beneficiaries.length > 3 && (
-            <Link href={`/packages/${packageId}`} className="block text-xs font-medium text-primary hover:underline">
-              Ver {beneficiaries.length - 3} más...
-            </Link>
-          )}
-        </div>
-      )}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="pl-4 border-l-2 border-gray-200 dark:border-gray-700 space-y-3 pt-2">
+              {beneficiaries.map((beneficiary, index) => (
+                <motion.div
+                  key={beneficiary.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className={`
+                    relative group rounded-lg p-3
+                    ${beneficiary.status === "ACTIVE" 
+                      ? "bg-gray-50 dark:bg-gray-800/50" 
+                      : "bg-gray-100/50 dark:bg-gray-800/20"}
+                  `}
+                >
+                  <Link
+                    href={`/packages/beneficiaries/${beneficiary.id}`}
+                    className="block space-y-1 hover:no-underline"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                          {beneficiary.firstName} {beneficiary.lastName}
+                        </span>
+                      </div>
+                      {beneficiary.status === "INACTIVE" && (
+                        <Badge variant="secondary" className="text-xs">
+                          Inactivo
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center gap-1">
+                        <School className="w-3.5 h-3.5" />
+                        {beneficiary.school}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <GraduationCap className="w-3.5 h-3.5" />
+                        {beneficiary.level} - {beneficiary.section}
+                      </div>
+                    </div>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -86,18 +151,30 @@ export const columns: ColumnDef<PackageRow>[] = [
     accessorKey: "name",
     header: "Nombre",
     cell: ({ row }) => {
-      if (!row.original) {
-        return <div className="text-muted-foreground">No disponible</div>
+      const typeIcons = {
+        SCHOOL_PACKAGE: School,
+        ORGANIZATION_PACKAGE: Users,
+        REGULAR: Package2
       }
+      const type = row.getValue("type") as keyof typeof typeIcons
+      const Icon = typeIcons[type] || Package2
 
       return (
-        <div className="flex items-center gap-2">
-          <div className="bg-primary/10 p-1.5 rounded-md">
-            <Package2 className="w-4 h-4 text-primary" />
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/10 dark:bg-primary/20 p-2 rounded-lg">
+            <Icon className="w-4 h-4 text-primary" />
           </div>
-          <Link href={`/packages/${row.original.id}`} className="font-medium hover:underline text-foreground">
-            {row.getValue("name")}
-          </Link>
+          <div>
+            <Link 
+              href={`/packages/${row.original.id}`} 
+              className="font-medium text-gray-900 dark:text-gray-100 hover:text-primary dark:hover:text-primary transition-colors"
+            >
+              {row.getValue("name")}
+            </Link>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              ID: {row.original.id.slice(0, 8)}
+            </div>
+          </div>
         </div>
       )
     },
@@ -106,20 +183,25 @@ export const columns: ColumnDef<PackageRow>[] = [
     accessorKey: "type",
     header: "Tipo",
     cell: ({ row }) => {
-      if (!row.original) {
-        return <div className="text-muted-foreground">No disponible</div>
-      }
-
       const typeLabels: Record<string, string> = {
         SCHOOL_PACKAGE: "Escolar",
         ORGANIZATION_PACKAGE: "Organizacional",
         REGULAR: "Regular",
       }
 
+      const typeColors: Record<string, string> = {
+        SCHOOL_PACKAGE: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+        ORGANIZATION_PACKAGE: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+        REGULAR: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
+      }
+
       const type = row.getValue("type") as string
 
       return (
-        <Badge variant="outline" className="capitalize">
+        <Badge 
+          variant="outline" 
+          className={`${typeColors[type]} border-transparent font-medium`}
+        >
           {typeLabels[type] || type}
         </Badge>
       )
@@ -129,14 +211,12 @@ export const columns: ColumnDef<PackageRow>[] = [
     accessorKey: "basePrice",
     header: "Precio Base",
     cell: ({ row }) => {
-      if (!row.original) {
-        return <div className="text-muted-foreground">No disponible</div>
-      }
-
       return (
-        <div className="font-medium text-foreground flex items-center gap-1">
-          <DollarSign className="w-3 h-3 text-muted-foreground" />
-          {formatCurrency(row.getValue("basePrice"))}
+        <div className="font-medium tabular-nums">
+          <div className="flex items-center gap-1 text-gray-900 dark:text-gray-100">
+            <DollarSign className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400" />
+            {formatCurrency(row.getValue("basePrice"))}
+          </div>
         </div>
       )
     },
@@ -145,14 +225,14 @@ export const columns: ColumnDef<PackageRow>[] = [
     accessorKey: "totalSales",
     header: "Ventas",
     cell: ({ row }) => {
-      if (!row.original) {
-        return <div className="text-muted-foreground">No disponible</div>
-      }
-
       return (
-        <div className="flex items-center gap-1">
-          <ShoppingCart className="w-3 h-3 text-muted-foreground" />
-          <span>{row.getValue("totalSales")}</span>
+        <div className="flex items-center gap-2">
+          <div className="bg-green-100 dark:bg-green-900/30 p-1.5 rounded">
+            <ShoppingCart className="w-3.5 h-3.5 text-green-700 dark:text-green-300" />
+          </div>
+          <span className="tabular-nums font-medium text-gray-900 dark:text-gray-100">
+            {row.getValue("totalSales")}
+          </span>
         </div>
       )
     },
@@ -161,12 +241,8 @@ export const columns: ColumnDef<PackageRow>[] = [
     accessorKey: "totalRevenue",
     header: "Ingresos",
     cell: ({ row }) => {
-      if (!row.original) {
-        return <div className="text-muted-foreground">No disponible</div>
-      }
-
       return (
-        <div className="font-medium text-green-600 dark:text-green-400">
+        <div className="font-medium text-green-600 dark:text-green-400 tabular-nums">
           {formatCurrency(row.getValue("totalRevenue"))}
         </div>
       )
@@ -176,25 +252,37 @@ export const columns: ColumnDef<PackageRow>[] = [
     accessorKey: "beneficiaries",
     header: "Beneficiarios",
     cell: ({ row }) => {
-      if (!row.original) {
-        return <div className="text-muted-foreground">No disponible</div>
-      }
-
-      return <BeneficiariesCollapsible beneficiaries={row.original.beneficiaries} packageId={row.original.id} />
+      return (
+        <BeneficiariesCollapsible 
+          beneficiaries={row.original.beneficiaries} 
+          packageId={row.original.id} 
+        />
+      )
     },
   },
   {
     accessorKey: "lastSaleDate",
     header: "Última Venta",
     cell: ({ row }) => {
-      if (!row.original || !row.original.lastSaleDate) {
-        return <div className="text-muted-foreground text-xs">Sin ventas</div>
+      if (!row.original.lastSaleDate) {
+        return (
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Sin ventas
+          </div>
+        )
       }
 
+      const date = new Date(row.original.lastSaleDate)
+      const formattedDate = new Intl.DateTimeFormat('es', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      }).format(date)
+
       return (
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Calendar className="w-3 h-3" />
-          {new Date(row.original.lastSaleDate).toLocaleDateString()}
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <Calendar className="w-3.5 h-3.5" />
+          {formattedDate}
         </div>
       )
     },
@@ -203,24 +291,29 @@ export const columns: ColumnDef<PackageRow>[] = [
     accessorKey: "status",
     header: "Estado",
     cell: ({ row }) => {
-      if (!row.original) {
-        return <div className="text-muted-foreground">No disponible</div>
-      }
-
       const status = row.getValue("status") as string
-      const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-        ACTIVE: "default",
-        INACTIVE: "secondary",
+      const statusConfig: Record<string, { label: string, className: string }> = {
+        ACTIVE: {
+          label: "Activo",
+          className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+        },
+        INACTIVE: {
+          label: "Inactivo",
+          className: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
+        }
       }
 
-      const labels: Record<string, string> = {
-        ACTIVE: "Activo",
-        INACTIVE: "Inactivo",
+      const config = statusConfig[status] || {
+        label: status,
+        className: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
       }
 
       return (
-        <Badge variant={variants[status] || "outline"} className="capitalize">
-          {labels[status] || status}
+        <Badge 
+          variant="outline" 
+          className={`${config.className} border-transparent font-medium`}
+        >
+          {config.label}
         </Badge>
       )
     },
@@ -228,14 +321,14 @@ export const columns: ColumnDef<PackageRow>[] = [
   {
     id: "actions",
     cell: ({ row }) => {
-      if (!row.original) {
-        return <div className="text-muted-foreground">No disponible</div>
-      }
-
       return (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <Link href={`/packages/${row.original.id}`}>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
               <Eye className="w-4 h-4" />
             </Button>
           </Link>
@@ -244,4 +337,3 @@ export const columns: ColumnDef<PackageRow>[] = [
     },
   },
 ]
-
