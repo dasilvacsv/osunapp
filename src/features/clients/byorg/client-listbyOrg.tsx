@@ -81,17 +81,13 @@ export function OrganizationList({ initialData }: OrganizationListProps) {
               <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               {isRefreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Organization
-            </Button>
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <StatCard 
               icon={Building2} 
-              title="Total Organizations" 
+              title="Total Organizatio ns" 
               value={totalOrganizations}
               className="bg-blue-100 text-blue-600"
             />

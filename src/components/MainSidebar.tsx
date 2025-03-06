@@ -58,8 +58,8 @@ const navItems = [
         url: "/clientes",
       },
       {
-        title: "Nuevo Cliente",
-        url: "/clients/new",
+        title: "Clientes por Organización",
+        url: "/clientes/byOrg",
       },
       {
         title: "Registrar Hijo",
