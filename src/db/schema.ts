@@ -2,6 +2,7 @@ import {
   varchar,
   uuid,
   integer,
+  boolean,
   text,
   pgTable,
   date,
@@ -28,6 +29,11 @@ export const purchaseStatusEnum = pgEnum("purchase_status", [
   "CANCELLED",
 ])
 
+export const paymentStatusEnum = pgEnum("payment_status", ["PENDING", "PAID", "OVERDUE", "CANCELLED"])
+export const paymentTypeEnum = pgEnum("payment_type", ["FULL", "INSTALLMENT", "DEPOSIT"])
+export const installmentFrequencyEnum = pgEnum("installment_frequency", ["WEEKLY", "BIWEEKLY", "MONTHLY"])
+export const saleTypeEnum = pgEnum("sale_type", ["DIRECT", "PRESALE"])
+
 export const organizationMemberRoleEnum = pgEnum("organization_member_role", ["ADMIN", "MEMBER"])
 
 export const itemTypeEnum = pgEnum("item_type", ["PHYSICAL", "DIGITAL", "SERVICE"])
@@ -49,6 +55,47 @@ export const bundleBeneficiaryStatusEnum = pgEnum("bundle_beneficiary_status", [
 export const organizationNatureEnum = pgEnum("organization_nature", ["PUBLIC", "PRIVATE"])
 export const sectionTemplateStatusEnum = pgEnum("section_template_status", ["COMPLETE", "INCOMPLETE", "PENDING"])
 
+
+export const payments = pgTable("payments", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  purchaseId: uuid("purchase_id")
+    .notNull()
+    .references(() => purchases.id),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  status: paymentStatusEnum("status").default("PENDING"),
+  paymentDate: timestamp("payment_date", { withTimezone: true }),
+  dueDate: timestamp("due_date", { withTimezone: true }),
+  paymentMethod: varchar("payment_method", { length: 50 }),
+  transactionReference: varchar("transaction_reference", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// Tabla de planes de pago
+export const paymentPlans = pgTable("payment_plans", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  purchaseId: uuid("purchase_id")
+    .notNull()
+    .references(() => purchases.id),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  downPayment: decimal("down_payment", { precision: 10, scale: 2 }),
+  installmentCount: integer("installment_count").notNull(),
+  installmentFrequency: installmentFrequencyEnum("installment_frequency").default("MONTHLY"),
+  startDate: timestamp("start_date", { withTimezone: true }).notNull(),
+  status: statusEnum("status").default("ACTIVE"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// Extensión de la tabla de compras
+export const purchasesExtended = {
+  saleType: saleTypeEnum("sale_type").default("DIRECT"),
+  paymentType: paymentTypeEnum("payment_type").default("FULL"),
+  isPaid: boolean("is_paid").default(false),
+  organizationId: uuid("organization_id"),
+  
+}
 // Cities table for organization locations
 export const cities = pgTable(
   "cities",
@@ -241,6 +288,8 @@ export const purchases = pgTable("purchases", {
   paymentMethod: varchar("payment_method", { length: 50 }).notNull().default("CASH"),
   transactionReference: varchar("transaction_reference", { length: 255 }),
   bookingMethod: varchar("booking_method", { length: 50 }),
+  paymentType: text("payment_type"),
+  isPaid: boolean("is_paid").default(false),
 })
 
 export const paymentMethods = pgTable("payment_methods", {

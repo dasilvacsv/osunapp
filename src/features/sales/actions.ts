@@ -1,4 +1,5 @@
 "use server"
+
 import { db } from "@/db"
 import {
   purchases,
@@ -10,6 +11,7 @@ import {
   bundleItems,
   bundleBeneficiaries,
   children,
+  organizations,
 } from "@/db/schema"
 import { and, eq, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
@@ -20,6 +22,7 @@ export async function getPurchaseDetails(id: string) {
       .select({
         purchase: purchases,
         client: clients,
+        organization: organizations,
         items: sql`
           json_agg(json_build_object(
             'id', ${purchaseItems.id},
@@ -33,9 +36,10 @@ export async function getPurchaseDetails(id: string) {
       .from(purchases)
       .where(eq(purchases.id, id))
       .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
       .leftJoin(purchaseItems, eq(purchases.id, purchaseItems.purchaseId))
       .leftJoin(inventoryItems, eq(purchaseItems.itemId, inventoryItems.id))
-      .groupBy(purchases.id, clients.id)
+      .groupBy(purchases.id, clients.id, organizations.id)
 
     if (result.length === 0) return { success: false, error: "Venta no encontrada" }
 
@@ -44,6 +48,7 @@ export async function getPurchaseDetails(id: string) {
       data: {
         ...result[0].purchase,
         client: result[0].client,
+        organization: result[0].organization,
         items: result[0].items,
       },
     }
@@ -65,6 +70,8 @@ export async function createPurchase(data: {
     level: string
     section: string
   }
+  saleType?: "DIRECT" | "PRESALE"
+  organizationId?: string | null
 }) {
   try {
     // Validar stock y obtener precios primero
@@ -73,7 +80,9 @@ export async function createPurchase(data: {
         const [inventoryItem] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId))
 
         if (!inventoryItem) throw new Error(`Producto no encontrado: ${item.itemId}`)
-        if (inventoryItem.currentStock < item.quantity) {
+
+        // Solo validar stock para ventas directas
+        if (data.saleType !== "PRESALE" && inventoryItem.currentStock < item.quantity) {
           throw new Error(`Stock insuficiente para ${inventoryItem.name} (${inventoryItem.currentStock} disponibles)`)
         }
 
@@ -140,6 +149,7 @@ export async function createPurchase(data: {
         status: "ACTIVE",
         createdAt: new Date(),
         updatedAt: new Date(),
+        organizationId: data.organizationId || null,
       })
     }
 
@@ -150,10 +160,14 @@ export async function createPurchase(data: {
         clientId: data.clientId,
         totalAmount: totalAmount.toString(),
         paymentMethod: data.paymentMethod,
-        status: "COMPLETED",
+        status: data.saleType === "PRESALE" ? "PENDING" : "COMPLETED",
         purchaseDate: new Date(),
         bundleId: data.bundleId,
         childId: childId,
+        // saleType: data.saleType || "DIRECT",
+        paymentType: "FULL", // Por defecto, se puede cambiar después
+        isPaid: data.saleType !== "PRESALE", // Las ventas directas se consideran pagadas
+        organizationId: data.organizationId || null,
       })
       .returning()
 
@@ -168,20 +182,22 @@ export async function createPurchase(data: {
       })),
     )
 
-    // Actualizar inventario
-    for (const item of data.items) {
-      await db
-        .update(inventoryItems)
-        .set({ currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}` })
-        .where(eq(inventoryItems.id, item.itemId))
+    // Actualizar inventario solo para ventas directas
+    if (data.saleType !== "PRESALE") {
+      for (const item of data.items) {
+        await db
+          .update(inventoryItems)
+          .set({ currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}` })
+          .where(eq(inventoryItems.id, item.itemId))
 
-      await db.insert(inventoryTransactions).values({
-        itemId: item.itemId,
-        quantity: -item.quantity,
-        transactionType: "SALE",
-        notes: `Venta #${purchase.id}`,
-        createdAt: new Date(),
-      })
+        await db.insert(inventoryTransactions).values({
+          itemId: item.itemId,
+          quantity: -item.quantity,
+          transactionType: "SALE",
+          notes: `Venta #${purchase.id}`,
+          createdAt: new Date(),
+        })
+      }
     }
 
     // Revalidar rutas
@@ -200,32 +216,33 @@ export async function createPurchase(data: {
 
 export async function getSalesData() {
   try {
+    // Modificamos la consulta para no incluir payment_type que parece no existir en la tabla
     const sales = await db
       .select({
-        purchase: purchases,
+        id: purchases.id,
+        clientId: purchases.clientId,
+        bundleId: purchases.bundleId,
+        status: purchases.status,
+        totalAmount: purchases.totalAmount,
+        paymentMethod: purchases.paymentMethod,
+        purchaseDate: purchases.purchaseDate,
+        transactionReference: purchases.transactionReference,
+        // Eliminamos la referencia a payment_type
+        // Usamos un valor por defecto para saleType si no existe
+        // saleType: sql`COALESCE(${purchases.saleType}, 'DIRECT')::text`,
+        // Usamos un valor por defecto para isPaid si no existe
+        isPaid: sql`COALESCE(${purchases.isPaid}, false)`,
         client: clients,
-        items: sql`
-          json_agg(json_build_object(
-            'inventoryItem', ${inventoryItems},
-            'quantity', ${purchaseItems.quantity},
-            'unitPrice', ${purchaseItems.unitPrice}
-          ))
-        `,
+        organization: organizations,
       })
       .from(purchases)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
-      .leftJoin(purchaseItems, eq(purchases.id, purchaseItems.purchaseId))
-      .leftJoin(inventoryItems, eq(purchaseItems.itemId, inventoryItems.id))
-      .groupBy(purchases.id, clients.id)
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .orderBy(sql`${purchases.purchaseDate} DESC`)
 
     return {
       success: true,
-      data: sales.map((sale) => ({
-        ...sale.purchase,
-        client: sale.client,
-        items: sale.items,
-        totalAmount: sale.purchase.totalAmount,
-      })),
+      data: sales,
     }
   } catch (error) {
     console.error("Error fetching sales data:", error)
@@ -301,6 +318,47 @@ export async function searchBundles(query: string) {
   } catch (error) {
     console.error("Error searching bundles:", error)
     return { success: false, error: "Error buscando paquetes" }
+  }
+}
+
+export async function deleteBundle(bundleId: string) {
+  try {
+    // Verificar si hay ventas asociadas al paquete
+    const salesCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(purchases)
+      .where(eq(purchases.bundleId, bundleId))
+
+    if (salesCount[0].count > 0) {
+      return {
+        success: false,
+        error: "No se puede eliminar el paquete porque tiene ventas asociadas",
+      }
+    }
+
+    // Eliminar beneficiarios asociados
+    await db.delete(bundleBeneficiaries).where(eq(bundleBeneficiaries.bundleId, bundleId))
+
+    // Eliminar items del paquete
+    await db.delete(bundleItems).where(eq(bundleItems.bundleId, bundleId))
+
+    // Finalmente, eliminar el paquete
+    const [deletedBundle] = await db.delete(bundles).where(eq(bundles.id, bundleId)).returning()
+
+    if (!deletedBundle) {
+      return { success: false, error: "Paquete no encontrado" }
+    }
+
+    // Revalidar rutas
+    revalidatePath("/packages")
+
+    return { success: true, data: deletedBundle }
+  } catch (error) {
+    console.error("Error deleting bundle:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error al eliminar el paquete",
+    }
   }
 }
 

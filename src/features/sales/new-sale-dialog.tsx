@@ -1,394 +1,321 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { createPurchase } from "./actions"
-import { useState, useEffect, useRef } from "react"
-import { searchClients } from "@/app/(app)/clientes/client"
-import { searchInventory, getInventoryItem } from "@/features/inventory/actions"
-import { searchBundles } from "./actions"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  ShoppingCart,
-  User,
-  CreditCard,
-  Trash2,
-  Package,
-  Search,
-  DollarSign,
-  AlertCircle,
-  Plus,
-  Minus,
-  ShoppingBag,
-  CheckCircle2,
-} from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Loader2, ShoppingCart, Package, Search, Plus, Trash, CreditCard, User, AlertCircle } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
-import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ClientSelector } from "./client-selector"
+import { SaleTypeSelector } from "./sale-type-selector"
+import { OrganizationSelector } from "./organization-selector"
+import { createPurchase, searchBundles } from "./actions"
+import { useRouter } from "next/navigation"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { motion, AnimatePresence } from "framer-motion"
 
 interface NewSaleDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSuccess?: () => void
+  onSuccess?: (newSale: any) => void
 }
 
-interface SaleItem {
+interface InventoryItem {
+  id: string
+  name: string
+  basePrice: string | number
+  currentStock: number
+  sku?: string
+}
+
+interface CartItem {
   itemId: string
+  name: string
   quantity: number
+  unitPrice: number
   overridePrice?: number
+  stock?: number
 }
 
-interface FormData {
-  clientId: string
-  items: SaleItem[]
-  paymentMethod: "CASH" | "CARD" | "TRANSFER"
+interface Bundle {
+  id: string
+  name: string
+  basePrice: string | number
+  type: string
+  items: Array<{
+    id: string
+    quantity: number
+    overridePrice?: string | number
+    item: InventoryItem
+  }>
 }
 
-interface BeneficiaryData {
-  firstName: string
-  lastName: string
-  school: string
-  level: string
-  section: string
-}
-
-export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogProps) {
+export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogProps) {
   const { toast } = useToast()
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState<FormData>({
-    clientId: "",
-    items: [],
-    paymentMethod: "CASH",
-  })
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<InventoryItem[]>([])
+  const [bundleResults, setbundleResults] = useState<Bundle[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [selectedClient, setSelectedClient] = useState<any>(null)
+  const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null)
+  const [saleType, setSaleType] = useState<"DIRECT" | "PRESALE">("DIRECT")
+  const [paymentMethod, setPaymentMethod] = useState("CASH")
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(null)
+  const [transactionReference, setTransactionReference] = useState("")
 
-  const [clientSearch, setClientSearch] = useState("")
-  const [clientResults, setClientResults] = useState<any[]>([])
-  const [inventorySearch, setInventorySearch] = useState("")
-  const [inventoryResults, setInventoryResults] = useState<any[]>([])
-  const [showResults, setShowResults] = useState({
-    client: false,
-    inventory: false,
-  })
+  // Beneficiary fields for bundle sales
+  const [beneficiaryFirstName, setBeneficiaryFirstName] = useState("")
+  const [beneficiaryLastName, setBeneficiaryLastName] = useState("")
+  const [beneficiarySchool, setBeneficiarySchool] = useState("")
+  const [beneficiaryLevel, setBeneficiaryLevel] = useState("")
+  const [beneficiarySection, setBeneficiarySection] = useState("")
 
-  const [activeTab, setActiveTab] = useState<"items" | "bundles">("items")
-  const [bundleSearch, setBundleSearch] = useState("")
-  const [bundleResults, setBundleResults] = useState<any[]>([])
-  const [showBundleResults, setShowBundleResults] = useState(false)
-  const [itemsCache, setItemsCache] = useState<Record<string, any>>({})
-  const [selectedBundle, setSelectedBundle] = useState<string | null>(null)
-  const [beneficiaryData, setBeneficiaryData] = useState<BeneficiaryData>({
-    firstName: "",
-    lastName: "",
-    school: "",
-    level: "",
-    section: "",
-  })
-  const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({})
-  const [bundleLoading, setBundleLoading] = useState(false)
-
-  const inventorySearchRef = useRef<HTMLInputElement>(null)
-  const clientInputRef = useRef<HTMLInputElement>(null)
+  // Validation states
+  const [clientError, setClientError] = useState(false)
+  const [cartError, setCartError] = useState(false)
+  const [beneficiaryError, setBeneficiaryError] = useState(false)
 
   useEffect(() => {
-    // Focus client input when dialog opens
-    if (open && clientInputRef.current) {
-      setTimeout(() => {
-        clientInputRef.current?.focus()
-      }, 100)
+    if (searchQuery.length >= 2) {
+      const delaySearch = setTimeout(() => {
+        searchProducts()
+      }, 300)
+
+      return () => clearTimeout(delaySearch)
+    } else {
+      setSearchResults([])
+      setbundleResults([])
     }
-  }, [open])
+  }, [searchQuery])
 
-  useEffect(() => {
-    const handler = setTimeout(async () => {
-      if (clientSearch.length > 1) {
-        const result = await searchClients(clientSearch)
-        if (result.success) {
-          setClientResults(result.data ?? [])
-          setShowResults((prev) => ({ ...prev, client: true }))
-        }
-      } else {
-        setClientResults([])
-        setShowResults((prev) => ({ ...prev, client: false }))
-      }
-    }, 200)
+  const searchProducts = async () => {
+    if (searchQuery.length < 2) return
 
-    return () => clearTimeout(handler)
-  }, [clientSearch])
-
-  useEffect(() => {
-    const handler = setTimeout(async () => {
-      if (inventorySearch.length > 1) {
-        const result = await searchInventory(inventorySearch)
-        if (result.success) {
-          setInventoryResults(result.data ?? [])
-          setShowResults((prev) => ({ ...prev, inventory: true }))
-        }
-      } else {
-        setInventoryResults([])
-        setShowResults((prev) => ({ ...prev, inventory: false }))
-      }
-    }, 200)
-
-    return () => clearTimeout(handler)
-  }, [inventorySearch])
-
-  useEffect(() => {
-    const handler = setTimeout(async () => {
-      if (bundleSearch.length > 1) {
-        const result = await searchBundles(bundleSearch)
-        if (result.success) {
-          setBundleResults(result.data ?? [])
-          setShowBundleResults(true)
-        }
-      } else {
-        setBundleResults([])
-        setShowBundleResults(false)
-      }
-    }, 200)
-
-    return () => clearTimeout(handler)
-  }, [bundleSearch])
-
-  useEffect(() => {
-    const fetchMissingItems = async () => {
-      const missingItems = formData.items.filter(
-        (item) => !itemsCache[item.itemId] && !inventoryResults.find((i) => i.id === item.itemId),
-      )
-
-      if (missingItems.length > 0) {
-        const itemDetails = await Promise.all(missingItems.map((item) => getInventoryItem(item.itemId)))
-
-        const newCache = { ...itemsCache }
-        itemDetails.forEach((result, index) => {
-          if (result.success) {
-            newCache[missingItems[index].itemId] = result.data
-          }
-        })
-
-        setItemsCache(newCache)
-      }
-    }
-
-    fetchMissingItems()
-  }, [formData.items, itemsCache, inventoryResults])
-
-  // Validate beneficiary data when it changes
-  useEffect(() => {
-    if (selectedBundle) {
-      const errors: Record<string, boolean> = {}
-      Object.entries(beneficiaryData).forEach(([key, value]) => {
-        errors[key] = !value
-      })
-      setValidationErrors(errors)
-    }
-  }, [beneficiaryData, selectedBundle])
-
-  const getItemDetails = (itemId: string) => {
-    return itemsCache[itemId] || inventoryResults.find((i) => i.id === itemId)
-  }
-
-  const addBundle = async (bundle: any) => {
+    setSearchLoading(true)
     try {
-      setBundleLoading(true)
+      // Buscar productos individuales
+      // Aquí deberías implementar la búsqueda real de productos
+      // Por ahora, usamos datos de ejemplo
+      const mockResults: InventoryItem[] = [
+        { id: "1", name: "Cuaderno", basePrice: "5.99", currentStock: 100 },
+        { id: "2", name: "Lápiz", basePrice: "1.99", currentStock: 200 },
+        { id: "3", name: "Borrador", basePrice: "0.99", currentStock: 150 },
+        { id: "4", name: "Marcadores", basePrice: "3.99", currentStock: 80 },
+        { id: "5", name: "Carpeta", basePrice: "2.49", currentStock: 120 },
+      ]
 
-      const insufficientItems = bundle.items.filter(
-        (bundleItem: any) => bundleItem.item.currentStock < bundleItem.quantity,
-      )
+      setSearchResults(mockResults.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase())))
 
-      if (insufficientItems.length > 0) {
-        toast({
-          variant: "destructive",
-          title: "Stock insuficiente",
-          description: `Algunos productos del paquete no tienen suficiente stock`,
-        })
-        return
-      }
-
-      const newItems = [...formData.items]
-
-      bundle.items.forEach((bundleItem: any) => {
-        const existingItemIndex = newItems.findIndex((i) => i.itemId === bundleItem.item.id)
-
-        if (existingItemIndex !== -1) {
-          newItems[existingItemIndex].quantity += bundleItem.quantity
+      // Buscar paquetes
+      const bundleResult = await searchBundles(searchQuery)
+      if (bundleResult.success) {
+        if (bundleResult.data) {
+          setbundleResults(bundleResult.data as Bundle[])
         } else {
-          newItems.push({
-            itemId: bundleItem.item.id,
-            quantity: bundleItem.quantity,
-            overridePrice: bundleItem.overridePrice || bundleItem.item.basePrice,
-          })
+          setbundleResults([])
         }
-      })
-
-      setFormData((prev) => ({
-        ...prev,
-        items: newItems,
-      }))
-
-      setSelectedBundle(bundle.id)
-      setBundleSearch("")
-      setShowBundleResults(false)
-
-      // Reset beneficiary data
-      setBeneficiaryData({
-        firstName: "",
-        lastName: "",
-        school: "",
-        level: "",
-        section: "",
-      })
-
-      // Show success toast
-      toast({
-        title: "Paquete agregado",
-        description: `Se agregaron ${bundle.items.length} productos del paquete ${bundle.name}`,
-        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
-      })
+      }
     } catch (error) {
+      console.error("Error searching products:", error)
       toast({
-        variant: "destructive",
         title: "Error",
-        description: "No se pudo agregar el paquete",
+        description: "No se pudieron cargar los resultados de búsqueda",
+        variant: "destructive",
       })
     } finally {
-      setBundleLoading(false)
+      setSearchLoading(false)
     }
   }
 
-  const addItem = (item: any) => {
-    if (item.currentStock <= 0) {
+  const addToCart = (item: InventoryItem) => {
+    const existingItem = cart.find((cartItem) => cartItem.itemId === item.id)
+
+    if (existingItem) {
+      setCart(
+        cart.map((cartItem) =>
+          cartItem.itemId === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem,
+        ),
+      )
+    } else {
+      setCart([
+        ...cart,
+        {
+          itemId: item.id,
+          name: item.name,
+          quantity: 1,
+          unitPrice: typeof item.basePrice === "string" ? Number.parseFloat(item.basePrice) : item.basePrice,
+          stock: item.currentStock,
+        },
+      ])
+    }
+
+    // Clear cart error if it was set
+    if (cartError) setCartError(false)
+  }
+
+  const removeFromCart = (itemId: string) => {
+    setCart(cart.filter((item) => item.itemId !== itemId))
+  }
+
+  const updateQuantity = (itemId: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(itemId)
+      return
+    }
+
+    setCart(cart.map((item) => (item.itemId === itemId ? { ...item, quantity } : item)))
+  }
+
+  const selectBundle = (bundle: Bundle) => {
+    setSelectedBundle(bundle)
+
+    // Convertir los items del paquete al formato del carrito
+    const cartItems: CartItem[] = bundle.items.map((item) => ({
+      itemId: item.item.id,
+      name: item.item.name,
+      quantity: item.quantity,
+      unitPrice:
+        typeof item.overridePrice === "string"
+          ? Number.parseFloat(item.overridePrice)
+          : item.overridePrice ||
+            (typeof item.item.basePrice === "string" ? Number.parseFloat(item.item.basePrice) : item.item.basePrice),
+      overridePrice: item.overridePrice
+        ? typeof item.overridePrice === "string"
+          ? Number.parseFloat(item.overridePrice)
+          : item.overridePrice
+        : undefined,
+      stock: item.item.currentStock,
+    }))
+
+    setCart(cartItems)
+
+    // Clear cart error if it was set
+    if (cartError) setCartError(false)
+  }
+
+  const calculateTotal = () => {
+    return cart.reduce((total, item) => total + item.unitPrice * item.quantity, 0)
+  }
+
+  const handleCreateClient = () => {
+    // Aquí deberías implementar la lógica para crear un nuevo cliente
+    // Por ahora, simplemente mostraremos un mensaje
+    toast({
+      title: "Crear cliente",
+      description: "Esta funcionalidad aún no está implementada",
+    })
+  }
+
+  const validateForm = () => {
+    let isValid = true
+
+    // Validar cliente
+    if (!selectedClient) {
+      setClientError(true)
+      isValid = false
+    } else {
+      setClientError(false)
+    }
+
+    // Validar carrito
+    if (cart.length === 0) {
+      setCartError(true)
+      isValid = false
+    } else {
+      setCartError(false)
+    }
+
+    // Validar beneficiario si es una venta de paquete
+    if (
+      selectedBundle &&
+      (!beneficiaryFirstName || !beneficiaryLastName || !beneficiarySchool || !beneficiaryLevel || !beneficiarySection)
+    ) {
+      setBeneficiaryError(true)
+      isValid = false
+    } else {
+      setBeneficiaryError(false)
+    }
+
+    return isValid
+  }
+
+  const handleSubmit = async () => {
+    if (!validateForm()) {
       toast({
-        variant: "destructive",
         title: "Error",
-        description: "Producto sin stock disponible",
+        description: "Por favor completa todos los campos requeridos",
+        variant: "destructive",
       })
       return
     }
 
-    const existingItemIndex = formData.items.findIndex((i) => i.itemId === item.id)
-
-    if (existingItemIndex !== -1) {
-      const newItems = [...formData.items]
-      if (newItems[existingItemIndex].quantity < item.currentStock) {
-        newItems[existingItemIndex].quantity += 1
-        setFormData((prev) => ({ ...prev, items: newItems }))
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Stock máximo alcanzado",
-          description: "No hay más unidades disponibles de este producto",
-        })
-      }
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        items: [...prev.items, { itemId: item.id, quantity: 1 }],
-      }))
-    }
-
-    // Clear search and focus input for next item
-    setInventorySearch("")
-    setTimeout(() => {
-      inventorySearchRef.current?.focus()
-      setShowResults((prev) => ({ ...prev, inventory: true }))
-    }, 10)
-  }
-
-  const updateQuantity = (index: number, delta: number) => {
-    const newItems = [...formData.items]
-    const item = newItems[index]
-    const inventoryItem = getItemDetails(item.itemId)
-
-    if (!inventoryItem) return
-
-    const newQuantity = item.quantity + delta
-    if (newQuantity > 0 && newQuantity <= inventoryItem.currentStock) {
-      newItems[index].quantity = newQuantity
-      setFormData({ ...formData, items: newItems })
-    }
-  }
-
-  const calculateTotal = () => {
-    return formData.items.reduce((total, item) => {
-      const inventoryItem = getItemDetails(item.itemId)
-      const price = item.overridePrice || inventoryItem?.basePrice || 0
-      return total + price * item.quantity
-    }, 0)
-  }
-
-  const validateForm = () => {
-    const errors = []
-
-    if (!formData.clientId) {
-      errors.push("Selecciona un cliente")
-    }
-
-    if (formData.items.length === 0) {
-      errors.push("Agrega al menos un producto")
-    }
-
-    if (selectedBundle) {
-      const missingFields = Object.entries(beneficiaryData)
-        .filter(([_, value]) => !value)
-        .map(([key, _]) => {
-          const fieldNames: Record<string, string> = {
-            firstName: "Nombres",
-            lastName: "Apellidos",
-            school: "Colegio",
-            level: "Nivel",
-            section: "Sección",
-          }
-          return fieldNames[key]
-        })
-
-      if (missingFields.length > 0) {
-        errors.push(`Completa los siguientes campos del beneficiario: ${missingFields.join(", ")}`)
-      }
-    }
-
-    return errors
-  }
-
-  const handleSubmit = async () => {
     try {
-      const errors = validateForm()
-
-      if (errors.length > 0) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: errors[0],
-        })
-        return
-      }
-
       setLoading(true)
 
-      const result = await createPurchase({
-        ...formData,
-        bundleId: selectedBundle || undefined,
-        beneficiary: selectedBundle ? beneficiaryData : undefined,
-      })
+      const purchaseData: any = {
+        clientId: selectedClient.id,
+        items: cart.map((item) => ({
+          itemId: item.itemId,
+          quantity: item.quantity,
+          overridePrice: item.overridePrice,
+        })),
+        paymentMethod,
+        saleType,
+        organizationId: selectedOrganizationId === "none" ? null : selectedOrganizationId,
+      }
+
+      // Agregar referencia de transacción si existe
+      if (transactionReference) {
+        purchaseData.transactionReference = transactionReference
+      }
+
+      // Agregar datos del paquete y beneficiario si es necesario
+      if (selectedBundle) {
+        purchaseData.bundleId = selectedBundle.id
+        purchaseData.beneficiary = {
+          firstName: beneficiaryFirstName,
+          lastName: beneficiaryLastName,
+          school: beneficiarySchool,
+          level: beneficiaryLevel,
+          section: beneficiarySection,
+        }
+      }
+
+      const result = await createPurchase(purchaseData)
 
       if (result.success) {
         toast({
-          title: "¡Éxito!",
-          description: "La venta se ha registrado correctamente",
+          title: "Venta creada",
+          description: `La venta se ha registrado correctamente`,
           className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
         })
-        onSuccess?.()
+
+        // Llamar al callback de éxito si existe
+        if (onSuccess && result.data) {
+          onSuccess(result.data)
+        }
+
         onOpenChange(false)
+
+        // Redirigir a la página de detalles de la venta
+        if (result.data?.id) {
+          router.push(`/sales/${result.data.id}`)
+        }
       } else {
         throw new Error(result.error)
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Error desconocido",
+        description: error instanceof Error ? error.message : "Error al procesar la venta",
         variant: "destructive",
       })
     } finally {
@@ -396,467 +323,418 @@ export default function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSale
     }
   }
 
-  const getStockClassName = (stock: number) => {
-    if (stock > 10) return "bg-success/20 text-success-foreground"
-    if (stock > 0) return "bg-warning/20 text-warning-foreground"
-    return "bg-destructive/20 text-destructive-foreground"
+  const resetForm = () => {
+    setCart([])
+    setSelectedClient(null)
+    setSelectedBundle(null)
+    setSaleType("DIRECT")
+    setPaymentMethod("CASH")
+    setSelectedOrganizationId(null)
+    setTransactionReference("")
+    setBeneficiaryFirstName("")
+    setBeneficiaryLastName("")
+    setBeneficiarySchool("")
+    setBeneficiaryLevel("")
+    setBeneficiarySection("")
+    setSearchQuery("")
+    setClientError(false)
+    setCartError(false)
+    setBeneficiaryError(false)
   }
 
-  const resetForm = () => {
-    setFormData({
-      clientId: "",
-      items: [],
-      paymentMethod: "CASH",
-    })
-    setClientSearch("")
-    setInventorySearch("")
-    setBundleSearch("")
-    setSelectedBundle(null)
-    setBeneficiaryData({
-      firstName: "",
-      lastName: "",
-      school: "",
-      level: "",
-      section: "",
-    })
-  }
+  useEffect(() => {
+    if (open) {
+      resetForm()
+    }
+  }, [open])
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(newOpen) => {
-        if (!newOpen) {
-          resetForm()
-        }
-        onOpenChange(newOpen)
-      }}
-    >
-      <DialogContent className="max-w-2xl bg-background border-border">
-        <DialogHeader className="border-b border-border pb-4">
-          <DialogTitle className="flex items-center gap-2 text-2xl font-bold text-foreground">
-            <ShoppingCart className="w-6 h-6 text-foreground" />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5" />
             Nueva Venta
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Client search section */}
-          <div className="space-y-3">
-            <Label className="flex items-center gap-2 text-lg font-medium text-foreground">
-              <User className="w-5 h-5" />
+          {/* Tipo de venta */}
+          <div className="space-y-2">
+            <SaleTypeSelector onTypeChange={setSaleType} defaultValue={saleType} />
+          </div>
+
+          {/* Cliente */}
+          <div className="space-y-2">
+            <Label htmlFor="client" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
               Cliente <span className="text-destructive">*</span>
             </Label>
-            <div className="relative">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
-                <Input
-                  ref={clientInputRef}
-                  className={cn(
-                    "pl-10 transition-all duration-200 bg-background border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20",
-                    !formData.clientId && "border-destructive/50 focus:border-destructive",
-                  )}
-                  placeholder="Buscar cliente por nombre o documento..."
-                  value={clientSearch}
-                  onChange={(e) => setClientSearch(e.target.value)}
-                  onFocus={() => setShowResults((prev) => ({ ...prev, client: true }))}
-                  onBlur={() => setTimeout(() => setShowResults((prev) => ({ ...prev, client: false })), 200)}
-                />
-                {formData.clientId && (
-                  <CheckCircle2 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-success w-5 h-5" />
-                )}
-              </div>
+            <ClientSelector
+              onClientSelect={(client) => {
+                setSelectedClient(client);
+                setClientError(false);
+              }}
+              selectedClient={selectedClient}
+              onCreateClient={handleCreateClient}
+            />
+            {clientError && (
+              <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                <AlertCircle className="h-3 w-3" />
+                Debes seleccionar un cliente
+              </p>
+            )}
+          </div>
 
-              <AnimatePresence>
-                {showResults.client && clientResults.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute top-full left-0 right-0 bg-popover border border-border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
-                  >
-                    {clientResults.map((client) => (
-                      <motion.div
-                        key={client.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="p-3 hover:bg-accent cursor-pointer transition-colors duration-150"
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          setFormData((prev) => ({ ...prev, clientId: client.id }))
-                          setClientSearch(client.name)
-                          setShowResults((prev) => ({ ...prev, client: false }))
-                        }}
-                      >
-                        <div className="font-medium text-foreground">{client.name}</div>
-                        <div className="text-sm text-muted-foreground">{client.document}</div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+          {/* Organización */}
+          <OrganizationSelector
+            onOrganizationSelect={setSelectedOrganizationId}
+            selectedOrganizationId={selectedOrganizationId}
+          />
+
+          {/* Búsqueda de productos */}
+          <div className="space-y-2">
+            <Label htmlFor="productSearch">Buscar productos o paquetes</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                id="productSearch"
+                placeholder="Nombre del producto o paquete..."
+                className="pl-9"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
           </div>
 
-          {/* Products/Bundles Tabs */}
-          <div className="space-y-3">
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "items" | "bundles")}>
-              <TabsList className="w-full">
-                <TabsTrigger value="items" className="flex-1">
-                  <Package className="w-4 h-4 mr-2" />
-                  Productos
-                </TabsTrigger>
-                <TabsTrigger value="bundles" className="flex-1">
-                  <ShoppingBag className="w-4 h-4 mr-2" />
-                  Paquetes
-                </TabsTrigger>
+          {/* Resultados de búsqueda */}
+          {searchLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <Tabs defaultValue="products" className="w-full">
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="products">Productos</TabsTrigger>
+                <TabsTrigger value="bundles">Paquetes</TabsTrigger>
               </TabsList>
-
-              <TabsContent value="items" className="mt-4">
-                <div className="space-y-3">
-                  <div className="relative">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
-                      <Input
-                        ref={inventorySearchRef}
-                        className="pl-10 transition-all duration-200 bg-background border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20"
-                        placeholder="Buscar productos por nombre o SKU..."
-                        value={inventorySearch}
-                        onChange={(e) => setInventorySearch(e.target.value)}
-                        onFocus={() => setShowResults((prev) => ({ ...prev, inventory: true }))}
-                        onBlur={() => setTimeout(() => setShowResults((prev) => ({ ...prev, inventory: false })), 200)}
-                      />
-                    </div>
-
+              <TabsContent value="products" className="pt-4">
+                {searchResults.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[300px] overflow-y-auto p-1">
                     <AnimatePresence>
-                      {showResults.inventory && inventoryResults.length > 0 && (
+                      {searchResults.map((item, index) => (
                         <motion.div
-                          initial={{ opacity: 0, y: -10 }}
+                          key={item.id}
+                          initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
-                          className="absolute top-full left-0 right-0 bg-popover border border-border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
+                          transition={{ delay: index * 0.05 }}
+                          className={`
+                            flex justify-between items-center p-3 border rounded-md 
+                            hover:bg-muted/50 cursor-pointer transition-colors
+                            ${item.currentStock <= 0 ? "opacity-50 bg-muted" : ""}
+                          `}
+                          onClick={() => item.currentStock > 0 && addToCart(item)}
                         >
-                          {inventoryResults.map((item) => (
-                            <motion.div
-                              key={item.id}
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              className="p-3 hover:bg-accent cursor-pointer transition-colors duration-150"
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                addItem(item)
-                              }}
-                            >
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium text-foreground">{item.name}</span>
-                                <span className={`text-sm px-2 py-1 rounded ${getStockClassName(item.currentStock)}`}>
-                                  Stock: {item.currentStock}
-                                </span>
-                              </div>
-                              <div className="text-sm text-muted-foreground">{item.sku}</div>
-                              <div className="text-sm font-semibold mt-1">{formatCurrency(item.basePrice)}</div>
-                            </motion.div>
-                          ))}
+                          <div>
+                            <p className="font-medium">{item.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-muted-foreground">Stock: {item.currentStock}</p>
+                              {item.currentStock <= 0 && (
+                                <Badge variant="destructive" className="text-xs">
+                                  Sin stock
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">
+                              {formatCurrency(
+                                typeof item.basePrice === "string" ? Number.parseFloat(item.basePrice) : item.basePrice,
+                              )}
+                            </span>
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={item.currentStock <= 0}>
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </motion.div>
-                      )}
+                      ))}
                     </AnimatePresence>
                   </div>
-                </div>
+                ) : searchQuery.length >= 2 ? (
+                  <p className="text-center py-4 text-muted-foreground">No se encontraron productos</p>
+                ) : (
+                  <p className="text-center py-4 text-muted-foreground">Ingresa al menos 2 caracteres para buscar</p>
+                )}
               </TabsContent>
-
-              <TabsContent value="bundles" className="mt-4">
-                <div className="space-y-3">
-                  <div className="relative">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
-                      <Input
-                        className="pl-10 transition-all duration-200 bg-background border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20"
-                        placeholder="Buscar paquetes por nombre..."
-                        value={bundleSearch}
-                        onChange={(e) => setBundleSearch(e.target.value)}
-                        onFocus={() => setShowBundleResults(true)}
-                        onBlur={() => setTimeout(() => setShowBundleResults(false), 200)}
-                        disabled={bundleLoading}
-                      />
-                      {bundleLoading && (
-                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        </div>
-                      )}
-                    </div>
-
+              <TabsContent value="bundles" className="pt-4">
+                {bundleResults.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto p-1">
                     <AnimatePresence>
-                      {showBundleResults && bundleResults.length > 0 && (
+                      {bundleResults.map((bundle, index) => (
                         <motion.div
-                          initial={{ opacity: 0, y: -10 }}
+                          key={bundle.id}
+                          initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
-                          className="absolute top-full left-0 right-0 bg-popover border border-border rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-auto"
+                          transition={{ delay: index * 0.05 }}
+                          className="flex justify-between items-center p-3 border rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
+                          onClick={() => selectBundle(bundle)}
                         >
-                          {bundleResults.map((bundle) => (
-                            <motion.div
-                              key={bundle.id}
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              exit={{ opacity: 0 }}
-                              className="p-3 hover:bg-accent cursor-pointer transition-colors duration-150"
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                addBundle(bundle)
-                              }}
-                            >
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium text-foreground">{bundle.name}</span>
-                                <span className="text-sm font-semibold">{formatCurrency(bundle.basePrice)}</span>
-                              </div>
-                              <div className="text-sm text-muted-foreground mt-1">
-                                {bundle.items.length} productos incluidos
-                              </div>
-                              <div className="mt-2 space-y-1">
-                                {bundle.items.map((item: any) => (
-                                  <div key={item.id} className="text-sm flex justify-between items-center">
-                                    <span>{item.item.name}</span>
-                                    <span className="text-xs">x{item.quantity}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </motion.div>
-                          ))}
+                          <div>
+                            <p className="font-medium">{bundle.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-muted-foreground">{bundle.items.length} productos</p>
+                              <Badge variant="outline" className="text-xs">
+                                {bundle.type === "SCHOOL_PACKAGE"
+                                  ? "Escolar"
+                                  : bundle.type === "ORGANIZATION_PACKAGE"
+                                    ? "Organizacional"
+                                    : "Regular"}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">
+                              {formatCurrency(
+                                typeof bundle.basePrice === "string"
+                                  ? Number.parseFloat(bundle.basePrice)
+                                  : bundle.basePrice,
+                              )}
+                            </span>
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                              <Package className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </motion.div>
-                      )}
+                      ))}
                     </AnimatePresence>
                   </div>
-                </div>
+                ) : searchQuery.length >= 2 ? (
+                  <p className="text-center py-4 text-muted-foreground">No se encontraron paquetes</p>
+                ) : (
+                  <p className="text-center py-4 text-muted-foreground">Ingresa al menos 2 caracteres para buscar</p>
+                )}
               </TabsContent>
             </Tabs>
+          )}
 
-            {/* Selected items list */}
-            <div className="space-y-3 mt-4">
-              <AnimatePresence>
-                {formData.items.length === 0 && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="p-4 border border-border rounded-lg bg-muted/50 text-center"
-                  >
-                    <p className="text-muted-foreground">No hay productos seleccionados</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Busca y selecciona productos o un paquete para continuar
-                    </p>
-                  </motion.div>
-                )}
-
-                {formData.items.map((item, index) => {
-                  const inventoryItem = getItemDetails(item.itemId)
-                  return (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      className="flex items-center gap-4 p-4 border border-border rounded-lg bg-muted hover:shadow-md transition-all duration-200"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-foreground">{inventoryItem?.name || "Cargando..."}</p>
-                        <p className="text-sm text-muted-foreground">{inventoryItem?.sku}</p>
-                        <p className="text-sm font-semibold mt-1">
-                          {formatCurrency((item.overridePrice || inventoryItem?.basePrice || 0) * item.quantity)}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 bg-background rounded-lg border border-input p-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => updateQuantity(index, -1)}
-                          >
-                            <Minus className="w-4 h-4" />
-                          </Button>
-
-                          <Input
-                            type="number"
-                            min="1"
-                            max={inventoryItem?.currentStock || 1}
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const newItems = [...formData.items]
-                              const newQuantity = Math.min(
-                                Math.max(1, Number(e.target.value) || 1),
-                                inventoryItem?.currentStock || 1,
-                              )
-                              newItems[index].quantity = newQuantity
-                              setFormData({ ...formData, items: newItems })
-                            }}
-                            className="w-16 text-center bg-background border-0 focus-visible:ring-0"
-                          />
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => updateQuantity(index, 1)}
-                          >
-                            <Plus className="w-4 h-4" />
-                          </Button>
-                        </div>
-
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                onClick={() =>
-                                  setFormData({
-                                    ...formData,
-                                    items: formData.items.filter((_, i) => i !== index),
-                                  })
-                                }
-                                className="hover:bg-destructive/90 transition-colors duration-200"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Eliminar producto</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </motion.div>
-                  )
-                })}
-              </AnimatePresence>
+          {/* Carrito */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                Carrito <span className="text-destructive">*</span>
+              </h3>
+              {cart.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCart([])}
+                  className="text-destructive hover:text-destructive"
+                >
+                  Vaciar
+                </Button>
+              )}
             </div>
+
+            {cart.length === 0 ? (
+              <div className="text-center py-8 border rounded-md bg-muted/30">
+                <p className="text-muted-foreground">El carrito está vacío</p>
+                {cartError && (
+                  <p className="text-sm text-destructive flex items-center gap-1 mt-2 justify-center">
+                    <AlertCircle className="h-3 w-3" />
+                    Debes agregar al menos un producto
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+                  <AnimatePresence>
+                    {cart.map((item, index) => (
+                      <motion.div
+                        key={item.itemId}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="flex justify-between items-center p-3 border rounded-md"
+                      >
+                        <div>
+                          <p className="font-medium">{item.name}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 w-6 p-0"
+                              onClick={() => updateQuantity(item.itemId, item.quantity - 1)}
+                            >
+                              -
+                            </Button>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => updateQuantity(item.itemId, Number.parseInt(e.target.value) || 1)}
+                              className="w-16 h-8 text-center"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 w-6 p-0"
+                              onClick={() => updateQuantity(item.itemId, item.quantity + 1)}
+                              disabled={item.stock !== undefined && item.quantity >= item.stock}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="font-semibold">{formatCurrency(item.unitPrice * item.quantity)}</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm text-muted-foreground">
+                              {item.quantity} x {formatCurrency(item.unitPrice)}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                              onClick={() => removeFromCart(item.itemId)}
+                            >
+                              <Trash className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+
+                <div className="flex justify-between items-center p-3 border-t pt-4">
+                  <span className="font-semibold">Total</span>
+                  <span className="text-xl font-bold">{formatCurrency(calculateTotal())}</span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Beneficiary data section */}
+          {/* Datos del beneficiario (solo para ventas de paquetes) */}
           {selectedBundle && (
-            <div className="space-y-3 p-4 border border-border rounded-lg bg-muted/50">
-              <Label className="flex items-center gap-2 text-lg font-medium text-foreground">
-                <User className="w-5 h-5" />
-                Datos del Beneficiario <span className="text-destructive">*</span>
-              </Label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              className={`space-y-4 border p-4 rounded-md ${beneficiaryError ? "bg-red-50 border-red-200 dark:bg-red-900/10 dark:border-red-800/30" : "bg-muted/30"}`}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold flex items-center gap-2">
+                  Datos del Beneficiario <span className="text-destructive">*</span>
+                </h3>
+                {beneficiaryError && (
+                  <Badge variant="destructive" className="text-xs">
+                    Datos incompletos
+                  </Badge>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="firstName" className="text-sm font-medium">
-                    Nombres <span className="text-destructive">*</span>
-                  </Label>
+                  <Label htmlFor="firstName">Nombre</Label>
                   <Input
                     id="firstName"
-                    placeholder="Nombres del beneficiario"
-                    value={beneficiaryData.firstName}
-                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, firstName: e.target.value }))}
-                    className={cn(validationErrors.firstName && "border-destructive/50 focus:border-destructive")}
+                    value={beneficiaryFirstName}
+                    onChange={(e) => setBeneficiaryFirstName(e.target.value)}
+                    placeholder="Nombre del beneficiario"
+                    className={beneficiaryError && !beneficiaryFirstName ? "border-destructive" : ""}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="lastName" className="text-sm font-medium">
-                    Apellidos <span className="text-destructive">*</span>
-                  </Label>
+                  <Label htmlFor="lastName">Apellido</Label>
                   <Input
                     id="lastName"
-                    placeholder="Apellidos del beneficiario"
-                    value={beneficiaryData.lastName}
-                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, lastName: e.target.value }))}
-                    className={cn(validationErrors.lastName && "border-destructive/50 focus:border-destructive")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="school" className="text-sm font-medium">
-                    Colegio <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="school"
-                    placeholder="Nombre del colegio"
-                    value={beneficiaryData.school}
-                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, school: e.target.value }))}
-                    className={cn(validationErrors.school && "border-destructive/50 focus:border-destructive")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="level" className="text-sm font-medium">
-                    Nivel <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="level"
-                    placeholder="Nivel educativo"
-                    value={beneficiaryData.level}
-                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, level: e.target.value }))}
-                    className={cn(validationErrors.level && "border-destructive/50 focus:border-destructive")}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="section" className="text-sm font-medium">
-                    Sección <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="section"
-                    placeholder="Sección o aula"
-                    value={beneficiaryData.section}
-                    onChange={(e) => setBeneficiaryData((prev) => ({ ...prev, section: e.target.value }))}
-                    className={cn(validationErrors.section && "border-destructive/50 focus:border-destructive")}
+                    value={beneficiaryLastName}
+                    onChange={(e) => setBeneficiaryLastName(e.target.value)}
+                    placeholder="Apellido del beneficiario"
+                    className={beneficiaryError && !beneficiaryLastName ? "border-destructive" : ""}
                   />
                 </div>
               </div>
-              <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-warning" />
-                Todos los campos son obligatorios para registrar al beneficiario del paquete.
+
+              <div className="space-y-2">
+                <Label htmlFor="school">Escuela</Label>
+                <Input
+                  id="school"
+                  value={beneficiarySchool}
+                  onChange={(e) => setBeneficiarySchool(e.target.value)}
+                  placeholder="Nombre de la escuela"
+                  className={beneficiaryError && !beneficiarySchool ? "border-destructive" : ""}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="level">Nivel</Label>
+                  <Input
+                    id="level"
+                    value={beneficiaryLevel}
+                    onChange={(e) => setBeneficiaryLevel(e.target.value)}
+                    placeholder="Ej: 5to Año"
+                    className={beneficiaryError && !beneficiaryLevel ? "border-destructive" : ""}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="section">Sección</Label>
+                  <Input
+                    id="section"
+                    value={beneficiarySection}
+                    onChange={(e) => setBeneficiarySection(e.target.value)}
+                    placeholder="Ej: A"
+                    className={beneficiaryError && !beneficiarySection ? "border-destructive" : ""}
+                  />
+                </div>
               </div>
             </div>
           )}
 
+          <Separator />
+
           {/* Método de pago */}
-          <div className="space-y-3">
-            <Label className="flex items-center gap-2 text-lg font-medium text-foreground">
-              <CreditCard className="w-5 h-5" />
-              Método de Pago
-            </Label>
-            <select
-              value={formData.paymentMethod}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, paymentMethod: e.target.value as "CASH" | "CARD" | "TRANSFER" }))
-              }
-              className="w-full p-2.5 rounded-lg bg-background border border-input hover:border-ring focus:border-ring focus:ring-2 focus:ring-ring/20 text-foreground"
-            >
-              <option value="CASH">💵 Efectivo</option>
-              <option value="CARD">💳 Tarjeta</option>
-              <option value="TRANSFER">🏦 Transferencia</option>
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="paymentMethod" className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Método de pago
+              </Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger id="paymentMethod">
+                  <SelectValue placeholder="Seleccionar método de pago" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CASH">Efectivo</SelectItem>
+                  <SelectItem value="CARD">Tarjeta</SelectItem>
+                  <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                  <SelectItem value="OTHER">Otro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="transactionReference">Referencia (opcional)</Label>
+              <Input
+                id="transactionReference"
+                value={transactionReference}
+                onChange={(e) => setTransactionReference(e.target.value)}
+                placeholder="Número de recibo, transacción, etc."
+              />
+            </div>
           </div>
 
-          {/* Total */}
-          <motion.div
-            className="flex justify-between items-center p-4 bg-muted rounded-lg"
-            initial={{ scale: 0.95 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 200, damping: 20 }}
-          >
-            <span className="text-lg font-medium flex items-center gap-2 text-foreground">
-              <DollarSign className="w-5 h-5" />
-              Total
-            </span>
-            <span className="text-2xl font-bold text-foreground">{formatCurrency(calculateTotal())}</span>
-          </motion.div>
-
-          <Button
-            onClick={handleSubmit}
-            disabled={loading || formData.items.length === 0}
-            className="w-full py-6 text-lg font-medium transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed bg-foreground text-background hover:bg-foreground/90"
-          >
-            {loading ? (
-              <div className="flex items-center gap-2">
-                <div className="w-5 h-5 border-2 border-background border-t-transparent rounded-full animate-spin" />
-                Procesando...
-              </div>
-            ) : (
-              "Finalizar Venta"
-            )}
-          </Button>
+          <div className="flex justify-end space-x-2 pt-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSubmit} disabled={loading} className="gap-2">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
+              {loading ? "Procesando..." : "Completar Venta"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

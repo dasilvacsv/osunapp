@@ -3,10 +3,33 @@
 import type { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { motion } from "framer-motion"
-import { FileText, ArrowRight, AlertCircle, Clock, CheckCircle2, XCircle } from "lucide-react"
+import {
+  FileText,
+  ArrowRight,
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Building2,
+  CalendarRange,
+  Package2,
+  CreditCard,
+  MoreHorizontal
+} from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { useState } from "react"
+import { PaymentPlanDialog } from "@/features/sales/payment-plan-dialog"
 
 export type Sale = {
   id: string
@@ -14,23 +37,36 @@ export type Sale = {
     name: string
     id: string
   }
-  status: "PENDING" | "PROCESSING" | "COMPLETED" | "CANCELLED"
+  organization?: {
+    id: string
+    name: string
+  }
+  status: "PENDING" | "APPROVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
   totalAmount: number
   paymentMethod: string
   purchaseDate: Date
   transactionReference?: string
+  saleType: "DIRECT" | "PRESALE"
+  isPaid: boolean
+  paymentPlan?: {
+    id: string
+    installmentCount: number
+    installmentFrequency: "WEEKLY" | "BIWEEKLY" | "MONTHLY"
+  }
 }
 
 const StatusIcon = {
   COMPLETED: CheckCircle2,
-  PROCESSING: Clock,
+  IN_PROGRESS: Clock,
+  APPROVED: CheckCircle2,
   PENDING: Clock,
   CANCELLED: XCircle,
 }
 
 const StatusColors = {
   COMPLETED: "text-green-500 dark:text-green-400",
-  PROCESSING: "text-blue-500 dark:text-blue-400",
+  IN_PROGRESS: "text-blue-500 dark:text-blue-400",
+  APPROVED: "text-blue-500 dark:text-blue-400",
   PENDING: "text-yellow-500 dark:text-yellow-400",
   CANCELLED: "text-red-500 dark:text-red-400",
 }
@@ -40,7 +76,6 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "id",
     header: "Referencia",
     cell: ({ row }) => {
-      // Verificar que row.original existe antes de acceder a sus propiedades
       if (!row.original) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -75,7 +110,6 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "client.name",
     header: "Cliente",
     cell: ({ row }) => {
-      // Verificar que row.original existe
       if (!row.original) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -112,10 +146,55 @@ export const columns: ColumnDef<Sale>[] = [
     },
   },
   {
+    accessorKey: "organization",
+    header: "Organización",
+    cell: ({ row }) => {
+      const organization = row.original?.organization
+
+      if (!organization) {
+        return <span className="text-muted-foreground text-sm">-</span>
+      }
+
+      return (
+        <div className="flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">{organization.name}</span>
+        </div>
+      )
+    },
+  },
+  {
+    accessorKey: "saleType",
+    header: "Tipo",
+    cell: ({ row }) => {
+      const saleType = row.getValue("saleType") as string
+
+      return (
+        <Badge
+          variant="outline"
+          className={`flex items-center gap-1 ${
+            saleType === "PRESALE" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300" : ""
+          }`}
+        >
+          {saleType === "DIRECT" ? (
+            <>
+              <Package2 className="h-3 w-3" />
+              <span>Directa</span>
+            </>
+          ) : (
+            <>
+              <CalendarRange className="h-3 w-3" />
+              <span>Preventa</span>
+            </>
+          )}
+        </Badge>
+      )
+    },
+  },
+  {
     accessorKey: "purchaseDate",
     header: "Fecha",
     cell: ({ row }) => {
-      // Verificar que row.original existe
       if (!row.original) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -153,7 +232,6 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "totalAmount",
     header: "Total",
     cell: ({ row }) => {
-      // Verificar que row existe y getValue es una función
       if (!row || typeof row.getValue !== "function") {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -171,7 +249,6 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "status",
     header: "Estado",
     cell: ({ row }) => {
-      // Verificar que row.original existe
       if (!row.original) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -194,13 +271,15 @@ export const columns: ColumnDef<Sale>[] = [
       const statusColor = StatusColors[status] || "text-muted-foreground"
       const variants = {
         COMPLETED: "success",
-        PROCESSING: "default",
+        IN_PROGRESS: "default",
+        APPROVED: "default",
         PENDING: "warning",
         CANCELLED: "destructive",
       } as const
       const labels = {
         COMPLETED: "Completado",
-        PROCESSING: "En Proceso",
+        IN_PROGRESS: "En Proceso",
+        APPROVED: "Aprobado",
         PENDING: "Pendiente",
         CANCELLED: "Cancelado",
       }
@@ -220,10 +299,25 @@ export const columns: ColumnDef<Sale>[] = [
     },
   },
   {
+    accessorKey: "isPaid",
+    header: "Pago",
+    cell: ({ row }) => {
+      const isPaid = row.getValue("isPaid") as boolean
+
+      return (
+        <Badge
+          variant={isPaid ? "success" : "outline"}
+          className={isPaid ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : ""}
+        >
+          {isPaid ? "Pagado" : "Pendiente"}
+        </Badge>
+      )
+    },
+  },
+  {
     accessorKey: "paymentMethod",
     header: "Método de Pago",
     cell: ({ row }) => {
-      // Verificar que row.original existe
       if (!row.original) {
         return (
           <div className="flex items-center text-muted-foreground">
@@ -264,5 +358,70 @@ export const columns: ColumnDef<Sale>[] = [
       )
     },
   },
-]
+  {
+    id: "actions",
+    cell: ({ row }) => {
+      const sale = row.original
+      const [isDialogOpen, setIsDialogOpen] = useState(false)
 
+      return (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <span className="sr-only">Abrir menú</span>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => (window.location.href = `/sales/${sale.id}`)}
+                className="cursor-pointer"
+              >
+                <FileText className="mr-2 h-4 w-4" />
+                Ver detalles
+              </DropdownMenuItem>
+              
+              <DropdownMenuSeparator />
+              
+              {!sale.isPaid && !sale.paymentPlan && (
+                <DropdownMenuItem
+                  onClick={() => setIsDialogOpen(true)}
+                  className="cursor-pointer"
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Crear plan de pago
+                </DropdownMenuItem>
+              )}
+
+              {sale.paymentPlan && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    // Handle viewing payments
+                    console.log("View payments for sale", sale.id)
+                  }}
+                  className="cursor-pointer"
+                >
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Ver pagos
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <PaymentPlanDialog
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            purchaseId={sale.id}
+            totalAmount={sale.totalAmount}
+            onSuccess={() => {
+              setIsDialogOpen(false)
+              // Aquí puedes agregar lógica adicional de actualización si es necesario
+            }}
+          />
+        </>
+      )
+    },
+  },
+]

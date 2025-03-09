@@ -1,6 +1,6 @@
 # OsunApp Feature Development TODO
 
-## Packages Management
+## Packages Management (DONE)
 - Implement package tracking to show sales data (e.g., "20 packages with yellow stole sold at Cardier")
 - Enable beneficiary linking when creating packages
 - Add beneficiary data collection:
@@ -10,7 +10,7 @@
   - Nivel (Level/Grade)
   - Seccion (Section/Class)
 
-## Recognitions & Certifications
+## Recognitions & Certifications (DONE)
 - Highlight incomplete beneficiary data in red and mark with "incomplete" status
 - Build section templates system for organizations:
   - Add nature/type field (Public/Private)
@@ -21,12 +21,12 @@
     - Make system scalable for different organization types
   - Show dropdown of organization sections with template status
 
-## Dashboard & Metrics
+## Dashboard & Metrics (PENDING)
 - Add metrics dashboard on organization view
 - Track pending payments
 - Visualize sales data and projections
 
-## Sales & Payment Management
+## Sales & Payment Management (DONE)
 - Implement different sale types:
   - Direct sales
   - Pre-sales (with package and client selection)
@@ -36,7 +36,7 @@
 - Enable deletion of packages
 - Link package sales to organizations for reporting
 
-## Inventory Management
+## Inventory Management (DOING)
 - Enhance global and organization-specific package management
 - Improve category utilization for package grouping
 - Add inventory adjustment functionality:
@@ -57,7 +57,7 @@
   - Show cost calculation based on items
   - Calculate and display package margin
 
-## UI/UX Improvements
+## UI/UX Improvements (PENDING)
 - Fix delete button functionality on package items
 - Create Pre-Sale flag to allow selling without stock
 - Enhance client search in sales:
