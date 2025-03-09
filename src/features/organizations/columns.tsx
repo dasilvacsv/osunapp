@@ -1,18 +1,22 @@
-import { ColumnDef } from "@tanstack/react-table"
+"use client"
+
+import type { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
-import { ArrowUpDown, MoreHorizontal, Pencil, Trash } from 'lucide-react'
+import { ArrowUpDown, MoreHorizontal, Pencil, Trash, FileText, Plus } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { OrganizationForm } from "./organization-form"
-import { motion } from "framer-motion"
+import { OrganizationSectionForm } from "./organization-section-form"
+import { OrganizationSectionsList } from "./organization-sections-list"
 
 const SortableHeader = ({ column, title }: { column: any; title: string }) => {
   return (
@@ -27,37 +31,51 @@ const SortableHeader = ({ column, title }: { column: any; title: string }) => {
   )
 }
 
-const ActionsCell = ({ 
-  organization, 
-  onUpdate, 
-  onDelete 
-}: { 
+const ActionsCell = ({
+  organization,
+  onUpdate,
+  onDelete,
+}: {
   organization: any
   onUpdate: (id: string, data: any) => void
-  onDelete: (id: string) => void 
+  onDelete: (id: string) => void
 }) => {
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showSectionsDialog, setShowSectionsDialog] = useState(false)
+  const [showAddSectionDialog, setShowAddSectionDialog] = useState(false)
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            className="h-8 w-8 p-0 hover:bg-muted transition-colors duration-200"
-          >
+          <Button variant="ghost" className="h-8 w-8 p-0 hover:bg-muted transition-colors duration-200">
             <MoreHorizontal className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem 
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem
             onClick={() => setShowEditDialog(true)}
             className="cursor-pointer transition-colors duration-200 hover:bg-muted"
           >
             <Pencil className="mr-2 h-4 w-4" />
             Editar
           </DropdownMenuItem>
-          <DropdownMenuItem 
+          <DropdownMenuItem
+            onClick={() => setShowSectionsDialog(true)}
+            className="cursor-pointer transition-colors duration-200 hover:bg-muted"
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Ver Secciones
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => setShowAddSectionDialog(true)}
+            className="cursor-pointer transition-colors duration-200 hover:bg-muted"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Añadir Sección
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
             onClick={() => onDelete(organization.id)}
             className="cursor-pointer text-destructive transition-colors duration-200 hover:bg-destructive/10"
           >
@@ -70,9 +88,7 @@ const ActionsCell = ({
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-semibold">
-              Editar Organización
-            </DialogTitle>
+            <DialogTitle className="text-2xl font-semibold">Editar Organización</DialogTitle>
           </DialogHeader>
           <OrganizationForm
             initialData={organization}
@@ -82,13 +98,35 @@ const ActionsCell = ({
           />
         </DialogContent>
       </Dialog>
+
+      <Dialog open={showSectionsDialog} onOpenChange={setShowSectionsDialog}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-semibold">Secciones de {organization.name}</DialogTitle>
+          </DialogHeader>
+          <OrganizationSectionsList organizationId={organization.id} onClose={() => setShowSectionsDialog(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddSectionDialog} onOpenChange={setShowAddSectionDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-semibold">Añadir Sección a {organization.name}</DialogTitle>
+          </DialogHeader>
+          <OrganizationSectionForm
+            organizationId={organization.id}
+            mode="create"
+            closeDialog={() => setShowAddSectionDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
 
 export const organizationColumns = (
   onUpdate: (id: string, data: any) => void,
-  onDelete: (id: string) => void
+  onDelete: (id: string) => void,
 ): ColumnDef<any>[] => [
   {
     id: "select",
@@ -123,11 +161,30 @@ export const organizationColumns = (
       const typeLabels: Record<string, string> = {
         SCHOOL: "Escuela",
         COMPANY: "Empresa",
-        OTHER: "Otro"
+        OTHER: "Otro",
       }
       return (
         <Badge variant="outline" className="font-medium">
           {typeLabels[type] || type}
+        </Badge>
+      )
+    },
+  },
+  {
+    accessorKey: "nature",
+    header: ({ column }) => <SortableHeader column={column} title="Naturaleza" />,
+    cell: ({ row }) => {
+      const nature = row.getValue("nature") as string
+      const natureLabels: Record<string, string> = {
+        PUBLIC: "Pública",
+        PRIVATE: "Privada",
+      }
+      return (
+        <Badge
+          variant="outline"
+          className={`font-medium ${nature === "PUBLIC" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300" : ""}`}
+        >
+          {natureLabels[nature] || nature || "Privada"}
         </Badge>
       )
     },
@@ -165,16 +222,13 @@ export const organizationColumns = (
       const status = row.getValue("status") as string
       const statusLabels: Record<string, string> = {
         ACTIVE: "Activo",
-        INACTIVE: "Inactivo"
+        INACTIVE: "Inactivo",
       }
       return (
-        <Badge 
+        <Badge
           variant={status === "ACTIVE" ? "default" : "secondary"}
           className={`
-            ${status === "ACTIVE" 
-              ? "bg-success/20 text-success dark:bg-success/30" 
-              : "bg-muted text-muted-foreground"
-            }
+            ${status === "ACTIVE" ? "bg-success/20 text-success dark:bg-success/30" : "bg-muted text-muted-foreground"}
             transition-all duration-200 hover:scale-105
           `}
         >
@@ -185,6 +239,7 @@ export const organizationColumns = (
   },
   {
     id: "actions",
-    cell: ({ row }) => <ActionsCell organization={row.original} onUpdate={onUpdate} onDelete={onDelete} />
-  }
+    cell: ({ row }) => <ActionsCell organization={row.original} onUpdate={onUpdate} onDelete={onDelete} />,
+  },
 ]
+

@@ -1,20 +1,21 @@
-"use client";
+"use client"
 
 import type { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { 
-  Eye, 
-  Package2, 
-  ChevronDown, 
-  ChevronRight, 
-  Users, 
-  DollarSign, 
-  ShoppingCart, 
+import {
+  Eye,
+  Package2,
+  ChevronDown,
+  ChevronRight,
+  Users,
+  DollarSign,
+  ShoppingCart,
   Calendar,
   School,
   GraduationCap,
-  User
+  User,
+  AlertCircle,
 } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
@@ -36,6 +37,8 @@ export type PackageRow = {
     level: string
     section: string
     status: "ACTIVE" | "INACTIVE"
+    organizationId?: string
+    isComplete?: boolean
   }>
   status: string
   lastSaleDate?: string
@@ -58,7 +61,8 @@ const BeneficiariesCollapsible = ({
     )
   }
 
-  const activeBeneficiaries = beneficiaries.filter(b => b.status === "ACTIVE")
+  const activeBeneficiaries = beneficiaries.filter((b) => b.status === "ACTIVE")
+  const incompleteBeneficiaries = beneficiaries.filter((b) => b.isComplete === false)
 
   return (
     <div className="space-y-2">
@@ -70,7 +74,7 @@ const BeneficiariesCollapsible = ({
           flex items-center gap-2 h-8 px-3
           transition-colors duration-200
           hover:bg-gray-100 dark:hover:bg-gray-800
-          ${isOpen ? 'bg-gray-100 dark:bg-gray-800' : ''}
+          ${isOpen ? "bg-gray-100 dark:bg-gray-800" : ""}
         `}
       >
         {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -80,7 +84,16 @@ const BeneficiariesCollapsible = ({
         </span>
         {beneficiaries.length > activeBeneficiaries.length && (
           <Badge variant="secondary" className="ml-2 text-xs">
-            +{beneficiaries.length - activeBeneficiaries.length} inactivo{beneficiaries.length - activeBeneficiaries.length !== 1 ? "s" : ""}
+            +{beneficiaries.length - activeBeneficiaries.length} inactivo
+            {beneficiaries.length - activeBeneficiaries.length !== 1 ? "s" : ""}
+          </Badge>
+        )}
+        {incompleteBeneficiaries.length > 0 && (
+          <Badge
+            variant="outline"
+            className="ml-2 text-xs bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+          >
+            {incompleteBeneficiaries.length} incompleto{incompleteBeneficiaries.length !== 1 ? "s" : ""}
           </Badge>
         )}
       </Button>
@@ -103,9 +116,13 @@ const BeneficiariesCollapsible = ({
                   transition={{ delay: index * 0.1 }}
                   className={`
                     relative group rounded-lg p-3
-                    ${beneficiary.status === "ACTIVE" 
-                      ? "bg-gray-50 dark:bg-gray-800/50" 
-                      : "bg-gray-100/50 dark:bg-gray-800/20"}
+                    ${
+                      beneficiary.isComplete === false
+                        ? "bg-red-50 dark:bg-red-900/10"
+                        : beneficiary.status === "ACTIVE"
+                          ? "bg-gray-50 dark:bg-gray-800/50"
+                          : "bg-gray-100/50 dark:bg-gray-800/20"
+                    }
                   `}
                 >
                   <Link
@@ -119,11 +136,22 @@ const BeneficiariesCollapsible = ({
                           {beneficiary.firstName} {beneficiary.lastName}
                         </span>
                       </div>
-                      {beneficiary.status === "INACTIVE" && (
-                        <Badge variant="secondary" className="text-xs">
-                          Inactivo
-                        </Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {beneficiary.isComplete === false && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                          >
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Incompleto
+                          </Badge>
+                        )}
+                        {beneficiary.status === "INACTIVE" && (
+                          <Badge variant="secondary" className="text-xs">
+                            Inactivo
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                       <div className="flex items-center gap-1">
@@ -154,7 +182,7 @@ export const columns: ColumnDef<PackageRow>[] = [
       const typeIcons = {
         SCHOOL_PACKAGE: School,
         ORGANIZATION_PACKAGE: Users,
-        REGULAR: Package2
+        REGULAR: Package2,
       }
       const type = row.getValue("type") as keyof typeof typeIcons
       const Icon = typeIcons[type] || Package2
@@ -165,15 +193,13 @@ export const columns: ColumnDef<PackageRow>[] = [
             <Icon className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <Link 
-              href={`/packages/${row.original.id}`} 
+            <Link
+              href={`/packages/${row.original.id}`}
               className="font-medium text-gray-900 dark:text-gray-100 hover:text-primary dark:hover:text-primary transition-colors"
             >
               {row.getValue("name")}
             </Link>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              ID: {row.original.id.slice(0, 8)}
-            </div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">ID: {row.original.id.slice(0, 8)}</div>
           </div>
         </div>
       )
@@ -192,16 +218,13 @@ export const columns: ColumnDef<PackageRow>[] = [
       const typeColors: Record<string, string> = {
         SCHOOL_PACKAGE: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
         ORGANIZATION_PACKAGE: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-        REGULAR: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
+        REGULAR: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
       }
 
       const type = row.getValue("type") as string
 
       return (
-        <Badge 
-          variant="outline" 
-          className={`${typeColors[type]} border-transparent font-medium`}
-        >
+        <Badge variant="outline" className={`${typeColors[type]} border-transparent font-medium`}>
           {typeLabels[type] || type}
         </Badge>
       )
@@ -252,12 +275,7 @@ export const columns: ColumnDef<PackageRow>[] = [
     accessorKey: "beneficiaries",
     header: "Beneficiarios",
     cell: ({ row }) => {
-      return (
-        <BeneficiariesCollapsible 
-          beneficiaries={row.original.beneficiaries} 
-          packageId={row.original.id} 
-        />
-      )
+      return <BeneficiariesCollapsible beneficiaries={row.original.beneficiaries} packageId={row.original.id} />
     },
   },
   {
@@ -265,18 +283,14 @@ export const columns: ColumnDef<PackageRow>[] = [
     header: "Última Venta",
     cell: ({ row }) => {
       if (!row.original.lastSaleDate) {
-        return (
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            Sin ventas
-          </div>
-        )
+        return <div className="text-sm text-gray-500 dark:text-gray-400">Sin ventas</div>
       }
 
       const date = new Date(row.original.lastSaleDate)
-      const formattedDate = new Intl.DateTimeFormat('es', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
+      const formattedDate = new Intl.DateTimeFormat("es", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
       }).format(date)
 
       return (
@@ -292,27 +306,24 @@ export const columns: ColumnDef<PackageRow>[] = [
     header: "Estado",
     cell: ({ row }) => {
       const status = row.getValue("status") as string
-      const statusConfig: Record<string, { label: string, className: string }> = {
+      const statusConfig: Record<string, { label: string; className: string }> = {
         ACTIVE: {
           label: "Activo",
-          className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+          className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
         },
         INACTIVE: {
           label: "Inactivo",
-          className: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
-        }
+          className: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
+        },
       }
 
       const config = statusConfig[status] || {
         label: status,
-        className: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
+        className: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
       }
 
       return (
-        <Badge 
-          variant="outline" 
-          className={`${config.className} border-transparent font-medium`}
-        >
+        <Badge variant="outline" className={`${config.className} border-transparent font-medium`}>
           {config.label}
         </Badge>
       )
@@ -324,11 +335,7 @@ export const columns: ColumnDef<PackageRow>[] = [
       return (
         <div className="flex items-center justify-end gap-2">
           <Link href={`/packages/${row.original.id}`}>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-gray-100 dark:hover:bg-gray-800">
               <Eye className="w-4 h-4" />
             </Button>
           </Link>
@@ -337,3 +344,4 @@ export const columns: ColumnDef<PackageRow>[] = [
     },
   },
 ]
+

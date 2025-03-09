@@ -1,17 +1,19 @@
-import { getPackagesWithStats } from "@/features/packages/actions";
-import { columns } from "@/features/packages/columns";
-import { DataTable } from "@/features/packages/data-table";
-import { Package2 } from "lucide-react";
+import { getPackagesWithStats } from "@/features/packages/actions"
+import { columns } from "@/features/packages/columns"
+import { DataTable } from "@/features/packages/data-table"
+import { Package2 } from "lucide-react"
+
+export const dynamic = "force-dynamic"
 
 export default async function PackagesPage() {
-  const result = await getPackagesWithStats();
+  const result = await getPackagesWithStats()
 
   if (!result.success) {
     return (
       <div className="p-6">
         <div className="text-red-500">Error al cargar los paquetes</div>
       </div>
-    );
+    )
   }
 
   return (
@@ -21,10 +23,8 @@ export default async function PackagesPage() {
         <h1 className="text-2xl font-bold">Gestión de Paquetes</h1>
       </div>
 
-      <DataTable 
-        columns={columns} 
-        data={result.data} 
-      />
+      <DataTable columns={columns} data={result.data} />
     </div>
-  );
+  )
 }
+

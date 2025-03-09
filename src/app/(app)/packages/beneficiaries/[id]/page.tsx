@@ -1,3 +1,4 @@
+import type React from "react"
 import { getBeneficiaryDetails } from "@/features/packages/actions"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,6 +18,7 @@ import {
   GraduationCap,
   UserCircle,
   AlertCircle,
+  FileText,
 } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/utils"
@@ -24,6 +26,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import type { BundleType, PurchaseStatus, PaymentMethod } from "@/features/packages/types"
+import { getOrganizationSections } from "@/app/(app)/organizations/organization"
 
 // Helper function to safely format dates
 const formatDate = (date: Date | string | null): string => {
@@ -73,6 +76,18 @@ const bundleTypeLabels: Record<BundleType, string> = {
   REGULAR: "Regular",
 }
 
+const templateStatusLabels: Record<string, string> = {
+  COMPLETE: "Completa",
+  INCOMPLETE: "Incompleta",
+  PENDING: "Pendiente",
+}
+
+const templateStatusColors: Record<string, string> = {
+  COMPLETE: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  INCOMPLETE: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+  PENDING: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+}
+
 export default async function BeneficiaryDetailsPage({
   params,
 }: {
@@ -106,6 +121,26 @@ export default async function BeneficiaryDetailsPage({
   }
 
   const { beneficiary, bundle, purchase } = result.data
+
+  // Check if beneficiary data is complete
+  const isDataComplete =
+    beneficiary.firstName && beneficiary.lastName && beneficiary.school && beneficiary.level && beneficiary.section
+
+  // Get organization sections if available
+  let organizationSections: { level: string; templateStatus: string; templateLink?: string }[] = []
+  if (beneficiary.organizationId) {
+    const sectionsResult = await getOrganizationSections(beneficiary.organizationId)
+    if (sectionsResult.data) {
+      organizationSections = sectionsResult.data.map(section => ({
+        ...section,
+        templateLink: section.templateLink || undefined,
+        templateStatus: section.templateStatus || "INCOMPLETE",
+      }))
+    }
+  }
+
+  // Find matching section template if available
+  const matchingSection = organizationSections.find((section) => section.level === beneficiary.level)
 
   if (!bundle) {
     return (
@@ -155,12 +190,27 @@ export default async function BeneficiaryDetailsPage({
         </div>
       </div>
 
+      {!isDataComplete && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3 dark:bg-red-900/10 dark:border-red-800/30">
+          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+          <div>
+            <h2 className="font-semibold text-red-700 dark:text-red-400">Datos incompletos</h2>
+            <p className="text-sm text-red-600 dark:text-red-300">
+              Este beneficiario tiene información incompleta. Por favor complete todos los campos.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+        <Card className={!isDataComplete ? "border-red-200 bg-red-50/50 dark:bg-red-900/5 dark:border-red-800/30" : ""}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="w-5 h-5 text-primary" />
               Información Personal
+              {!isDataComplete && (
+                <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300 ml-2">Incompleto</Badge>
+              )}
             </CardTitle>
             <CardDescription>Datos del beneficiario del paquete</CardDescription>
           </CardHeader>
@@ -203,7 +253,7 @@ export default async function BeneficiaryDetailsPage({
 
             <div>
               <h3 className="text-sm font-medium text-muted-foreground mb-1">Estado</h3>
-              <Badge 
+              <Badge
                 variant={beneficiary.status === "ACTIVE" ? "default" : "secondary"}
                 className="flex w-fit items-center gap-1"
               >
@@ -215,6 +265,32 @@ export default async function BeneficiaryDetailsPage({
                 {beneficiary.status === "ACTIVE" ? "Activo" : "Inactivo"}
               </Badge>
             </div>
+
+            {matchingSection && (
+              <>
+                <Separator />
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground mb-1">Plantilla de Sección</h3>
+                  <div className="flex items-center gap-2">
+                    <Badge className={`${templateStatusColors[matchingSection.templateStatus]}`}>
+                      {templateStatusLabels[matchingSection.templateStatus]}
+                    </Badge>
+
+                    {matchingSection.templateLink && (
+                      <a
+                        href={matchingSection.templateLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline flex items-center"
+                      >
+                        <FileText className="w-3 h-3 mr-1" />
+                        Ver plantilla
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
 
             <Separator />
 
@@ -250,7 +326,7 @@ export default async function BeneficiaryDetailsPage({
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Precio base</h3>
                 <p className="font-medium text-foreground flex items-center gap-1">
                   <DollarSign className="w-4 h-4 text-green-500" />
-                  {formatCurrency(bundle.basePrice)}
+                  {formatCurrency(Number(bundle.basePrice))}
                 </p>
               </div>
 
@@ -278,8 +354,8 @@ export default async function BeneficiaryDetailsPage({
                           purchase.status === "COMPLETED"
                             ? "success"
                             : purchase.status === "CANCELLED"
-                            ? "destructive"
-                            : "default"
+                              ? "destructive"
+                              : "default"
                         }
                         className="flex items-center gap-1"
                       >
@@ -299,8 +375,8 @@ export default async function BeneficiaryDetailsPage({
                     <div className="flex justify-between items-center">
                       <p className="text-sm text-muted-foreground">Método de pago</p>
                       <Badge variant="outline" className="flex items-center gap-1">
-                        {paymentMethodIcons[purchase.paymentMethod]}
-                        {paymentMethodLabels[purchase.paymentMethod]}
+                        {paymentMethodIcons[purchase.paymentMethod as PaymentMethod]}
+                        {paymentMethodLabels[purchase.paymentMethod as PaymentMethod]}
                       </Badge>
                     </div>
 
@@ -308,7 +384,7 @@ export default async function BeneficiaryDetailsPage({
                       <p className="text-sm text-muted-foreground">Monto total</p>
                       <p className="text-sm font-medium text-green-600 flex items-center gap-1">
                         <DollarSign className="w-3 h-3" />
-                        {formatCurrency(purchase.totalAmount)}
+                        {formatCurrency(Number(purchase.totalAmount))}
                       </p>
                     </div>
                   </div>
@@ -321,3 +397,4 @@ export default async function BeneficiaryDetailsPage({
     </div>
   )
 }
+
