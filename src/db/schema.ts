@@ -13,6 +13,7 @@ import {
   uniqueIndex,
   index,
 } from "drizzle-orm/pg-core"
+import { relations } from "drizzle-orm"
 
 // Enums
 export const statusEnum = pgEnum("status", ["ACTIVE", "INACTIVE"])
@@ -55,6 +56,15 @@ export const bundleBeneficiaryStatusEnum = pgEnum("bundle_beneficiary_status", [
 export const organizationNatureEnum = pgEnum("organization_nature", ["PUBLIC", "PRIVATE"])
 export const sectionTemplateStatusEnum = pgEnum("section_template_status", ["COMPLETE", "INCOMPLETE", "PENDING"])
 
+// New enum for transaction types
+export const transactionTypeEnum = pgEnum("transaction_type", [
+  "INITIAL",
+  "IN",
+  "OUT",
+  "ADJUSTMENT",
+  "RESERVATION",
+  "FULFILLMENT",
+])
 
 export const payments = pgTable("payments", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
@@ -94,8 +104,8 @@ export const purchasesExtended = {
   paymentType: paymentTypeEnum("payment_type").default("FULL"),
   isPaid: boolean("is_paid").default(false),
   organizationId: uuid("organization_id"),
-  
 }
+
 // Cities table for organization locations
 export const cities = pgTable(
   "cities",
@@ -175,7 +185,7 @@ export const children = pgTable("children", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 })
 
-// Inventory Items Table
+// Inventory Items Table - Updated with new fields
 export const inventoryItems = pgTable(
   "inventory_items",
   {
@@ -193,6 +203,10 @@ export const inventoryItems = pgTable(
     status: statusEnum("status").default("ACTIVE"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+    // New fields for inventory analytics
+    margin: decimal("margin", { precision: 5, scale: 2 }).default("0.30"), // Default 30% margin
+    projectedStock: integer("projected_stock"), // For inventory projections
+    averageDailySales: decimal("average_daily_sales", { precision: 10, scale: 2 }), // For sales analytics
   },
   (table) => {
     return {
@@ -203,17 +217,18 @@ export const inventoryItems = pgTable(
   },
 )
 
-// New table for inventory transactions
+// Updated inventory transactions table
 export const inventoryTransactions = pgTable("inventory_transactions", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
   itemId: uuid("item_id")
     .notNull()
     .references(() => inventoryItems.id),
   quantity: integer("quantity").notNull(),
-  transactionType: varchar("transaction_type", { length: 50 }).notNull(),
+  transactionType: transactionTypeEnum("transaction_type").notNull(),
   reference: jsonb("reference"), // Store related purchase/bundle info
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
 })
 
@@ -356,3 +371,95 @@ export const bundleCategories = pgTable("bundle_categories", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 })
 
+// New tables for inventory purchases and sales tracking
+
+// Purchase table for inventory - to track cost averaging
+export const inventoryPurchases = pgTable("inventory_purchases", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  supplierName: varchar("supplier_name", { length: 255 }).notNull(),
+  invoiceNumber: varchar("invoice_number", { length: 100 }),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  notes: text("notes"),
+  purchaseDate: timestamp("purchase_date", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// Purchase items table - details of each purchase
+export const inventoryPurchaseItems = pgTable("inventory_purchase_items", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  purchaseId: uuid("purchase_id")
+    .notNull()
+    .references(() => inventoryPurchases.id),
+  itemId: uuid("item_id")
+    .notNull()
+    .references(() => inventoryItems.id),
+  quantity: integer("quantity").notNull(),
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }).notNull(),
+  totalCost: decimal("total_cost", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+})
+
+// Sales table for tracking item sales
+export const sales = pgTable("sales", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  orderReference: varchar("order_reference", { length: 100 }),
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  saleDate: timestamp("sale_date", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// Sale items table - details of each sale
+export const saleItems = pgTable("sale_items", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  saleId: uuid("sale_id")
+    .notNull()
+    .references(() => sales.id),
+  itemId: uuid("item_id")
+    .notNull()
+    .references(() => inventoryItems.id),
+  quantity: integer("quantity").notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+})
+
+// Relations
+export const inventoryItemsRelations = relations(inventoryItems, ({ many }) => ({
+  transactions: many(inventoryTransactions),
+  bundleItems: many(bundleItems),
+  purchaseItems: many(purchaseItems),
+  inventoryPurchaseItems: many(inventoryPurchaseItems),
+  saleItems: many(saleItems),
+}))
+
+export const inventoryPurchasesRelations = relations(inventoryPurchases, ({ many }) => ({
+  items: many(inventoryPurchaseItems),
+}))
+
+export const inventoryPurchaseItemsRelations = relations(inventoryPurchaseItems, ({ one }) => ({
+  purchase: one(inventoryPurchases, {
+    fields: [inventoryPurchaseItems.purchaseId],
+    references: [inventoryPurchases.id],
+  }),
+  item: one(inventoryItems, {
+    fields: [inventoryPurchaseItems.itemId],
+    references: [inventoryItems.id],
+  }),
+}))
+
+export const salesRelations = relations(sales, ({ many }) => ({
+  items: many(saleItems),
+}))
+
+export const saleItemsRelations = relations(saleItems, ({ one }) => ({
+  sale: one(sales, {
+    fields: [saleItems.saleId],
+    references: [sales.id],
+  }),
+  item: one(inventoryItems, {
+    fields: [saleItems.itemId],
+    references: [inventoryItems.id],
+  }),
+}))

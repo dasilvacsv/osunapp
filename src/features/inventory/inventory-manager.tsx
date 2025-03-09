@@ -1,15 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { InventoryTable } from "./inventory-table"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { motion, AnimatePresence } from "framer-motion"
-import { Package2, RefreshCcw, Plus, Box, ChevronDown, ChevronRight, Tag, Percent } from "lucide-react"
+import { Package2, RefreshCcw, Plus, Box, BarChart4, AlertTriangle, Archive, Percent } from "lucide-react"
 import type { InventoryItem } from "@/lib/types"
 import type { BundleCategory, StockTransactionInput, Bundle } from "./types"
-import { getInventoryItems, stockIn, stockOut, getBundles } from "./actions"
+import { getInventoryItems, stockIn, stockOut, getBundles, checkStockAlerts } from "./actions"
 import { BundleManager } from "./bundle-manager"
 import { StockManagementForm } from "./stock-management-form"
 import { AddProductDialog } from "./AddProductDialog"
@@ -17,6 +17,9 @@ import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils"
+import { InventoryAnalytics } from "./inventory-analytics"
+import { PurchaseRegistration } from "./purchase-registration"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface InventoryManagerProps {
   initialData: InventoryItem[]
@@ -30,12 +33,27 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
   const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false)
   const [bundles, setBundles] = useState<Bundle[]>([])
   const [expandedBundles, setExpandedBundles] = useState<Record<string, boolean>>({})
+  const [stockAlerts, setStockAlerts] = useState<{ itemId: string; message: string }[]>([])
   const { toast } = useToast()
 
+  const fetchStockAlerts = async () => {
+    try {
+      const alerts = await checkStockAlerts()
+      setStockAlerts(alerts)
+    } catch (error) {
+      console.error("Error fetching stock alerts:", error)
+    }
+  }
+
+  // Initial data load
+  useEffect(() => {
+    fetchStockAlerts()
+  }, [])
+
   const toggleBundleExpansion = (bundleId: string) => {
-    setExpandedBundles(prev => ({
+    setExpandedBundles((prev) => ({
       ...prev,
-      [bundleId]: !prev[bundleId]
+      [bundleId]: !prev[bundleId],
     }))
   }
 
@@ -50,6 +68,9 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
           description: "Los datos del inventario han sido actualizados.",
         })
       }
+
+      // Refresh alerts too
+      await fetchStockAlerts()
     } catch (error) {
       console.error("Refresh error:", error)
       toast({
@@ -105,49 +126,85 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
 
   return (
     <div className="space-y-4 p-6 bg-background">
+      {stockAlerts.length > 0 && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Alerta de Inventario</AlertTitle>
+          <AlertDescription>
+            <ul className="mt-2 space-y-1 list-disc pl-5">
+              {stockAlerts.map((alert, index) => (
+                <li key={index}>{alert.message}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Tabs
         defaultValue="inventory"
         onValueChange={(value) => {
-          setActiveTab(value as "inventory" | "stock" | "bundles")
+          setActiveTab(value as "inventory" | "stock" | "bundles" | "analytics" | "purchases")
           if (value === "bundles") {
             loadBundles()
           }
         }}
         className="w-full"
       >
-        <TabsList className="grid w-full grid-cols-3 gap-4 bg-card">
-          <TabsTrigger 
+        <TabsList className="grid w-full grid-cols-5 gap-4 bg-card">
+          <TabsTrigger
             value="inventory"
             className={cn(
               "flex items-center gap-2 transition-colors",
               "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
-              "data-[state=inactive]:text-muted-foreground hover:text-foreground"
+              "data-[state=inactive]:text-muted-foreground hover:text-foreground",
             )}
           >
             <Package2 className="h-4 w-4" />
             Inventario
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="stock"
             className={cn(
               "flex items-center gap-2 transition-colors",
               "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
-              "data-[state=inactive]:text-muted-foreground hover:text-foreground"
+              "data-[state=inactive]:text-muted-foreground hover:text-foreground",
             )}
           >
             <Box className="h-4 w-4" />
             Gestión de Stock
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="bundles"
             className={cn(
               "flex items-center gap-2 transition-colors",
               "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
-              "data-[state=inactive]:text-muted-foreground hover:text-foreground"
+              "data-[state=inactive]:text-muted-foreground hover:text-foreground",
             )}
           >
             <Package2 className="h-4 w-4" />
             Bundles
+          </TabsTrigger>
+          <TabsTrigger
+            value="analytics"
+            className={cn(
+              "flex items-center gap-2 transition-colors",
+              "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
+              "data-[state=inactive]:text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <BarChart4 className="h-4 w-4" />
+            Analítica
+          </TabsTrigger>
+          <TabsTrigger
+            value="purchases"
+            className={cn(
+              "flex items-center gap-2 transition-colors",
+              "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
+              "data-[state=inactive]:text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Percent className="h-4 w-4" />
+            Compras
           </TabsTrigger>
         </TabsList>
 
@@ -172,10 +229,10 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                         className={cn(
                           "flex items-center gap-2",
                           "hover:bg-accent hover:text-accent-foreground",
-                          "focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          "focus:ring-2 focus:ring-ring focus:ring-offset-2",
                         )}
                       >
-                        <RefreshCcw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        <RefreshCcw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                         {isRefreshing ? "Actualizando..." : "Actualizar"}
                       </Button>
                       <Button
@@ -185,7 +242,7 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                           "flex items-center gap-2",
                           "bg-primary text-primary-foreground",
                           "hover:bg-primary/90",
-                          "focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          "focus:ring-2 focus:ring-ring focus:ring-offset-2",
                         )}
                       >
                         <Plus className="h-4 w-4" />
@@ -195,7 +252,7 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6">
-                  <InventoryTable items={items} />
+                  <InventoryTable items={items} onItemDisabled={refreshData} />
                 </CardContent>
               </Card>
             </motion.div>
@@ -214,7 +271,7 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                 </CardHeader>
                 <CardContent className="p-6">
                   <StockManagementForm
-                    items={items}
+                    items={items.filter((item) => item.status === "ACTIVE")}
                     onSubmit={async (data) => {
                       const success = await handleStockUpdate(data)
                       if (!success) {
@@ -245,10 +302,10 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                 <CardContent className="p-6">
                   <BundleManager
                     categories={bundleCategories}
-                    items={items}
+                    items={items.filter((item) => item.status === "ACTIVE")}
                     onBundleCreated={loadBundles}
                   />
-                  <motion.div 
+                  <motion.div
                     className="mt-6"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -265,31 +322,22 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                               animate={{ opacity: 1, x: 0 }}
                               exit={{ opacity: 0, x: 20 }}
                               transition={{ delay: index * 0.1 }}
-                              className={cn(
-                                "rounded-lg overflow-hidden",
-                                "border border-border",
-                                "bg-card"
-                              )}
+                              className={cn("rounded-lg overflow-hidden", "border border-border", "bg-card")}
                             >
                               <div
                                 className={cn(
                                   "flex items-center justify-between p-4",
                                   "cursor-pointer",
-                                  "hover:bg-accent/10 transition-colors"
+                                  "hover:bg-accent/10 transition-colors",
                                 )}
                                 onClick={() => toggleBundleExpansion(bundle.id)}
                               >
                                 <div className="flex items-center gap-3">
-                                  <button
-                                    className={cn(
-                                      "p-1 rounded-md",
-                                      "hover:bg-accent/20 transition-colors"
-                                    )}
-                                  >
+                                  <button className={cn("p-1 rounded-md", "hover:bg-accent/20 transition-colors")}>
                                     {expandedBundles[bundle.id] ? (
-                                      <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                                      <RefreshCcw className="w-4 h-4 text-muted-foreground" />
                                     ) : (
-                                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                                      <Plus className="w-4 h-4 text-muted-foreground" />
                                     )}
                                   </button>
                                   <div>
@@ -299,12 +347,12 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                                 </div>
                                 <div className="flex items-center gap-4">
                                   <div className="flex items-center gap-2">
-                                    <Tag className="w-4 h-4 text-muted-foreground" />
+                                    <Archive className="w-4 h-4 text-muted-foreground" />
                                     <span className="text-sm font-medium text-foreground">
                                       {formatCurrency(bundle.basePrice)}
                                     </span>
                                   </div>
-                                  {bundle.discountPercentage > 0 && (
+                                  {(bundle.discountPercentage ?? 0) > 0 && (
                                     <div className="flex items-center gap-2">
                                       <Percent className="w-4 h-4 text-muted-foreground" />
                                       <span className="text-sm font-medium text-foreground">
@@ -312,15 +360,15 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                                       </span>
                                     </div>
                                   )}
-                                  <Badge 
-                                    variant={bundle.status === 'ACTIVE' ? 'default' : 'secondary'}
+                                  <Badge
+                                    variant={bundle.status === "ACTIVE" ? "default" : "secondary"}
                                     className="capitalize"
                                   >
                                     {bundle.status.toLowerCase()}
                                   </Badge>
                                 </div>
                               </div>
-                              
+
                               <AnimatePresence>
                                 {expandedBundles[bundle.id] && (
                                   <motion.div
@@ -328,16 +376,10 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                                     animate={{ height: "auto", opacity: 1 }}
                                     exit={{ height: 0, opacity: 0 }}
                                     transition={{ duration: 0.2 }}
-                                    className={cn(
-                                      "px-4 pb-4",
-                                      "border-t border-border",
-                                      "bg-card/50"
-                                    )}
+                                    className={cn("px-4 pb-4", "border-t border-border", "bg-card/50")}
                                   >
                                     <div className="pt-4">
-                                      <h5 className="text-sm font-medium text-foreground mb-2">
-                                        Contenido del Bundle
-                                      </h5>
+                                      <h5 className="text-sm font-medium text-foreground mb-2">Contenido del Bundle</h5>
                                       <ul className="space-y-2">
                                         {bundle.items.map((item) => (
                                           <li
@@ -346,14 +388,12 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
                                               "flex items-center justify-between",
                                               "p-2 rounded-md",
                                               "bg-background/50",
-                                              "border border-border"
+                                              "border border-border",
                                             )}
                                           >
                                             <div className="flex items-center gap-2">
                                               <Box className="w-4 h-4 text-muted-foreground" />
-                                              <span className="text-sm text-foreground">
-                                                {item.itemName}
-                                              </span>
+                                              <span className="text-sm text-foreground">{item.itemName}</span>
                                             </div>
                                             <div className="flex items-center gap-4">
                                               <span className="text-sm text-muted-foreground">
@@ -390,6 +430,45 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
               </Card>
             </motion.div>
           </TabsContent>
+
+          <TabsContent value="analytics" asChild>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card className="border-border bg-card">
+                <CardHeader className="border-b border-border">
+                  <CardTitle className="text-foreground">Análisis de Inventario</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <InventoryAnalytics items={items} />
+                </CardContent>
+              </Card>
+            </motion.div>
+          </TabsContent>
+
+          <TabsContent value="purchases" asChild>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Card className="border-border bg-card">
+                <CardHeader className="border-b border-border">
+                  <CardTitle className="text-foreground">Registro de Compras</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <PurchaseRegistration
+                    items={items.filter((item) => item.status === "ACTIVE")}
+                    onPurchaseRegistered={refreshData}
+                  />
+                </CardContent>
+              </Card>
+            </motion.div>
+          </TabsContent>
         </AnimatePresence>
       </Tabs>
 
@@ -401,3 +480,4 @@ export function InventoryManager({ initialData, bundleCategories }: InventoryMan
     </div>
   )
 }
+

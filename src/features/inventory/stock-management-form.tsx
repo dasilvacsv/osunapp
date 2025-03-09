@@ -102,7 +102,7 @@ export function StockManagementForm({ items = [], onSubmit }: StockManagementFor
                         </SelectItem>
                       ))
                     ) : (
-                      <SelectItem disabled>No hay productos disponibles</SelectItem>
+                      <SelectItem value="" disabled>No hay productos disponibles</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
