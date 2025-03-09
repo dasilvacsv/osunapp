@@ -21,7 +21,7 @@
     - Make system scalable for different organization types
   - Show dropdown of organization sections with template status
 
-## Dashboard & Metrics (PENDING)
+## Dashboard & Metrics (DONE)
 - Add metrics dashboard on organization view
 - Track pending payments
 - Visualize sales data and projections
@@ -36,7 +36,7 @@
 - Enable deletion of packages
 - Link package sales to organizations for reporting
 
-## Inventory Management (DOING)
+## Inventory Management (DONE)
 - Enhance global and organization-specific package management
 - Improve category utilization for package grouping
 - Add inventory adjustment functionality:

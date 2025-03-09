@@ -9,8 +9,6 @@ import {
   bundleItems,
   inventoryPurchases,
   inventoryPurchaseItems,
-  orderItems,
-  orders,
 } from "@/db/schema"
 import { eq, desc, sql, and, gte, or, gt } from "drizzle-orm"
 import { revalidatePath } from "next/cache"

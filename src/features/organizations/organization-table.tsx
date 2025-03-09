@@ -23,6 +23,8 @@ interface OrganizationTableProps {
   onDeleteOrganization: (id: string) => void
   selectedOrganizations: string[]
   setSelectedOrganizations: React.Dispatch<React.SetStateAction<string[]>>
+  onSelectOrganization: (org: any) => void
+  selectedOrganization: any
 }
 
 export function OrganizationTable({
@@ -32,6 +34,8 @@ export function OrganizationTable({
   onDeleteOrganization,
   selectedOrganizations,
   setSelectedOrganizations,
+  onSelectOrganization,
+  selectedOrganization,
 }: OrganizationTableProps) {
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -85,17 +89,17 @@ export function OrganizationTable({
     >
       <div className="flex items-center py-4">
         <Input
-          placeholder="Buscar en todas las columnas..."
+          placeholder="Search organizations..."
           value={globalFilter ?? ""}
           onChange={(event) => setGlobalFilter(event.target.value)}
-          className="max-w-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 dark:bg-gray-800 dark:border-gray-700"
+          className="max-w-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20"
         />
       </div>
-      <div className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden dark:border-gray-700">
+      <div className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="hover:bg-muted/50 dark:hover:bg-muted/50">
+              <TableRow key={headerGroup.id} className="hover:bg-muted/50">
                 {headerGroup.headers.map((header) => (
                   <TableHead key={header.id} className="font-semibold">
                     {header.isPlaceholder
@@ -115,7 +119,11 @@ export function OrganizationTable({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="transition-colors hover:bg-muted/50 dark:hover:bg-muted/50 group"
+                  className={`
+                    transition-colors hover:bg-muted/50 group cursor-pointer
+                    ${row.original.id === selectedOrganization?.id ? 'bg-muted' : ''}
+                  `}
+                  onClick={() => onSelectOrganization(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id} className="group-hover:text-foreground">
@@ -127,10 +135,10 @@ export function OrganizationTable({
             ) : (
               <TableRow>
                 <TableCell 
-                  colSpan={organizationColumns.length} 
+                  colSpan={table.getAllColumns().length} 
                   className="h-24 text-center text-muted-foreground"
                 >
-                  No se encontraron resultados.
+                  No organizations found.
                 </TableCell>
               </TableRow>
             )}
