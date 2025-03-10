@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ClientSelector } from "./client-selector"
 import { SaleTypeSelector } from "./sale-type-selector"
 import { OrganizationSelector } from "./organization-selector"
-import { createPurchase, searchBundles } from "./actions"
+import { createPurchase, searchBundles, searchInventoryItems } from "./actions"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -31,6 +31,7 @@ interface InventoryItem {
   basePrice: string | number
   currentStock: number
   sku?: string
+  allowPreSale?: boolean
 }
 
 interface CartItem {
@@ -40,6 +41,7 @@ interface CartItem {
   unitPrice: number
   overridePrice?: number
   stock?: number
+  allowPreSale?: boolean
 }
 
 interface Bundle {
@@ -102,23 +104,27 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
     setSearchLoading(true)
     try {
       // Buscar productos individuales
-      // Aquí deberías implementar la búsqueda real de productos
-      // Por ahora, usamos datos de ejemplo
-      const mockResults: InventoryItem[] = [
-        { id: "1", name: "Cuaderno", basePrice: "5.99", currentStock: 100 },
-        { id: "2", name: "Lápiz", basePrice: "1.99", currentStock: 200 },
-        { id: "3", name: "Borrador", basePrice: "0.99", currentStock: 150 },
-        { id: "4", name: "Marcadores", basePrice: "3.99", currentStock: 80 },
-        { id: "5", name: "Carpeta", basePrice: "2.49", currentStock: 120 },
-      ]
-
-      setSearchResults(mockResults.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase())))
+      const itemsResult = await searchInventoryItems(searchQuery)
+      if (itemsResult.success) {
+        setSearchResults(itemsResult.data || [])
+      } else {
+        setSearchResults([])
+      }
 
       // Buscar paquetes
       const bundleResult = await searchBundles(searchQuery)
       if (bundleResult.success) {
         if (bundleResult.data) {
-          setbundleResults(bundleResult.data as Bundle[])
+          // Asegurarse de que los datos de bundle tengan el formato correcto
+          const formattedBundles = bundleResult.data.map((bundle: any) => {
+            // Asegurarse de que items sea un array
+            const items = Array.isArray(bundle.items) ? bundle.items : []
+            return {
+              ...bundle,
+              items: items.filter((item: any) => item && item.item), // Filtrar items inválidos
+            }
+          })
+          setbundleResults(formattedBundles)
         } else {
           setbundleResults([])
         }
@@ -153,6 +159,7 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
           quantity: 1,
           unitPrice: typeof item.basePrice === "string" ? Number.parseFloat(item.basePrice) : item.basePrice,
           stock: item.currentStock,
+          allowPreSale: item.allowPreSale,
         },
       ])
     }
@@ -177,23 +184,33 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
   const selectBundle = (bundle: Bundle) => {
     setSelectedBundle(bundle)
 
+    // Verificar que bundle.items sea un array válido
+    if (!Array.isArray(bundle.items) || bundle.items.length === 0) {
+      setCart([])
+      console.warn("El bundle no tiene items o no es un array válido", bundle)
+      return
+    }
+
     // Convertir los items del paquete al formato del carrito
-    const cartItems: CartItem[] = bundle.items.map((item) => ({
-      itemId: item.item.id,
-      name: item.item.name,
-      quantity: item.quantity,
-      unitPrice:
-        typeof item.overridePrice === "string"
-          ? Number.parseFloat(item.overridePrice)
-          : item.overridePrice ||
-            (typeof item.item.basePrice === "string" ? Number.parseFloat(item.item.basePrice) : item.item.basePrice),
-      overridePrice: item.overridePrice
-        ? typeof item.overridePrice === "string"
-          ? Number.parseFloat(item.overridePrice)
-          : item.overridePrice
-        : undefined,
-      stock: item.item.currentStock,
-    }))
+    const cartItems: CartItem[] = bundle.items
+      .filter((item) => item && item.item) // Filtrar items inválidos
+      .map((item) => ({
+        itemId: item.item.id,
+        name: item.item.name,
+        quantity: item.quantity,
+        unitPrice:
+          typeof item.overridePrice === "string"
+            ? Number.parseFloat(item.overridePrice)
+            : item.overridePrice ||
+              (typeof item.item.basePrice === "string" ? Number.parseFloat(item.item.basePrice) : item.item.basePrice),
+        overridePrice: item.overridePrice
+          ? typeof item.overridePrice === "string"
+            ? Number.parseFloat(item.overridePrice)
+            : item.overridePrice
+          : undefined,
+        stock: item.item.currentStock,
+        allowPreSale: item.item.allowPreSale,
+      }))
 
     setCart(cartItems)
 
@@ -372,8 +389,13 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
             </Label>
             <ClientSelector
               onClientSelect={(client) => {
-                setSelectedClient(client);
-                setClientError(false);
+                setSelectedClient(client)
+                setClientError(false)
+
+                // Si el cliente tiene una organización, seleccionarla automáticamente
+                if (client?.organizationId) {
+                  setSelectedOrganizationId(client.organizationId)
+                }
               }}
               selectedClient={selectedClient}
               onCreateClient={handleCreateClient}
@@ -432,17 +454,25 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
                           className={`
                             flex justify-between items-center p-3 border rounded-md 
                             hover:bg-muted/50 cursor-pointer transition-colors
-                            ${item.currentStock <= 0 ? "opacity-50 bg-muted" : ""}
+                            ${item.currentStock <= 0 && !item.allowPreSale ? "opacity-50 bg-muted" : ""}
                           `}
-                          onClick={() => item.currentStock > 0 && addToCart(item)}
+                          onClick={() => (item.currentStock > 0 || item.allowPreSale) && addToCart(item)}
                         >
                           <div>
                             <p className="font-medium">{item.name}</p>
                             <div className="flex items-center gap-2">
                               <p className="text-xs text-muted-foreground">Stock: {item.currentStock}</p>
-                              {item.currentStock <= 0 && (
+                              {item.currentStock <= 0 && !item.allowPreSale && (
                                 <Badge variant="destructive" className="text-xs">
                                   Sin stock
+                                </Badge>
+                              )}
+                              {item.currentStock <= 0 && item.allowPreSale && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                                >
+                                  Pre-venta
                                 </Badge>
                               )}
                             </div>
@@ -453,7 +483,12 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
                                 typeof item.basePrice === "string" ? Number.parseFloat(item.basePrice) : item.basePrice,
                               )}
                             </span>
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" disabled={item.currentStock <= 0}>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              disabled={item.currentStock <= 0 && !item.allowPreSale}
+                            >
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
@@ -484,7 +519,9 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
                           <div>
                             <p className="font-medium">{bundle.name}</p>
                             <div className="flex items-center gap-2">
-                              <p className="text-xs text-muted-foreground">{bundle.items.length} productos</p>
+                              <p className="text-xs text-muted-foreground">
+                                {Array.isArray(bundle.items) ? bundle.items.length : 0} productos
+                              </p>
                               <Badge variant="outline" className="text-xs">
                                 {bundle.type === "SCHOOL_PACKAGE"
                                   ? "Escolar"
@@ -583,10 +620,18 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
                               variant="outline"
                               className="h-6 w-6 p-0"
                               onClick={() => updateQuantity(item.itemId, item.quantity + 1)}
-                              disabled={item.stock !== undefined && item.quantity >= item.stock}
+                              disabled={item.stock !== undefined && item.quantity >= item.stock && !item.allowPreSale}
                             >
                               +
                             </Button>
+                            {item.allowPreSale && item.stock !== undefined && item.quantity > item.stock && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                              >
+                                Pre-venta
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         <div className="flex flex-col items-end">

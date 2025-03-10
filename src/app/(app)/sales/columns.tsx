@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { formatCurrency, formatDate } from "@/lib/utils"
+import { formatCurrency, formatDate, cn } from "@/lib/utils"
 import { motion } from "framer-motion"
 import {
   FileText,
@@ -18,7 +18,11 @@ import {
   CalendarRange,
   Package2,
   CreditCard,
-  MoreHorizontal
+  MoreHorizontal,
+  ShoppingBag,
+  AlertTriangle,
+  DollarSign,
+  Calendar,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -30,6 +34,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useState } from "react"
 import { PaymentPlanDialog } from "@/features/sales/payment-plan-dialog"
+import { Switch } from "@/components/ui/switch"
+import { updateItemPreSaleFlag } from "@/features/inventory/actions"
 
 export type Sale = {
   id: string
@@ -53,6 +59,7 @@ export type Sale = {
     installmentCount: number
     installmentFrequency: "WEEKLY" | "BIWEEKLY" | "MONTHLY"
   }
+  allowPreSale?: boolean
 }
 
 const StatusIcon = {
@@ -110,34 +117,33 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "client.name",
     header: "Cliente",
     cell: ({ row }) => {
-      if (!row.original) {
+      if (!row.original?.client) {
         return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Datos no disponibles</span>
+          <div className="text-muted-foreground text-xs flex items-center">
+            <AlertCircle className="w-3 h-3 mr-1" />
+            Sin datos
           </div>
         )
       }
 
       const clientName = row.original.client?.name
       const clientId = row.original.client?.id
-      if (!clientName) {
-        return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Cliente no disponible</span>
-          </div>
-        )
-      }
+
       return (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger>
-              <div className="font-medium text-foreground hover:text-foreground/80 transition-colors cursor-help">
+              <div className="font-medium text-sm hover:text-primary transition-colors cursor-help">
                 {clientName}
+                {row.original.organization && (
+                  <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <Building2 className="h-3 w-3" />
+                    {row.original.organization.name}
+                  </div>
+                )}
               </div>
             </TooltipTrigger>
-            <TooltipContent>
+            <TooltipContent side="right" className="text-xs">
               <p>ID: {clientId || "No disponible"}</p>
             </TooltipContent>
           </Tooltip>
@@ -147,82 +153,94 @@ export const columns: ColumnDef<Sale>[] = [
   },
   {
     accessorKey: "organization",
-    header: "Organización",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <Building2 className="h-3.5 w-3.5" />
+        <span className="text-xs">Organización</span>
+      </div>
+    ),
     cell: ({ row }) => {
       const organization = row.original?.organization
 
       if (!organization) {
-        return <span className="text-muted-foreground text-sm">-</span>
+        return <span className="text-muted-foreground text-xs">-</span>
       }
 
       return (
-        <div className="flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">{organization.name}</span>
+        <div className="flex items-center gap-1">
+          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium truncate max-w-[120px]">{organization.name}</span>
         </div>
       )
     },
   },
   {
     accessorKey: "saleType",
-    header: "Tipo",
+    header: () => <span className="text-xs">Tipo</span>,
     cell: ({ row }) => {
       const saleType = row.getValue("saleType") as string
+      const allowPreSale = row.original?.allowPreSale || false
 
       return (
-        <Badge
-          variant="outline"
-          className={`flex items-center gap-1 ${
-            saleType === "PRESALE" ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300" : ""
-          }`}
-        >
-          {saleType === "DIRECT" ? (
-            <>
-              <Package2 className="h-3 w-3" />
-              <span>Directa</span>
-            </>
-          ) : (
-            <>
-              <CalendarRange className="h-3 w-3" />
-              <span>Preventa</span>
-            </>
+        <div className="flex items-center gap-1.5">
+          <Badge
+            variant="outline"
+            className={cn(
+              "flex items-center gap-1 py-0.5 h-5 text-xs",
+              saleType === "PRESALE" || allowPreSale
+                ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300"
+                : "",
+            )}
+          >
+            {saleType === "DIRECT" ? (
+              <>
+                <Package2 className="h-3 w-3" />
+                <span>Directa</span>
+              </>
+            ) : (
+              <>
+                <CalendarRange className="h-3 w-3" />
+                <span>Preventa</span>
+              </>
+            )}
+          </Badge>
+
+          {(saleType === "PRESALE" || allowPreSale) && (
+            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs py-0 h-5">
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              Pre-venta
+            </Badge>
           )}
-        </Badge>
+        </div>
       )
     },
   },
   {
     accessorKey: "purchaseDate",
-    header: "Fecha",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <Calendar className="h-3.5 w-3.5" />
+        <span className="text-xs">Fecha</span>
+      </div>
+    ),
     cell: ({ row }) => {
-      if (!row.original) {
-        return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Datos no disponibles</span>
-          </div>
-        )
+      if (!row.original?.purchaseDate) {
+        return <div className="text-muted-foreground text-xs">-</div>
       }
 
-      const rawDate = row.original.purchaseDate
-      if (!rawDate) {
-        return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Fecha no disponible</span>
-          </div>
-        )
-      }
-      const date = new Date(rawDate)
+      const date = new Date(row.original.purchaseDate)
       return (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger>
-              <div className="text-muted-foreground hover:text-foreground transition-colors cursor-help">
+              <div className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-help flex items-center gap-1">
+                <Calendar className="h-3 w-3" />
                 {formatDate(date)}
               </div>
             </TooltipTrigger>
-            <TooltipContent>{date.toLocaleString()}</TooltipContent>
+            <TooltipContent side="bottom" className="text-xs">
+              {date.toLocaleString()}
+            </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )
@@ -230,43 +248,30 @@ export const columns: ColumnDef<Sale>[] = [
   },
   {
     accessorKey: "totalAmount",
-    header: "Total",
+    header: () => (
+      <div className="flex items-center gap-1 justify-end">
+        <DollarSign className="h-3.5 w-3.5" />
+        <span className="text-xs">Total</span>
+      </div>
+    ),
     cell: ({ row }) => {
       if (!row || typeof row.getValue !== "function") {
-        return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Total no disponible</span>
-          </div>
-        )
+        return <div className="text-muted-foreground text-xs">-</div>
       }
 
       const amount = row.getValue("totalAmount")
-      return formatCurrency(amount)
+      return <div className="text-right font-medium text-sm">{formatCurrency(amount)}</div>
     },
   },
   {
     accessorKey: "status",
-    header: "Estado",
+    header: () => <span className="text-xs">Estado</span>,
     cell: ({ row }) => {
-      if (!row.original) {
-        return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Datos no disponibles</span>
-          </div>
-        )
+      if (!row.original?.status) {
+        return <div className="text-muted-foreground text-xs">-</div>
       }
 
       const status = row.original.status
-      if (!status) {
-        return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Estado no disponible</span>
-          </div>
-        )
-      }
       const StatusIconComponent = StatusIcon[status] || AlertCircle
       const statusColor = StatusColors[status] || "text-muted-foreground"
       const variants = {
@@ -283,15 +288,16 @@ export const columns: ColumnDef<Sale>[] = [
         PENDING: "Pendiente",
         CANCELLED: "Cancelado",
       }
+
       return (
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 200, damping: 12 }}
-          className="flex items-center gap-2"
+          className="flex items-center gap-1"
         >
-          <StatusIconComponent className={`w-4 h-4 ${statusColor}`} />
-          <Badge variant={variants[status] || "outline"} className="capitalize transition-all hover:scale-105">
+          <StatusIconComponent className={`w-3.5 h-3.5 ${statusColor}`} />
+          <Badge variant={variants[status] || "outline"} className="capitalize text-xs py-0 h-5">
             {labels[status as keyof typeof labels] || status.toLowerCase()}
           </Badge>
         </motion.div>
@@ -300,14 +306,22 @@ export const columns: ColumnDef<Sale>[] = [
   },
   {
     accessorKey: "isPaid",
-    header: "Pago",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <CreditCard className="h-3.5 w-3.5" />
+        <span className="text-xs">Pago</span>
+      </div>
+    ),
     cell: ({ row }) => {
       const isPaid = row.getValue("isPaid") as boolean
 
       return (
         <Badge
           variant={isPaid ? "success" : "outline"}
-          className={isPaid ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : ""}
+          className={cn(
+            "text-xs py-0 h-5",
+            isPaid ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : "",
+          )}
         >
           {isPaid ? "Pagado" : "Pendiente"}
         </Badge>
@@ -316,30 +330,17 @@ export const columns: ColumnDef<Sale>[] = [
   },
   {
     accessorKey: "paymentMethod",
-    header: "Método de Pago",
+    header: () => <span className="text-xs">Método</span>,
     cell: ({ row }) => {
-      if (!row.original) {
-        return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Datos no disponibles</span>
-          </div>
-        )
+      if (!row.original?.paymentMethod) {
+        return <div className="text-muted-foreground text-xs">-</div>
       }
 
       const method = row.original.paymentMethod
-      if (!method) {
-        return (
-          <div className="flex items-center text-muted-foreground">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            <span>Método no disponible</span>
-          </div>
-        )
-      }
       const labels = {
         CASH: "Efectivo",
         CARD: "Tarjeta",
-        TRANSFER: "Transferencia",
+        TRANSFER: "Transf.",
         CREDIT: "Crédito",
         DEBIT: "Débito",
       }
@@ -350,11 +351,64 @@ export const columns: ColumnDef<Sale>[] = [
         CREDIT: "📈",
         DEBIT: "📉",
       }
+
       return (
-        <Badge variant="outline" className="capitalize transition-all hover:bg-accent flex items-center gap-2">
+        <Badge variant="outline" className="capitalize text-xs py-0 h-5 flex items-center gap-1">
           <span>{icons[method as keyof typeof icons] || "💸"}</span>
           {labels[method as keyof typeof labels] || method.toLowerCase()}
         </Badge>
+      )
+    },
+  },
+  {
+    accessorKey: "allowPreSale",
+    header: () => (
+      <div className="flex items-center justify-center gap-1 text-xs">
+        <ShoppingBag className="h-3.5 w-3.5" />
+        <span>Pre-Venta</span>
+      </div>
+    ),
+    cell: ({ row }) => {
+      const allowPreSale = row.original?.allowPreSale || false
+      const [isEnabled, setIsEnabled] = useState(allowPreSale)
+
+      const handleToggle = async (checked: boolean) => {
+        setIsEnabled(checked)
+        try {
+          if (row.original?.id) {
+            await updateItemPreSaleFlag(row.original.id, checked)
+          }
+        } catch (error) {
+          console.error("Error updating pre-sale flag:", error)
+          setIsEnabled(!checked)
+        }
+      }
+
+      return (
+        <div className="flex items-center justify-center">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center gap-1.5">
+                  <Switch
+                    checked={isEnabled}
+                    onCheckedChange={handleToggle}
+                    className={cn("data-[state=checked]:bg-red-500", isEnabled && "ring-1 ring-red-300")}
+                  />
+                  {isEnabled && (
+                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs py-0 h-5">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Pre-venta
+                    </Badge>
+                  )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-xs">
+                <p>{isEnabled ? "Permitir venta sin stock disponible" : "Requiere stock disponible para vender"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
       )
     },
   },
@@ -368,29 +422,26 @@ export const columns: ColumnDef<Sale>[] = [
         <>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
+              <Button variant="ghost" className="h-7 w-7 p-0">
                 <span className="sr-only">Abrir menú</span>
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="w-[160px]">
+              <DropdownMenuLabel className="text-xs">Acciones</DropdownMenuLabel>
               <DropdownMenuItem
                 onClick={() => (window.location.href = `/sales/${sale.id}`)}
-                className="cursor-pointer"
+                className="cursor-pointer text-xs"
               >
-                <FileText className="mr-2 h-4 w-4" />
+                <FileText className="mr-2 h-3.5 w-3.5" />
                 Ver detalles
               </DropdownMenuItem>
-              
+
               <DropdownMenuSeparator />
-              
+
               {!sale.isPaid && !sale.paymentPlan && (
-                <DropdownMenuItem
-                  onClick={() => setIsDialogOpen(true)}
-                  className="cursor-pointer"
-                >
-                  <CreditCard className="mr-2 h-4 w-4" />
+                <DropdownMenuItem onClick={() => setIsDialogOpen(true)} className="cursor-pointer text-xs">
+                  <CreditCard className="mr-2 h-3.5 w-3.5" />
                   Crear plan de pago
                 </DropdownMenuItem>
               )}
@@ -398,12 +449,11 @@ export const columns: ColumnDef<Sale>[] = [
               {sale.paymentPlan && (
                 <DropdownMenuItem
                   onClick={() => {
-                    // Handle viewing payments
                     console.log("View payments for sale", sale.id)
                   }}
-                  className="cursor-pointer"
+                  className="cursor-pointer text-xs"
                 >
-                  <CreditCard className="mr-2 h-4 w-4" />
+                  <CreditCard className="mr-2 h-3.5 w-3.5" />
                   Ver pagos
                 </DropdownMenuItem>
               )}
@@ -417,7 +467,6 @@ export const columns: ColumnDef<Sale>[] = [
             totalAmount={sale.totalAmount}
             onSuccess={() => {
               setIsDialogOpen(false)
-              // Aquí puedes agregar lógica adicional de actualización si es necesario
             }}
           />
         </>
@@ -425,3 +474,4 @@ export const columns: ColumnDef<Sale>[] = [
     },
   },
 ]
+

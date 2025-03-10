@@ -9,6 +9,8 @@ import {
   bundleItems,
   inventoryPurchases,
   inventoryPurchaseItems,
+  purchaseItems, 
+  purchases, 
 } from "@/db/schema"
 import { eq, desc, sql, and, gte, or, gt } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
@@ -18,6 +20,7 @@ import type {
   UpdateInventoryItemInput,
   CreateBundleCategoryInput,
   CreateBundleInput,
+  InventoryItem,
 } from "./types"
 import { inventoryItemSchema, purchaseSchema } from "./validation"
 import { z } from "zod"
@@ -57,6 +60,66 @@ export async function createInventoryItem(input: CreateInventoryItemInput) {
       }
     }
     return { success: false, error: "Error al crear el artículo de inventario" }
+  }
+}
+
+// Actualizar estado de pre-venta
+export async function updatePreSaleStatus(id: string, allowPreSale: boolean) {
+  try {
+    const [updatedItem] = await db
+      .update(inventoryItems)
+      .set({
+        allowPreSale: allowPreSale,
+        updatedAt: new Date(),
+      })
+      .where(eq(inventoryItems.id, id))
+      .returning()
+
+    if (!updatedItem) {
+      return { success: false, error: "Producto no encontrado" }
+    }
+
+    revalidatePath("/inventory")
+    revalidatePath(`/inventory/${id}`)
+
+    return { success: true, data: updatedItem }
+  } catch (error) {
+    console.error("Error actualizando pre-venta:", error)
+    return { success: false, error: "Error al actualizar el estado de pre-venta" }
+  }
+}
+
+// Obtener conteo de pre-ventas
+export async function getPreSaleCount(id: string) {
+  try {
+    const [item] = await db
+      .select()
+      .from(inventoryItems)
+      .where(eq(inventoryItems.id, id))
+
+    if (!item) {
+      return { success: false, error: "Producto no encontrado" }
+    }
+
+    const [result] = await db
+      .select({
+        count: sql<number>`SUM(${purchaseItems.quantity})`,
+      })
+      .from(purchaseItems)
+      .innerJoin(purchases, eq(purchaseItems.purchaseId, purchases.id))
+      .where(
+        and(
+          eq(purchaseItems.itemId, id),
+          eq(purchases.status, "PENDING")
+        )
+      )
+
+    const count = result.count ? Number(result.count) : 0
+
+    return { success: true, data: count }
+  } catch (error) {
+    console.error("Error obteniendo conteo pre-venta:", error)
+    return { success: false, error: "Error al obtener el conteo de pre-ventas" }
   }
 }
 

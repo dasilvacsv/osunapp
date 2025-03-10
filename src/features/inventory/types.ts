@@ -17,6 +17,7 @@ export interface InventoryItem {
   status: 'ACTIVE' | 'INACTIVE';
   createdAt: Date;
   updatedAt: Date;
+  allowPreSale: boolean, 
 }
 
 export const StockTransactionInputSchema = z.object({

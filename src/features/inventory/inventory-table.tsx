@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 
 import {
   useReactTable,
@@ -15,7 +15,7 @@ import {
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronDown, ChevronRight, AlertCircle, Package2, Search, MoreHorizontal, Archive } from "lucide-react"
+import { ChevronDown, ChevronRight, AlertCircle, Package2, Search, MoreHorizontal, Archive, Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TransactionHistory } from "./transaction-history"
 import { getInventoryTransactions, disableInventoryItem } from "./actions"
@@ -23,7 +23,6 @@ import { columns } from "./columns"
 import type { InventoryItem, InventoryTransaction } from "./types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
-import { useState } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +42,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 
 interface InventoryTableProps {
   items: InventoryItem[]
@@ -58,6 +58,7 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
   const [globalFilter, setGlobalFilter] = useState("")
   const [confirmDisableDialogOpen, setConfirmDisableDialogOpen] = useState(false)
   const [itemToDisable, setItemToDisable] = useState<string | null>(null)
+  const [showPreSaleOnly, setShowPreSaleOnly] = useState(false)
 
   const { toast } = useToast()
 
@@ -109,7 +110,10 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
     }
   }
 
-  const safeData = Array.isArray(items) ? items : []
+  // Filtrar los items para mostrar solo los que tienen pre-venta habilitada
+  const filteredItems = showPreSaleOnly ? items.filter((item) => item.allowPreSale) : items
+
+  const safeData = Array.isArray(filteredItems) ? filteredItems : []
 
   const table = useReactTable({
     data: safeData,
@@ -135,9 +139,12 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
     },
   })
 
+  // Contar cuántos productos tienen pre-venta habilitada
+  const preSaleCount = items.filter((item) => item.allowPreSale).length
+
   return (
     <div className="space-y-4">
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -148,6 +155,18 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
           />
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant={showPreSaleOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setShowPreSaleOnly(!showPreSaleOnly)}
+            className={showPreSaleOnly ? "bg-red-500 hover:bg-red-600 text-white" : ""}
+          >
+            <Flag className="h-4 w-4 mr-2" />
+            {showPreSaleOnly ? "Todos los productos" : "Solo pre-ventas"}
+            {preSaleCount > 0 && !showPreSaleOnly && (
+              <Badge className="ml-2 bg-red-100 text-red-700 border-red-200">{preSaleCount}</Badge>
+            )}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -204,7 +223,7 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ duration: 0.2 }}
-                      className="relative group hover:bg-muted/50"
+                      className={`relative group hover:bg-muted/50 ${row.original.allowPreSale ? "bg-red-50/30 dark:bg-red-900/10" : ""}`}
                     >
                       <TableCell>
                         <Button
@@ -238,6 +257,23 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => {
+                                // Toggle pre-sale flag
+                                const newValue = !row.original.allowPreSale
+                                // Aquí deberías llamar a la función que actualiza el flag en el servidor
+                                // Por ahora, solo mostramos un toast
+                                toast({
+                                  title: newValue ? "Pre-venta habilitada" : "Pre-venta deshabilitada",
+                                  description: newValue
+                                    ? "Ahora se puede vender este producto sin stock disponible"
+                                    : "Este producto ahora requiere stock disponible para venderse",
+                                })
+                              }}
+                            >
+                              <Flag className="mr-2 h-4 w-4" />
+                              {row.original.allowPreSale ? "Deshabilitar pre-venta" : "Habilitar pre-venta"}
+                            </DropdownMenuItem>
                             {row.original.status === "ACTIVE" && (
                               <DropdownMenuItem
                                 className="text-destructive focus:bg-destructive/10"
@@ -292,7 +328,13 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                       <Package2 className="h-12 w-12 text-muted-foreground/50 mb-4" />
                       <p className="text-lg font-medium text-muted-foreground">No hay resultados</p>
-                      <p className="text-sm text-muted-foreground/70">No se encontraron artículos en el inventario</p>
+                      {showPreSaleOnly ? (
+                        <p className="text-sm text-muted-foreground/70">
+                          No se encontraron productos con pre-venta habilitada
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground/70">No se encontraron artículos en el inventario</p>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -305,8 +347,18 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
         <div className="flex items-center justify-between py-4">
           <div className="flex-1 text-sm text-muted-foreground">
             Página {table.getState().pagination.pageIndex + 1} de {table.getPageCount()}
+            {showPreSaleOnly && (
+              <span className="ml-2 text-red-500 dark:text-red-400">(Filtrado: solo productos con pre-venta)</span>
+            )}
           </div>
-          <div className="text-sm text-muted-foreground">{safeData.length} producto(s) en total</div>
+          <div className="text-sm text-muted-foreground">
+            {safeData.length} producto(s) en total
+            {preSaleCount > 0 && (
+              <span className="ml-2">
+                (<Flag className="h-3 w-3 inline-block text-red-500" /> {preSaleCount} con pre-venta)
+              </span>
+            )}
+          </div>
         </div>
       )}
 

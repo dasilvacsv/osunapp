@@ -13,7 +13,7 @@ import {
   children,
   organizations,
 } from "@/db/schema"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, sql, or } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
 export async function getPurchaseDetails(id: string) {
@@ -81,8 +81,8 @@ export async function createPurchase(data: {
 
         if (!inventoryItem) throw new Error(`Producto no encontrado: ${item.itemId}`)
 
-        // Solo validar stock para ventas directas
-        if (data.saleType !== "PRESALE" && inventoryItem.currentStock < item.quantity) {
+        // Solo validar stock para ventas directas y si no está habilitada la pre-venta
+        if (data.saleType !== "PRESALE" && inventoryItem.currentStock < item.quantity && !inventoryItem.allowPreSale) {
           throw new Error(`Stock insuficiente para ${inventoryItem.name} (${inventoryItem.currentStock} disponibles)`)
         }
 
@@ -91,6 +91,7 @@ export async function createPurchase(data: {
           ...item,
           unitPrice: unitPrice.toString(),
           totalPrice: (unitPrice * item.quantity).toString(),
+          allowPreSale: inventoryItem.allowPreSale,
         }
       }),
     )
@@ -190,11 +191,15 @@ export async function createPurchase(data: {
           .set({ currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}` })
           .where(eq(inventoryItems.id, item.itemId))
 
+        // Registrar la transacción con nota especial si es pre-venta
+        const [inventoryItem] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId))
+        const isPreSale = inventoryItem && inventoryItem.allowPreSale && inventoryItem.currentStock < item.quantity
+
         await db.insert(inventoryTransactions).values({
           itemId: item.itemId,
           quantity: -item.quantity,
           transactionType: "SALE",
-          notes: `Venta #${purchase.id}`,
+          notes: isPreSale ? `Venta #${purchase.id} (Pre-venta)` : `Venta #${purchase.id}`,
           createdAt: new Date(),
         })
       }
@@ -287,37 +292,103 @@ export async function updatePurchaseStatus(id: string, newStatus: string) {
   }
 }
 
+// Arreglar la función searchBundles para asegurar que devuelva datos correctos
 export async function searchBundles(query: string) {
   try {
-    const data = await db
+    // Primero obtenemos los bundles que coinciden con la búsqueda
+    const bundlesResult = await db
       .select({
         id: bundles.id,
         name: bundles.name,
         basePrice: bundles.basePrice,
         type: bundles.type,
-        items: sql`json_agg(json_build_object(
-        'id', ${bundleItems.id},
-        'quantity', ${bundleItems.quantity},
-        'overridePrice', ${bundleItems.overridePrice},
-        'item', json_build_object(
-          'id', ${inventoryItems.id},
-          'name', ${inventoryItems.name},
-          'currentStock', ${inventoryItems.currentStock},
-          'basePrice', ${inventoryItems.basePrice}
-        )
-      ))`,
       })
       .from(bundles)
-      .leftJoin(bundleItems, eq(bundles.id, bundleItems.bundleId))
-      .leftJoin(inventoryItems, eq(bundleItems.itemId, inventoryItems.id))
       .where(and(eq(bundles.status, "ACTIVE"), sql`LOWER(${bundles.name}) LIKE ${"%" + query.toLowerCase() + "%"}`))
-      .groupBy(bundles.id)
+      .limit(10)
+
+    // Para cada bundle, obtenemos sus items
+    const bundlesWithItems = await Promise.all(
+      bundlesResult.map(async (bundle) => {
+        const bundleItemsResult = await db
+          .select({
+            id: bundleItems.id,
+            quantity: bundleItems.quantity,
+            overridePrice: bundleItems.overridePrice,
+            item: {
+              id: inventoryItems.id,
+              name: inventoryItems.name,
+              currentStock: inventoryItems.currentStock,
+              basePrice: inventoryItems.basePrice,
+              allowPreSale: inventoryItems.allowPreSale,
+            },
+          })
+          .from(bundleItems)
+          .innerJoin(inventoryItems, eq(bundleItems.itemId, inventoryItems.id))
+          .where(eq(bundleItems.bundleId, bundle.id))
+
+        return {
+          ...bundle,
+          items: bundleItemsResult,
+        }
+      }),
+    )
+
+    return { success: true, data: bundlesWithItems }
+  } catch (error) {
+    console.error("Error searching bundles:", error)
+    return { success: false, error: "Error buscando paquetes" }
+  }
+}
+
+export async function searchInventoryItems(query: string) {
+  try {
+    const data = await db
+      .select()
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.status, "ACTIVE"),
+          or(
+            sql`LOWER(${inventoryItems.name}) LIKE ${"%" + query.toLowerCase() + "%"}`,
+            sql`LOWER(${inventoryItems.sku}) LIKE ${"%" + query.toLowerCase() + "%"}`,
+          ),
+        ),
+      )
       .limit(10)
 
     return { success: true, data }
   } catch (error) {
-    console.error("Error searching bundles:", error)
-    return { success: false, error: "Error buscando paquetes" }
+    console.error("Error searching inventory items:", error)
+    return { success: false, error: "Error buscando productos" }
+  }
+}
+
+export async function searchClients(query: string) {
+  try {
+    const data = await db
+      .select({
+        id: clients.id,
+        name: clients.name,
+        email: clients.email,
+        phone: clients.phone,
+        organizationId: clients.organizationId,
+        organization: organizations,
+      })
+      .from(clients)
+      .leftJoin(organizations, eq(clients.organizationId, organizations.id))
+      .where(
+        or(
+          sql`LOWER(${clients.name}) LIKE ${"%" + query.toLowerCase() + "%"}`,
+          sql`${clients.id}::text LIKE ${"%" + query.toLowerCase() + "%"}`,
+        ),
+      )
+      .limit(10)
+
+    return { success: true, data }
+  } catch (error) {
+    console.error("Error searching clients:", error)
+    return { success: false, error: "Error buscando clientes" }
   }
 }
 
@@ -359,6 +430,47 @@ export async function deleteBundle(bundleId: string) {
       success: false,
       error: error instanceof Error ? error.message : "Error al eliminar el paquete",
     }
+  }
+}
+
+// Añade estas funciones a tu archivo de actions.ts
+
+export async function updateItemPreSaleFlag(itemId: string, allowPreSale: boolean) {
+  try {
+    const response = await fetch(`/api/inventory/items/${itemId}/pre-sale`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ allowPreSale }),
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      return { success: false, error: data.error || "Error al actualizar el estado de pre-venta" }
+    }
+
+    return { success: true, data: data.item }
+  } catch (error) {
+    console.error("Error updating pre-sale flag:", error)
+    return { success: false, error: "Error de conexión al actualizar el estado de pre-venta" }
+  }
+}
+
+export async function getPreSaleCount(itemId: string) {
+  try {
+    const response = await fetch(`/api/inventory/items/${itemId}/pre-sale-count`)
+    const data = await response.json()
+
+    if (!response.ok) {
+      return { success: false, error: data.error || "Error al obtener el conteo de pre-ventas" }
+    }
+
+    return { success: true, data: data.count }
+  } catch (error) {
+    console.error("Error fetching pre-sale count:", error)
+    return { success: false, error: "Error de conexión al obtener el conteo de pre-ventas" }
   }
 }
 

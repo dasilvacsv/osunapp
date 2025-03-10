@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import {
   flexRender,
@@ -10,26 +10,48 @@ import {
   getSortedRowModel,
   type ColumnFiltersState,
   getFilteredRowModel,
-} from '@tanstack/react-table'
+} from "@tanstack/react-table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { CreditCard } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { useState } from 'react'
+  CreditCard,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
+  ArrowUpDown,
+  SlidersHorizontal,
+  Download,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData>[]
   data: TData[]
   searchKey?: string
   onSaleSelect?: (sale: { id: string; amount: number }) => void
+  isLoading?: boolean
+  title?: string
+  description?: string
+  exportData?: () => void
+  initialPageSize?: number
+  filterPreSales?: boolean
 }
 
 export function DataTable<TData>({
@@ -37,9 +59,30 @@ export function DataTable<TData>({
   data,
   searchKey,
   onSaleSelect,
+  isLoading = false,
+  title,
+  description,
+  exportData,
+  initialPageSize = 10,
+  filterPreSales = false,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [searchValue, setSearchValue] = useState<string>("")
+  const [pageSize, setPageSize] = useState<number>(initialPageSize)
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({})
+  const [showPreSalesOnly, setShowPreSalesOnly] = useState<boolean>(false)
+
+  // Filtrar por pre-ventas si es necesario
+  useEffect(() => {
+    if (filterPreSales && showPreSalesOnly) {
+      // Asumimos que hay una columna 'allowPreSale' o 'saleType' que podemos filtrar
+      const filterColumn = table.getColumn("allowPreSale") || table.getColumn("saleType")
+      if (filterColumn) {
+        filterColumn.setFilterValue(showPreSalesOnly ? true : undefined)
+      }
+    }
+  }, [showPreSalesOnly, filterPreSales])
 
   const table = useReactTable({
     data,
@@ -53,111 +96,347 @@ export function DataTable<TData>({
     state: {
       sorting,
       columnFilters,
+      pagination: {
+        pageIndex: 0,
+        pageSize,
+      },
     },
   })
 
+  const handleSearch = (value: string) => {
+    setSearchValue(value)
+    if (searchKey) {
+      table.getColumn(searchKey)?.setFilterValue(value)
+    }
+  }
+
+  const clearSearch = () => {
+    setSearchValue("")
+    if (searchKey) {
+      table.getColumn(searchKey)?.setFilterValue("")
+    }
+  }
+
+  const handlePageSizeChange = (value: string) => {
+    setPageSize(Number(value))
+    table.setPageSize(Number(value))
+  }
+
+  const totalPages = table.getPageCount()
+  const currentPage = table.getState().pagination.pageIndex + 1
+  const totalRows = table.getFilteredRowModel().rows.length
+  const visibleRows = table.getRowModel().rows.length
+
   return (
-    <div className="space-y-4">
-      {searchKey && (
-        <div className="flex items-center">
-          <Input
-            placeholder="Buscar..."
-            value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              table.getColumn(searchKey)?.setFilterValue(event.target.value)
-            }
-            className="max-w-sm"
-          />
+    <div className="space-y-3">
+      {/* Header with title and actions */}
+      {(title || searchKey || exportData || filterPreSales) && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+          {title && (
+            <div>
+              <h2 className="text-lg font-semibold">{title}</h2>
+              {description && <p className="text-sm text-muted-foreground">{description}</p>}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            {searchKey && (
+              <div className="relative w-full sm:w-auto">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar..."
+                  value={searchValue}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="pl-9 h-9 w-full sm:w-[200px] lg:w-[300px]"
+                />
+                {searchValue && (
+                  <button
+                    onClick={clearSearch}
+                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2 self-end">
+              {filterPreSales && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={showPreSalesOnly ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setShowPreSalesOnly(!showPreSalesOnly)}
+                        className={cn("h-9 gap-1", showPreSalesOnly && "bg-red-500 hover:bg-red-600 text-white")}
+                      >
+                        <AlertTriangle className="h-4 w-4" />
+                        <span className="hidden sm:inline">Pre-ventas</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {showPreSalesOnly ? "Mostrar todas las ventas" : "Mostrar solo pre-ventas"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 gap-1">
+                    <SlidersHorizontal className="h-4 w-4" />
+                    <span className="hidden sm:inline">Columnas</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[180px]">
+                  <DropdownMenuLabel className="text-xs">Mostrar columnas</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {table
+                    .getAllColumns()
+                    .filter((column) => column.id !== "actions" && column.getCanHide())
+                    .map((column) => {
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={column.id}
+                          className="capitalize text-xs"
+                          checked={column.getIsVisible()}
+                          onCheckedChange={(value) => {
+                            column.toggleVisibility(value)
+                            setVisibleColumns({
+                              ...visibleColumns,
+                              [column.id]: value,
+                            })
+                          }}
+                        >
+                          {typeof column.columnDef.header === "string" ? column.columnDef.header : column.id}
+                        </DropdownMenuCheckboxItem>
+                      )
+                    })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {exportData && (
+                <Button variant="outline" size="sm" onClick={exportData} className="h-9 gap-1">
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">Exportar</span>
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       )}
-      
-      <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id} className="hover:bg-muted/50">
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="font-semibold">
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
-                {onSaleSelect && <TableHead className="font-semibold">Acciones</TableHead>}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row, index) => (
-                <motion.tr
-                  key={row.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="group transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell 
-                      key={cell.id}
-                      className="py-3 px-4"
+
+      {/* Table */}
+      <div className="rounded-md border overflow-hidden bg-card text-card-foreground shadow-sm">
+        <div className="relative">
+          {isLoading && (
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Cargando datos...</p>
+              </div>
+            </div>
+          )}
+
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="hover:bg-muted/50 bg-muted/30">
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className={cn(
+                        "py-2 px-3 text-xs font-medium",
+                        header.column.getCanSort() && "cursor-pointer select-none",
+                      )}
+                      onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
+                      {header.isPlaceholder ? null : (
+                        <div className="flex items-center gap-1">
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {header.column.getCanSort() && <ArrowUpDown className="h-3 w-3 text-muted-foreground" />}
+                          {header.column.getIsSorted() === "asc" && (
+                            <Badge variant="outline" className="ml-1 py-0 h-4 text-[10px]">
+                              Asc
+                            </Badge>
+                          )}
+                          {header.column.getIsSorted() === "desc" && (
+                            <Badge variant="outline" className="ml-1 py-0 h-4 text-[10px]">
+                              Desc
+                            </Badge>
+                          )}
+                        </div>
+                      )}
+                    </TableHead>
                   ))}
-                  {onSaleSelect && (
-                    <TableCell className="py-3 px-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onSaleSelect({
-                          id: (row.original as any).id,
-                          amount: (row.original as any).amount,
-                        })}
-                        className="flex items-center gap-2"
-                      >
-                        <CreditCard className="h-4 w-4" />
-                        Ver Pagos
-                      </Button>
+                  {onSaleSelect && <TableHead className="py-2 px-3 text-xs font-medium">Acciones</TableHead>}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              <AnimatePresence>
+                {table.getRowModel().rows?.length ? (
+                  table.getRowModel().rows.map((row, index) => (
+                    <motion.tr
+                      key={row.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2, delay: index * 0.05 }}
+                      className={cn(
+                        "group transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+                        // Highlight pre-sale rows if needed
+                        (row.original as any)?.allowPreSale && "bg-red-50/30 dark:bg-red-900/10",
+                        (row.original as any)?.saleType === "PRESALE" && "bg-red-50/30 dark:bg-red-900/10",
+                      )}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id} className="py-2 px-3">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                      {onSaleSelect && (
+                        <TableCell className="py-2 px-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              onSaleSelect({
+                                id: (row.original as any).id,
+                                amount: (row.original as any).amount || (row.original as any).totalAmount,
+                              })
+                            }
+                            className="h-7 text-xs flex items-center gap-1"
+                          >
+                            <CreditCard className="h-3.5 w-3.5" />
+                            Pagos
+                          </Button>
+                        </TableCell>
+                      )}
+                    </motion.tr>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length + (onSaleSelect ? 1 : 0)}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      {isLoading ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                          <p className="text-sm">Cargando datos...</p>
+                        </div>
+                      ) : searchValue ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <Search className="h-6 w-6 text-muted-foreground" />
+                          <p>No se encontraron resultados para "{searchValue}"</p>
+                          <Button variant="ghost" size="sm" onClick={clearSearch} className="mt-2">
+                            Limpiar búsqueda
+                          </Button>
+                        </div>
+                      ) : showPreSalesOnly ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <AlertTriangle className="h-6 w-6 text-muted-foreground" />
+                          <p>No hay pre-ventas disponibles</p>
+                          <Button variant="ghost" size="sm" onClick={() => setShowPreSalesOnly(false)} className="mt-2">
+                            Mostrar todas las ventas
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <SlidersHorizontal className="h-6 w-6 text-muted-foreground" />
+                          <p>No hay datos disponibles</p>
+                        </div>
+                      )}
                     </TableCell>
-                  )}
-                </motion.tr>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell 
-                  colSpan={columns.length + (onSaleSelect ? 1 : 0)} 
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  No hay resultados disponibles
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                  </TableRow>
+                )}
+              </AnimatePresence>
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
-      <div className="flex items-center justify-end space-x-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          Anterior
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          Siguiente
-        </Button>
-      </div>
+      {/* Pagination */}
+      {table.getPageCount() > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm">
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              Mostrando <span className="font-medium">{visibleRows}</span> de{" "}
+              <span className="font-medium">{totalRows}</span> resultados
+              {showPreSalesOnly && (
+                <span className="ml-1 text-red-500 dark:text-red-400">(Filtrado: solo pre-ventas)</span>
+              )}
+            </p>
+            <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="h-8 w-[110px] text-xs">
+                <SelectValue placeholder="10 por página" />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 20, 30, 40, 50].map((size) => (
+                  <SelectItem key={size} value={size.toString()} className="text-xs">
+                    {size} por página
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.setPageIndex(0)}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <span className="sr-only">Primera página</span>
+              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-4 w-4 -ml-2" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <span className="sr-only">Página anterior</span>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+
+            <span className="text-xs flex items-center gap-1 px-2">
+              <span className="font-medium">{currentPage}</span>
+              <span className="text-muted-foreground">de</span>
+              <span className="font-medium">{totalPages || 1}</span>
+            </span>
+
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              <span className="sr-only">Página siguiente</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+              disabled={!table.getCanNextPage()}
+            >
+              <span className="sr-only">Última página</span>
+              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 -ml-2" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+

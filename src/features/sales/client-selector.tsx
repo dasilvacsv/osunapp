@@ -1,11 +1,20 @@
+"use client"
+
+import type React from "react"
+
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { User, Search, Plus, X, Loader2 } from "lucide-react"
+import { User, Search, Plus, X, Loader2, Building2, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { searchClients, createClient } from "@/app/(app)/clientes/client"
+import { Badge } from "@/components/ui/badge"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Check, ChevronsUpDown } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface ClientSelectorProps {
   onClientSelect: (client: any) => void
@@ -18,6 +27,7 @@ interface NewClientFormData {
   document?: string
   phone?: string
   email?: string
+  organizationId?: string
 }
 
 export function ClientSelector({ onClientSelect, selectedClient, onCreateClient }: ClientSelectorProps) {
@@ -27,7 +37,9 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
   const [loading, setLoading] = useState(false)
   const [showNewClientForm, setShowNewClientForm] = useState(false)
   const [creatingClient, setCreatingClient] = useState(false)
+  const [popoverOpen, setPopoverOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // New client form state
   const [newClient, setNewClient] = useState<NewClientFormData>({
@@ -35,6 +47,7 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
     document: "",
     phone: "",
     email: "",
+    organizationId: "",
   })
 
   useEffect(() => {
@@ -44,6 +57,11 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
   }, [open])
 
   useEffect(() => {
+    // Limpiar el timeout anterior si existe
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
     const fetchClients = async () => {
       if (search.length < 2) {
         setClients([])
@@ -66,8 +84,15 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
       }
     }
 
-    const handler = setTimeout(fetchClients, 300)
-    return () => clearTimeout(handler)
+    // Establecer un nuevo timeout para la búsqueda
+    searchTimeoutRef.current = setTimeout(fetchClients, 300)
+
+    return () => {
+      // Limpiar el timeout al desmontar
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
   }, [search])
 
   const handleSelectClient = (client: any) => {
@@ -75,6 +100,7 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
     setSearch("")
     setClients([])
     setOpen(false)
+    setPopoverOpen(false)
   }
 
   const handleCreateClient = async (e: React.FormEvent) => {
@@ -91,6 +117,7 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
           phone: newClient.phone,
         },
         role: "INDIVIDUAL",
+        organizationId: newClient.organizationId || undefined,
       })
 
       if (result.success) {
@@ -101,6 +128,7 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
           document: "",
           phone: "",
           email: "",
+          organizationId: "",
         })
       } else {
         throw new Error(result.error)
@@ -120,21 +148,27 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
     setClients([])
   }
 
-  return (
+  // Versión con Dialog (original)
+  const renderDialogVersion = () => (
     <div className="relative w-full">
       <Button
         type="button"
         variant="outline"
-        className={cn(
-          "w-full justify-start text-left font-normal",
-          !selectedClient && "text-muted-foreground"
-        )}
+        className={cn("w-full justify-start text-left font-normal", !selectedClient && "text-muted-foreground")}
         onClick={() => setOpen(true)}
       >
         <User className="mr-2 h-4 w-4" />
         {selectedClient ? (
           <div className="flex items-center justify-between w-full">
-            <span>{selectedClient.name}</span>
+            <div className="flex flex-col items-start">
+              <span>{selectedClient.name}</span>
+              {selectedClient.organization && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Building2 className="h-3 w-3" />
+                  {selectedClient.organization.name}
+                </span>
+              )}
+            </div>
             <Button
               type="button"
               variant="ghost"
@@ -153,9 +187,7 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>
-              {showNewClientForm ? "Crear Nuevo Cliente" : "Seleccionar Cliente"}
-            </DialogTitle>
+            <DialogTitle>{showNewClientForm ? "Crear Nuevo Cliente" : "Seleccionar Cliente"}</DialogTitle>
           </DialogHeader>
 
           {showNewClientForm ? (
@@ -203,11 +235,7 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
               </div>
 
               <DialogFooter className="gap-2 sm:gap-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowNewClientForm(false)}
-                >
+                <Button type="button" variant="outline" onClick={() => setShowNewClientForm(false)}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={creatingClient}>
@@ -235,7 +263,7 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
                     ref={inputRef}
                     id="clientSearch"
                     type="text"
-                    placeholder="Nombre o documento..."
+                    placeholder="Nombre o ID..."
                     className="pl-9"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -258,15 +286,21 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
                       onClick={() => handleSelectClient(client)}
                     >
                       <div className="font-medium">{client.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {client.document || "Sin documento"}
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          ID: {client.id.slice(0, 8)}
+                        </Badge>
+                        {client.organization && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Building2 className="h-3 w-3" />
+                            {client.organization.name}
+                          </span>
+                        )}
                       </div>
                     </button>
                   ))
                 ) : search.length > 1 ? (
-                  <div className="p-2 text-center text-sm text-muted-foreground">
-                    No se encontraron resultados
-                  </div>
+                  <div className="p-2 text-center text-sm text-muted-foreground">No se encontraron resultados</div>
                 ) : (
                   <div className="p-2 text-center text-sm text-muted-foreground">
                     Ingresa al menos 2 caracteres para buscar
@@ -289,4 +323,121 @@ export function ClientSelector({ onClientSelect, selectedClient, onCreateClient 
       </Dialog>
     </div>
   )
+
+  // Versión con Popover y Command (nueva)
+  const renderPopoverVersion = () => (
+    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" role="combobox" aria-expanded={popoverOpen} className="w-full justify-between">
+          {selectedClient ? (
+            <div className="flex items-center gap-2 text-left">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col">
+                <span>{selectedClient.name}</span>
+                {selectedClient.organization && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Building2 className="h-3 w-3" />
+                    {selectedClient.organization.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <span className="text-muted-foreground flex items-center gap-2">
+              <Search className="h-4 w-4" />
+              Buscar cliente por nombre o ID...
+            </span>
+          )}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="p-0 w-full min-w-[300px]">
+        <Command>
+          <CommandInput placeholder="Buscar cliente..." value={search} onValueChange={setSearch} className="h-9" />
+          <CommandList>
+            {loading ? (
+              <div className="p-2 space-y-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </div>
+            ) : (
+              <>
+                <CommandEmpty>
+                  <div className="flex flex-col items-center justify-center py-6 text-center">
+                    <User className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground mb-4">No se encontraron clientes</p>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setPopoverOpen(false)
+                        setOpen(true)
+                        setShowNewClientForm(true)
+                      }}
+                      className="gap-1"
+                    >
+                      <UserPlus className="h-4 w-4" />
+                      Crear cliente
+                    </Button>
+                  </div>
+                </CommandEmpty>
+                <CommandGroup heading="Clientes">
+                  {clients.map((client) => (
+                    <CommandItem
+                      key={client.id}
+                      value={`${client.id}-${client.name}`}
+                      onSelect={() => {
+                        handleSelectClient(client)
+                      }}
+                      className="flex items-center justify-between py-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex flex-col items-start">
+                          <span>{client.name}</span>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              ID: {client.id.slice(0, 8)}
+                            </Badge>
+                            {client.organization && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Building2 className="h-3 w-3" />
+                                {client.organization.name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <Check
+                        className={cn("h-4 w-4", selectedClient?.id === client.id ? "opacity-100" : "opacity-0")}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </>
+            )}
+          </CommandList>
+          <div className="border-t p-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-1"
+              onClick={() => {
+                setPopoverOpen(false)
+                setOpen(true)
+                setShowNewClientForm(true)
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Crear nuevo cliente
+            </Button>
+          </div>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+
+  
+  return renderDialogVersion();
 }
+
