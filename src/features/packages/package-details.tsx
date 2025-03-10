@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import type React from "react"
 import type { BundleWithBeneficiaries, BundleType, PurchaseStatus, PaymentMethod } from "@/features/packages/types"
@@ -115,6 +115,9 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
   const [activeTab, setActiveTab] = useState("overview")
   const [loading, setLoading] = useState(false)
 
+  // Ensure beneficiaries is always an array
+  const beneficiaries = Array.isArray(bundle.beneficiaries) ? bundle.beneficiaries : []
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -147,7 +150,7 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
     }
   }
 
-  const filteredBeneficiaries = bundle.beneficiaries.filter((beneficiary) => {
+  const filteredBeneficiaries = beneficiaries.filter((beneficiary) => {
     if (!searchTerm) return true
 
     const searchLower = searchTerm.toLowerCase()
@@ -160,10 +163,17 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
     )
   })
 
-  const completedSales = bundle.salesData?.sales?.filter((sale) => sale.status === "COMPLETED") || []
-  const averageSaleAmount = completedSales.length > 0
-    ? bundle.salesData?.totalRevenue ? bundle.salesData.totalRevenue / completedSales.length : 0
-    : 0
+  // Ensure we have valid sales data
+  const salesData = bundle.salesData || { sales: [], totalRevenue: 0, totalSales: 0, lastSaleDate: null }
+  const completedSales = salesData.sales?.filter((sale) => sale.status === "COMPLETED") || []
+  const totalRevenue =
+    typeof salesData.totalRevenue === "string"
+      ? Number.parseFloat(salesData.totalRevenue)
+      : typeof salesData.totalRevenue === "number"
+        ? salesData.totalRevenue
+        : 0
+
+  const averageSaleAmount = completedSales.length > 0 ? totalRevenue / completedSales.length : 0
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
@@ -176,7 +186,7 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
             <h1 className="text-2xl font-bold text-foreground">{bundle.name}</h1>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant="outline" className="font-normal">
-                {typeLabels[bundle.type]}
+                {typeLabels[bundle.type as BundleType] || "Regular"}
               </Badge>
               <Badge variant={bundle.status === "ACTIVE" ? "default" : "secondary"}>
                 {bundle.status === "ACTIVE" ? "Activo" : "Inactivo"}
@@ -195,10 +205,12 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
             <Edit className="w-4 h-4" />
             Editar
           </Button>
-          <Button variant="default" className="gap-2">
-            <ShoppingCart className="w-4 h-4" />
-            Nueva Venta
-          </Button>
+          <Link href={`/sales/new?bundleId=${bundle.id}`}>
+            <Button variant="default" className="gap-2">
+              <ShoppingCart className="w-4 h-4" />
+              Nueva Venta
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -276,16 +288,14 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
 
                   <div>
                     <h3 className="text-sm font-medium text-muted-foreground mb-1">Ingresos Totales</h3>
-                    <p className="text-xl font-semibold text-green-500">
-                      {bundle.salesData ? formatCurrency(bundle.salesData.totalRevenue) : "N/A"}
-                    </p>
+                    <p className="text-xl font-semibold text-green-500">{formatCurrency(totalRevenue)}</p>
                   </div>
                 </div>
 
-                {bundle.salesData?.lastSaleDate && (
+                {salesData.lastSaleDate && (
                   <p className="flex items-center gap-2 text-foreground">
                     <Calendar className="w-4 h-4 text-muted-foreground" />
-                    {formatDate(bundle.salesData.lastSaleDate)}
+                    Última venta: {formatDate(salesData.lastSaleDate)}
                   </p>
                 )}
 
@@ -293,7 +303,7 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                   <h3 className="text-sm font-medium text-muted-foreground mb-1">Beneficiarios</h3>
                   <p className="flex items-center gap-2 text-foreground">
                     <Users className="w-4 h-4 text-muted-foreground" />
-                    {bundle.beneficiaries.length} beneficiario{bundle.beneficiaries.length !== 1 ? "s" : ""}
+                    {beneficiaries.length} beneficiario{beneficiaries.length !== 1 ? "s" : ""}
                   </p>
                 </div>
               </CardContent>
@@ -351,8 +361,8 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                   Beneficiarios
                 </CardTitle>
                 <CardDescription>
-                  {bundle.beneficiaries.length} beneficiario{bundle.beneficiaries.length !== 1 ? "s" : ""} registrado
-                  {bundle.beneficiaries.length !== 1 ? "s" : ""}
+                  {beneficiaries.length} beneficiario{beneficiaries.length !== 1 ? "s" : ""} registrado
+                  {beneficiaries.length !== 1 ? "s" : ""}
                 </CardDescription>
               </div>
 
@@ -577,17 +587,13 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                     </Card>
                     <Card>
                       <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-green-600">
-                          {formatCurrency(bundle.salesData?.totalRevenue || 0)}
-                        </div>
+                        <div className="text-2xl font-bold text-green-600">{formatCurrency(totalRevenue)}</div>
                         <p className="text-sm text-muted-foreground">Ingresos totales</p>
                       </CardContent>
                     </Card>
                     <Card>
                       <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">
-                          {formatCurrency(averageSaleAmount)}
-                        </div>
+                        <div className="text-2xl font-bold">{formatCurrency(averageSaleAmount)}</div>
                         <p className="text-sm text-muted-foreground">Promedio por venta</p>
                       </CardContent>
                     </Card>
@@ -603,7 +609,7 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
                     </div>
 
                     <div className="divide-y">
-                      {bundle.salesData?.sales?.map((sale, index) => (
+                      {salesData.sales.map((sale, index) => (
                         <motion.div
                           key={sale.id}
                           initial={{ opacity: 0, y: 20 }}
@@ -652,3 +658,4 @@ export function PackageDetails({ bundle }: { bundle: BundleWithBeneficiaries }) 
     </div>
   )
 }
+

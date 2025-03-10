@@ -53,7 +53,10 @@ const BeneficiariesCollapsible = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false)
 
-  if (!beneficiaries || beneficiaries.length === 0) {
+  // Make sure beneficiaries is always an array
+  const beneficiaryArray = Array.isArray(beneficiaries) ? beneficiaries : []
+
+  if (!beneficiaryArray || beneficiaryArray.length === 0) {
     return (
       <Badge variant="outline" className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
         Sin beneficiarios
@@ -61,8 +64,8 @@ const BeneficiariesCollapsible = ({
     )
   }
 
-  const activeBeneficiaries = beneficiaries.filter((b) => b.status === "ACTIVE")
-  const incompleteBeneficiaries = beneficiaries.filter((b) => b.isComplete === false)
+  const activeBeneficiaries = beneficiaryArray.filter((b) => b.status === "ACTIVE")
+  const incompleteBeneficiaries = beneficiaryArray.filter((b) => b.isComplete === false)
 
   return (
     <div className="space-y-2">
@@ -82,10 +85,10 @@ const BeneficiariesCollapsible = ({
         <span className="font-medium">
           {activeBeneficiaries.length} Activo{activeBeneficiaries.length !== 1 ? "s" : ""}
         </span>
-        {beneficiaries.length > activeBeneficiaries.length && (
+        {beneficiaryArray.length > activeBeneficiaries.length && (
           <Badge variant="secondary" className="ml-2 text-xs">
-            +{beneficiaries.length - activeBeneficiaries.length} inactivo
-            {beneficiaries.length - activeBeneficiaries.length !== 1 ? "s" : ""}
+            +{beneficiaryArray.length - activeBeneficiaries.length} inactivo
+            {beneficiaryArray.length - activeBeneficiaries.length !== 1 ? "s" : ""}
           </Badge>
         )}
         {incompleteBeneficiaries.length > 0 && (
@@ -108,7 +111,7 @@ const BeneficiariesCollapsible = ({
             className="overflow-hidden"
           >
             <div className="pl-4 border-l-2 border-gray-200 dark:border-gray-700 space-y-3 pt-2">
-              {beneficiaries.map((beneficiary, index) => (
+              {beneficiaryArray.map((beneficiary, index) => (
                 <motion.div
                   key={beneficiary.id}
                   initial={{ opacity: 0, x: -10 }}
