@@ -42,10 +42,6 @@ const navItems = [
         title: "Lista de Organizaciones",
         url: "/organizations",
       },
-      {
-        title: "Nueva Organización",
-        url: "/organizations/new",
-      }
     ],
   },
   {
@@ -76,14 +72,7 @@ const navItems = [
         title: "Lista de Items",
         url: "/inventory",
       },
-      {
-        title: "Nuevo Item",
-        url: "/inventory/new",
-      },
-      {
-        title: "Categorías",
-        url: "/inventory/categories",
-      }
+
     ],
   },
   {
@@ -95,14 +84,6 @@ const navItems = [
         title: "Historial de Ventas",
         url: "/sales",
       },
-      {
-        title: "Nueva Venta",
-        url: "/sales/new",
-      },
-      {
-        title: "Paquetes",
-        url: "/sales/bundles",
-      }
     ],
   },
   {
@@ -114,10 +95,6 @@ const navItems = [
         title: "Resumen",
         url: "/",
       },
-      {
-        title: "Reportes",
-        url: "/dashboard/reports",
-      }
     ],
   }
 ];
