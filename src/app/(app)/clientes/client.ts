@@ -285,7 +285,7 @@ export async function getDetailedClient(id: string) {
   }
 }
 
-export async function getBeneficiaries(clientId: string) {
+export async function getBeneficiariesByClient(clientId: string) {
   try {
     const data = await db
       .select({
@@ -296,12 +296,16 @@ export async function getBeneficiaries(clientId: string) {
       .leftJoin(organizations, eq(beneficiarios.organizationId, organizations.id))
       .where(eq(beneficiarios.clientId, clientId));
     
+    // Map the data to match the Beneficiary type
+    const mappedData = data.map(row => ({
+      ...row.beneficiary,
+      status: row.beneficiary.status as "ACTIVE" | "INACTIVE", // Ensure status is never null
+      organization: row.organization || undefined, // Convert null to undefined
+    }));
+    
     return { 
       success: true, 
-      data: data.map(row => ({
-        ...row.beneficiary,
-        organization: row.organization,
-      }))
+      data: mappedData
     };
   } catch (error) {
     console.error("Error fetching beneficiaries:", error);

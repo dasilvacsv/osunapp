@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react'
 import { ClientDetails } from './client-details'
-import { getClient, getOrganizations, getBeneficiaries } from '@/app/(app)/clientes/client'
+import { getClient, getOrganizations, getBeneficiariesByClient } from '@/app/(app)/clientes/client'
 import { Client, Organization, Beneficiary } from '@/lib/types'
 
 export default function ViewClient({ clientId }: { clientId: string }) {
@@ -20,25 +20,26 @@ export default function ViewClient({ clientId }: { clientId: string }) {
         
         // Load client data
         const clientResult = await getClient(clientId)
-        if (clientResult.error) {
-          throw new Error(clientResult.error)
+        if (clientResult.error || !clientResult.data) {
+          throw new Error(clientResult.error || 'No client data found')
         }
         
         // Load organizations
         const orgsResult = await getOrganizations()
-        if (orgsResult.error) {
-          throw new Error(orgsResult.error)
+        if (orgsResult.error || !orgsResult.data) {
+          throw new Error(orgsResult.error || 'No organizations found')
         }
         
         // Load beneficiaries
-        const beneficiariesResult = await getBeneficiaries(clientId)
-        if (!beneficiariesResult.success) {
-          throw new Error(beneficiariesResult.error)
+        const beneficiariesResult = await getBeneficiariesByClient(clientId)
+        if (!beneficiariesResult.success || !beneficiariesResult.data) {
+          throw new Error(beneficiariesResult.error || 'No beneficiaries found')
         }
         
-        setClient(clientResult.data)
-        setOrganizations(orgsResult.data)
-        setBeneficiaries(beneficiariesResult.data)
+        // Use type assertions to fix type incompatibilities
+        setClient(clientResult.data as Client)
+        setOrganizations(orgsResult.data as Organization[])
+        setBeneficiaries(beneficiariesResult.data as Beneficiary[])
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
       } finally {

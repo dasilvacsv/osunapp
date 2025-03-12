@@ -3,7 +3,7 @@
 
 import { useCallback, useState, useTransition } from 'react'
 import { BeneficiaryTable } from './beneficiary-table'
-import { getOrganizations, getBeneficiaries, createBeneficiary, updateBeneficiary, deleteBeneficiary } from '@/app/(app)/clientes/client'
+import { getOrganizations, getBeneficiariesByClient, createBeneficiary, updateBeneficiary, deleteBeneficiary } from '@/app/(app)/clientes/client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Client, Organization, Beneficiary } from '@/lib/types'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'

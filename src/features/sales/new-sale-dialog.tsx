@@ -13,11 +13,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ClientSelector } from "./client-selector"
 import { SaleTypeSelector } from "./sale-type-selector"
 import { OrganizationSelector } from "./organization-selector"
+import { BeneficiarySelector } from "./beneficiary-selector"
 import { createPurchase, searchBundles, searchInventoryItems } from "./actions"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
+import { Beneficiary } from "@/lib/types"
 
 interface NewSaleDialogProps {
   open: boolean
@@ -84,6 +86,8 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
   const [clientError, setClientError] = useState(false)
   const [cartError, setCartError] = useState(false)
   const [beneficiaryError, setBeneficiaryError] = useState(false)
+
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState<Beneficiary | null>(null)
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
@@ -306,6 +310,21 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
         }
       }
 
+      // Add beneficiary ID if selected
+      if (selectedBeneficiary) {
+        purchaseData.beneficiaryId = selectedBeneficiary.id
+      }
+      // Otherwise, add beneficiary details if provided
+      else if (selectedBundle && beneficiaryFirstName && beneficiaryLastName) {
+        purchaseData.beneficiary = {
+          firstName: beneficiaryFirstName,
+          lastName: beneficiaryLastName,
+          school: beneficiarySchool,
+          level: beneficiaryLevel,
+          section: beneficiarySection,
+        }
+      }
+
       const result = await createPurchase(purchaseData)
 
       if (result.success) {
@@ -343,6 +362,7 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
   const resetForm = () => {
     setCart([])
     setSelectedClient(null)
+    setSelectedBeneficiary(null)
     setSelectedBundle(null)
     setSaleType("DIRECT")
     setPaymentMethod("CASH")
@@ -364,6 +384,17 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
       resetForm()
     }
   }, [open])
+
+  // Handler for creating a new beneficiary - this would open a modal or redirect
+  const handleCreateBeneficiary = () => {
+    if (!selectedClient) return
+    
+    // Here you would typically open a modal to create a beneficiary
+    toast({
+      title: "Crear beneficiario",
+      description: "Para crear un nuevo beneficiario, vaya a la sección de clientes",
+    })
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -390,6 +421,7 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
             <ClientSelector
               onClientSelect={(client) => {
                 setSelectedClient(client)
+                setSelectedBeneficiary(null)
                 setClientError(false)
 
                 // Si el cliente tiene una organización, seleccionarla automáticamente
@@ -407,6 +439,28 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
               </p>
             )}
           </div>
+
+          {/* Beneficiary Selection - only show after client is selected */}
+          {selectedClient && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Beneficiario {selectedBundle && <span className="text-destructive">*</span>}
+              </Label>
+              <BeneficiarySelector
+                clientId={selectedClient.id}
+                onBeneficiarySelect={setSelectedBeneficiary}
+                selectedBeneficiary={selectedBeneficiary}
+                onCreateBeneficiary={handleCreateBeneficiary}
+              />
+              {beneficiaryError && !selectedBeneficiary && (
+                <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Debes seleccionar o proporcionar datos del beneficiario
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Organización */}
           <OrganizationSelector
@@ -663,8 +717,8 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
             )}
           </div>
 
-          {/* Datos del beneficiario (solo para ventas de paquetes) */}
-          {selectedBundle && (
+          {/* Datos del beneficiario - only show if bundle is selected and no beneficiary is selected */}
+          {selectedBundle && !selectedBeneficiary && (
             <div
               className={`space-y-4 border p-4 rounded-md ${beneficiaryError ? "bg-red-50 border-red-200 dark:bg-red-900/10 dark:border-red-800/30" : "bg-muted/30"}`}
             >
