@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Client } from "@/lib/types"
 import { useState } from "react"
 import { EditClientDialog } from "./edit-dialog"
-import { ViewClientDialog } from "./view-client"
+import Link from "next/link"
 
 const SortableHeader = ({ column, title }: { column: any; title: string }) => {
   return (
@@ -36,7 +36,6 @@ const ActionsCell = ({
   onDelete: (id: string) => void 
 }) => {
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [showViewDialog, setShowViewDialog] = useState(false)
 
   const handleUpdate = (data: any) => {
     onUpdate(client.id, {
@@ -55,13 +54,17 @@ const ActionsCell = ({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => setShowViewDialog(true)}>
-          <Eye className="mr-2 h-4 w-4" />
-          View Details
-        </DropdownMenuItem>
+        <Link href={`/clientes/${client.id}`} passHref legacyBehavior>
+          <DropdownMenuItem asChild>
+            <a className="flex items-center cursor-pointer">
+              <Eye className="mr-2 h-4 w-4" />
+              Ver Detalles
+            </a>
+          </DropdownMenuItem>
+        </Link>
         <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
           <Pencil className="mr-2 h-4 w-4" />
-          Edit
+          Editar
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onDelete(client.id)}>
           <Trash className="mr-2 h-4 w-4" />
@@ -75,12 +78,6 @@ const ActionsCell = ({
       open={showEditDialog}
       onOpenChange={setShowEditDialog}
       onUpdate={handleUpdate}
-    />
-
-    <ViewClientDialog
-      client={client}
-      open={showViewDialog}
-      onOpenChange={setShowViewDialog}
     />
   </>
 )
@@ -109,26 +106,7 @@ export const columns = (onUpdate: (id: string, data: any) => void, onDelete: (id
   {
     accessorKey: "name",
     header: ({ column }) => <SortableHeader column={column} title="Name" />,
-    cell: ({ row }) => {
-      const [showViewDialog, setShowViewDialog] = useState(false)
-      return (
-        <>
-          <Button
-            variant="ghost"
-            className="p-0 hover:underline"
-            onClick={() => setShowViewDialog(true)}
-          >
-            {row.getValue("name")}
-          </Button>
-  
-          <ViewClientDialog
-            client={row.original}
-            open={showViewDialog}
-            onOpenChange={setShowViewDialog}
-          />
-        </>
-      )
-    }
+    cell: ({ row }) => <div>{row.getValue("name")}</div>,
   },
   {
     accessorKey: "document",

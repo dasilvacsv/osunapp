@@ -9,9 +9,11 @@ import {
   clients,
   bundles,
   bundleItems,
-  bundleBeneficiaries,
-  children,
+  beneficiarios,
   organizations,
+  payments,
+  paymentPlans,
+  saleTypeEnum,
 } from "@/db/schema"
 import { and, eq, sql, or } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
@@ -76,10 +78,13 @@ export async function exportSaleToExcel(id: string, download = false) {
     let paymentsInfo = null
     try {
       // Get all payments using Drizzle syntax
-      const payments = await db.select().from(db.schema.payments).where(eq(db.schema.payments.purchaseId, id))
+      const paymentsData = await db
+        .select()
+        .from(payments)
+        .where(eq(payments.purchaseId, id))
 
-      if (payments.length > 0) {
-        const pendingPayments = payments.filter(
+      if (paymentsData.length > 0) {
+        const pendingPayments = paymentsData.filter(
           (payment) => payment.status === "PENDING" || payment.status === "OVERDUE",
         )
         const pendingAmount = pendingPayments.reduce((sum, payment) => sum + Number(payment.amount), 0)
@@ -93,12 +98,12 @@ export async function exportSaleToExcel(id: string, download = false) {
         }
 
         // Get payment plan
-        const paymentPlans = await db
+        const paymentPlansData = await db
           .select()
-          .from(db.schema.paymentPlans)
-          .where(eq(db.schema.paymentPlans.purchaseId, id))
+          .from(paymentPlans)
+          .where(eq(paymentPlans.purchaseId, id))
 
-        const paymentPlan = paymentPlans.length > 0 ? paymentPlans[0] : null
+        const paymentPlan = paymentPlansData.length > 0 ? paymentPlansData[0] : null
 
         // Format installment plan
         let installmentPlanText = "No aplica"
@@ -113,7 +118,7 @@ export async function exportSaleToExcel(id: string, download = false) {
         }
 
         paymentsInfo = {
-          paymentsCount: payments.length,
+          paymentsCount: paymentsData.length,
           pendingPayments: pendingPayments.length,
           nextPaymentDueDate: nextPaymentDue ? formatExportDate(nextPaymentDue.dueDate) : null,
           pendingAmount: pendingAmount > 0 ? formatCurrency(pendingAmount) : null,
@@ -134,11 +139,14 @@ export async function exportSaleToExcel(id: string, download = false) {
       totalPrice: formatCurrency(Number(item.totalPrice)),
     }))
 
+    // Get client contact info for email
+    const clientContactInfo = client?.contactInfo as { email?: string } || {}
+    
     // Format data for export
     const exportData = {
       id: purchase.id,
       clientName: client?.name || "Cliente no registrado",
-      clientEmail: client?.email || "",
+      clientEmail: clientContactInfo.email || "",
       clientPhone: client?.phone || "",
       purchaseDate: formatExportDate(purchase.purchaseDate),
       status: purchase.status,
@@ -146,7 +154,8 @@ export async function exportSaleToExcel(id: string, download = false) {
       totalAmount: formatCurrency(Number(purchase.totalAmount)),
       transactionReference: purchase.transactionReference || "",
       isPaid: purchase.isPaid || false,
-      saleType: purchase.saleType || "DIRECT",
+      // Use saleType if it exists in custom metadata or default to "DIRECT"
+      saleType: (purchase.paymentMetadata as any)?.saleType || "DIRECT",
       organizationName: organization?.name || "",
       organizationType: organization?.type || "",
       items: formattedItems,
@@ -312,8 +321,12 @@ export async function createPurchase(data: {
 
         if (!inventoryItem) throw new Error(`Producto no encontrado: ${item.itemId}`)
 
+        // Get any pre-sale property from metadata or default to false
+        const metadata = inventoryItem.metadata as { allowPreSale?: boolean } || {}
+        const allowPreSale = metadata.allowPreSale || false
+
         // Solo validar stock para ventas directas y si no está habilitada la pre-venta
-        if (data.saleType !== "PRESALE" && inventoryItem.currentStock < item.quantity && !inventoryItem.allowPreSale) {
+        if (data.saleType !== "PRESALE" && inventoryItem.currentStock < item.quantity && !allowPreSale) {
           throw new Error(`Stock insuficiente para ${inventoryItem.name} (${inventoryItem.currentStock} disponibles)`)
         }
 
@@ -322,7 +335,7 @@ export async function createPurchase(data: {
           ...item,
           unitPrice: unitPrice.toString(),
           totalPrice: (unitPrice * item.quantity).toString(),
-          allowPreSale: inventoryItem.allowPreSale,
+          allowPreSale,
         }
       }),
     )
@@ -331,7 +344,7 @@ export async function createPurchase(data: {
     const totalAmount = itemsWithStock.reduce((sum, item) => sum + Number(item.unitPrice) * item.quantity, 0)
 
     // Crear beneficiario si es necesario
-    let childId = null
+    let beneficiarioId = null
     if (data.bundleId && data.beneficiary) {
       // Validar que todos los campos del beneficiario estén completos
       const requiredFields = ["firstName", "lastName", "school", "level", "section"]
@@ -349,9 +362,9 @@ export async function createPurchase(data: {
         throw new Error("Cliente no encontrado")
       }
 
-      // Crear un registro en la tabla children primero
-      const [child] = await db
-        .insert(children)
+      // Crear un registro en la tabla beneficiarios
+      const [beneficiario] = await db
+        .insert(beneficiarios)
         .values({
           name: `${data.beneficiary.firstName} ${data.beneficiary.lastName}`,
           clientId: data.clientId,
@@ -359,33 +372,25 @@ export async function createPurchase(data: {
           grade: data.beneficiary.level,
           section: data.beneficiary.section,
           status: "ACTIVE",
+          // Campos específicos de beneficiario
+          bundleId: data.bundleId,
+          firstName: data.beneficiary.firstName,
+          lastName: data.beneficiary.lastName,
+          school: data.beneficiary.school,
+          level: data.beneficiary.level,
           createdAt: new Date(),
           updatedAt: new Date(),
         })
         .returning()
 
-      if (!child) {
+      if (!beneficiario) {
         throw new Error("No se pudo crear el beneficiario")
       }
 
-      childId = child.id
-
-      // Crear el registro en bundleBeneficiaries
-      await db.insert(bundleBeneficiaries).values({
-        bundleId: data.bundleId,
-        firstName: data.beneficiary.firstName,
-        lastName: data.beneficiary.lastName,
-        school: data.beneficiary.school,
-        level: data.beneficiary.level,
-        section: data.beneficiary.section,
-        status: "ACTIVE",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        organizationId: data.organizationId || null,
-      })
+      beneficiarioId = beneficiario.id
     }
 
-    // Crear la compra
+    // Crear la compra con metadatos para saleType
     const [purchase] = await db
       .insert(purchases)
       .values({
@@ -395,11 +400,12 @@ export async function createPurchase(data: {
         status: data.saleType === "PRESALE" ? "PENDING" : "COMPLETED",
         purchaseDate: new Date(),
         bundleId: data.bundleId,
-        childId: childId,
-        // saleType: data.saleType || "DIRECT",
+        beneficiarioId: beneficiarioId,
         paymentType: "FULL", // Por defecto, se puede cambiar después
         isPaid: data.saleType !== "PRESALE", // Las ventas directas se consideran pagadas
         organizationId: data.organizationId || null,
+        // Guardar el tipo de venta en el metadata
+        paymentMetadata: { saleType: data.saleType || "DIRECT" },
       })
       .returning()
 
@@ -424,12 +430,14 @@ export async function createPurchase(data: {
 
         // Registrar la transacción con nota especial si es pre-venta
         const [inventoryItem] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId))
-        const isPreSale = inventoryItem && inventoryItem.allowPreSale && inventoryItem.currentStock < item.quantity
+        const metadata = inventoryItem.metadata as { allowPreSale?: boolean } || {}
+        const allowPreSale = metadata.allowPreSale || false
+        const isPreSale = inventoryItem && allowPreSale && inventoryItem.currentStock < item.quantity
 
         await db.insert(inventoryTransactions).values({
           itemId: item.itemId,
           quantity: -item.quantity,
-          transactionType: "SALE",
+          transactionType: "OUT", // Usando "OUT" en lugar de "SALE"
           notes: isPreSale ? `Venta #${purchase.id} (Pre-venta)` : `Venta #${purchase.id}`,
           createdAt: new Date(),
         })
@@ -452,7 +460,7 @@ export async function createPurchase(data: {
 
 export async function getSalesData() {
   try {
-    // Modificamos la consulta para no incluir payment_type que parece no existir en la tabla
+    // Modificamos la consulta para usar el metadata para saleType
     const sales = await db
       .select({
         id: purchases.id,
@@ -463,13 +471,12 @@ export async function getSalesData() {
         paymentMethod: purchases.paymentMethod,
         purchaseDate: purchases.purchaseDate,
         transactionReference: purchases.transactionReference,
-        // Eliminamos la referencia a payment_type
-        // Usamos un valor por defecto para saleType si no existe
-        // saleType: sql`COALESCE(${purchases.saleType}, 'DIRECT')::text`,
         // Usamos un valor por defecto para isPaid si no existe
         isPaid: sql`COALESCE(${purchases.isPaid}, false)`,
         client: clients,
         organization: organizations,
+        // Extraer el saleType del paymentMetadata
+        saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
       })
       .from(purchases)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
@@ -551,16 +558,29 @@ export async function searchBundles(query: string) {
               name: inventoryItems.name,
               currentStock: inventoryItems.currentStock,
               basePrice: inventoryItems.basePrice,
-              allowPreSale: inventoryItems.allowPreSale,
+              // Obtener metadata donde allowPreSale podría estar almacenado
+              metadata: inventoryItems.metadata,
             },
           })
           .from(bundleItems)
           .innerJoin(inventoryItems, eq(bundleItems.itemId, inventoryItems.id))
           .where(eq(bundleItems.bundleId, bundle.id))
 
+        // Procesar los resultados para extraer allowPreSale de metadata
+        const processedItems = bundleItemsResult.map(item => {
+          const metadata = item.item.metadata as { allowPreSale?: boolean } || {};
+          return {
+            ...item,
+            item: {
+              ...item.item,
+              allowPreSale: metadata.allowPreSale || false,
+            }
+          };
+        });
+
         return {
           ...bundle,
-          items: bundleItemsResult,
+          items: processedItems,
         }
       }),
     )
@@ -601,8 +621,9 @@ export async function searchClients(query: string) {
       .select({
         id: clients.id,
         name: clients.name,
-        email: clients.email,
+        document: clients.document,
         phone: clients.phone,
+        contactInfo: clients.contactInfo, // Incluir contactInfo para acceder al email
         organizationId: clients.organizationId,
         organization: organizations,
       })
@@ -638,8 +659,8 @@ export async function deleteBundle(bundleId: string) {
       }
     }
 
-    // Eliminar beneficiarios asociados
-    await db.delete(bundleBeneficiaries).where(eq(bundleBeneficiaries.bundleId, bundleId))
+    // Eliminar beneficiarios asociados (ahora en tabla beneficiarios)
+    await db.delete(beneficiarios).where(eq(beneficiarios.bundleId, bundleId))
 
     // Eliminar items del paquete
     await db.delete(bundleItems).where(eq(bundleItems.bundleId, bundleId))
@@ -664,44 +685,60 @@ export async function deleteBundle(bundleId: string) {
   }
 }
 
-// Añade estas funciones a tu archivo de actions.ts
-
+// Funciones para manejar la pre-venta
 export async function updateItemPreSaleFlag(itemId: string, allowPreSale: boolean) {
   try {
-    const response = await fetch(`/api/inventory/items/${itemId}/pre-sale`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ allowPreSale }),
-    })
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      return { success: false, error: data.error || "Error al actualizar el estado de pre-venta" }
+    // Primero obtenemos el item para conseguir su metadata actual
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId))
+    
+    if (!item) {
+      return { success: false, error: "Item no encontrado" }
     }
-
-    return { success: true, data: data.item }
+    
+    // Preparar el nuevo metadata con allowPreSale
+    const currentMetadata = item.metadata || {}
+    const updatedMetadata = {
+      ...currentMetadata,
+      allowPreSale
+    }
+    
+    // Actualizar el item con el nuevo metadata
+    const [updatedItem] = await db
+      .update(inventoryItems)
+      .set({
+        metadata: updatedMetadata,
+        updatedAt: new Date()
+      })
+      .where(eq(inventoryItems.id, itemId))
+      .returning()
+    
+    return { success: true, data: updatedItem }
   } catch (error) {
     console.error("Error updating pre-sale flag:", error)
-    return { success: false, error: "Error de conexión al actualizar el estado de pre-venta" }
+    return { success: false, error: "Error al actualizar el estado de pre-venta" }
   }
 }
 
 export async function getPreSaleCount(itemId: string) {
   try {
-    const response = await fetch(`/api/inventory/items/${itemId}/pre-sale-count`)
-    const data = await response.json()
-
-    if (!response.ok) {
-      return { success: false, error: data.error || "Error al obtener el conteo de pre-ventas" }
-    }
-
-    return { success: true, data: data.count }
+    // Contar todas las ventas de tipo PRESALE que incluyen este item
+    const presales = await db
+      .select({
+        count: sql<number>`count(*)`,
+      })
+      .from(purchaseItems)
+      .innerJoin(purchases, eq(purchaseItems.purchaseId, purchases.id))
+      .where(
+        and(
+          eq(purchaseItems.itemId, itemId),
+          eq(sql`(${purchases.paymentMetadata}->>'saleType')::text`, 'PRESALE')
+        )
+      )
+    
+    return { success: true, data: presales[0].count }
   } catch (error) {
     console.error("Error fetching pre-sale count:", error)
-    return { success: false, error: "Error de conexión al obtener el conteo de pre-ventas" }
+    return { success: false, error: "Error al obtener el conteo de pre-ventas" }
   }
 }
 

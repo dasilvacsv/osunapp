@@ -78,3 +78,21 @@ export interface Sale {
   transactionReference?: string;
   bookingMethod?: string;
 }
+
+export interface Beneficiary {
+  id: string;
+  name: string;
+  clientId: string;
+  organizationId?: string | null;
+  grade?: string | null;
+  section?: string | null;
+  status: "ACTIVE" | "INACTIVE";
+  firstName?: string | null;
+  lastName?: string | null;
+  school?: string | null;
+  level?: string | null;
+  bundleId?: string | null;
+  organization?: Organization;
+  createdAt: Date;
+  updatedAt: Date;
+}

@@ -35,7 +35,6 @@ import {
 import { useState } from "react"
 import { PaymentPlanDialog } from "@/features/sales/payment-plan-dialog"
 import { Switch } from "@/components/ui/switch"
-import { updateItemPreSaleFlag } from "@/features/inventory/actions"
 
 export type Sale = {
   id: string

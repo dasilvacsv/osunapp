@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { 
   clients, 
   organizations, 
-  children, 
+  beneficiarios, 
   purchases, 
   purchaseItems,
   organizationMembers,
@@ -32,7 +32,7 @@ export type ClientFormData = {
 export type DetailedClientResponse = {
   client: typeof clients.$inferSelect;
   organization?: typeof organizations.$inferSelect;
-  children?: (typeof children.$inferSelect)[];
+  children?: (typeof beneficiarios.$inferSelect)[];
   purchases?: {
     purchase: typeof purchases.$inferSelect;
     items: {
@@ -55,6 +55,20 @@ export type OrganizationFormData = {
     phone?: string;
     email?: string;
   };
+};
+
+export type BeneficiaryFormData = {
+  name: string;
+  clientId: string;
+  organizationId?: string;
+  grade?: string;
+  section?: string;
+  firstName?: string;
+  lastName?: string;
+  school?: string;
+  level?: string;
+  bundleId?: string;
+  status?: "ACTIVE" | "INACTIVE";
 };
 
 export async function getClients(organizationId?: string) {
@@ -207,11 +221,11 @@ export async function getDetailedClient(id: string) {
       return { error: "Client not found" };
     }
 
-    // Get client's children
-    const childrenData = await db
+    // Get client's beneficiaries
+    const beneficiariesData = await db
       .select()
-      .from(children)
-      .where(eq(children.clientId, id));
+      .from(beneficiarios)
+      .where(eq(beneficiarios.clientId, id));
 
     // Get client's purchases with items and bundles
     const purchasesData = await db
@@ -259,7 +273,7 @@ export async function getDetailedClient(id: string) {
     const response: DetailedClientResponse = {
       client: clientData[0].client,
       organization: clientData[0].organization || undefined,
-      children: childrenData,
+      children: beneficiariesData,
       purchases: purchasesWithItems,
       organizationMemberships: memberships,
     };
@@ -268,5 +282,115 @@ export async function getDetailedClient(id: string) {
   } catch (error) {
     console.error("Error fetching detailed client data:", error);
     return { error: "Failed to fetch client details" };
+  }
+}
+
+export async function getBeneficiaries(clientId: string) {
+  try {
+    const data = await db
+      .select({
+        beneficiary: beneficiarios,
+        organization: organizations,
+      })
+      .from(beneficiarios)
+      .leftJoin(organizations, eq(beneficiarios.organizationId, organizations.id))
+      .where(eq(beneficiarios.clientId, clientId));
+    
+    return { 
+      success: true, 
+      data: data.map(row => ({
+        ...row.beneficiary,
+        organization: row.organization,
+      }))
+    };
+  } catch (error) {
+    console.error("Error fetching beneficiaries:", error);
+    return { success: false, error: "Error al obtener beneficiarios" };
+  }
+}
+
+export async function getBeneficiary(id: string) {
+  try {
+    const data = await db
+      .select()
+      .from(beneficiarios)
+      .where(eq(beneficiarios.id, id));
+    
+    return { success: true, data: data[0] };
+  } catch (error) {
+    console.error("Error fetching beneficiary:", error);
+    return { success: false, error: "Error al obtener el beneficiario" };
+  }
+}
+
+export async function createBeneficiary(data: BeneficiaryFormData) {
+  try {
+    const newBeneficiary = await db
+      .insert(beneficiarios)
+      .values({
+        name: data.name,
+        clientId: data.clientId,
+        organizationId: data.organizationId === 'none' ? null : data.organizationId,
+        grade: data.grade,
+        section: data.section,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        school: data.school,
+        level: data.level,
+        bundleId: data.bundleId,
+        status: "ACTIVE",
+      })
+      .returning();
+    
+    revalidatePath("/clientes");
+    return { success: true, data: newBeneficiary[0] };
+  } catch (error) {
+    console.error("Error creating beneficiary:", error);
+    return { success: false, error: "Error al crear el beneficiario" };
+  }
+}
+
+export async function updateBeneficiary(id: string, data: BeneficiaryFormData) {
+  try {
+    const updatedBeneficiary = await db
+      .update(beneficiarios)
+      .set({
+        name: data.name,
+        organizationId: data.organizationId === 'none' ? null : data.organizationId,
+        grade: data.grade,
+        section: data.section,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        school: data.school,
+        level: data.level,
+        bundleId: data.bundleId,
+        updatedAt: new Date(),
+      })
+      .where(eq(beneficiarios.id, id))
+      .returning();
+    
+    revalidatePath("/clientes");
+    return { success: true, data: updatedBeneficiary[0] };
+  } catch (error) {
+    console.error("Error updating beneficiary:", error);
+    return { success: false, error: "Error al actualizar el beneficiario" };
+  }
+}
+
+export async function deleteBeneficiary(id: string) {
+  try {
+    await db
+      .update(beneficiarios)
+      .set({ 
+        status: "INACTIVE",
+        updatedAt: new Date(),
+      })
+      .where(eq(beneficiarios.id, id));
+    
+    revalidatePath("/clientes");
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting beneficiary:", error);
+    return { success: false, error: "Error al eliminar el beneficiario" };
   }
 }
