@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { OrganizationSelect, Organization } from "./organization-select"
 import { ClientSelect, Client } from "./client-select"
+import { BeneficiarySelect, Beneficiary } from "./beneficiary-select"
 
 interface OrganizationSelectFormProps {
   onSelect?: (organization: Organization) => void
@@ -31,6 +32,7 @@ interface OrganizationSelectFormProps {
 const saleFormSchema = z.object({
   organizationId: z.string().min(1, "Please select an organization"),
   clientId: z.string().min(1, "Please select a client"),
+  beneficiaryId: z.string().min(1, "Please select a beneficiary"),
   notes: z.string().optional(),
   referenceNumber: z.string().optional(),
 })
@@ -43,9 +45,13 @@ export function OrganizationSelectForm({
   initialOrganizations,
   initialClients 
 }: OrganizationSelectFormProps) {
+  console.log(initialClients);
+  
   const router = useRouter()
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>("")
   const [selectedClientId, setSelectedClientId] = useState<string>("")
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>("")
   
   // Initialize form
   const form = useForm<SaleFormValues>({
@@ -53,6 +59,7 @@ export function OrganizationSelectForm({
     defaultValues: {
       organizationId: "",
       clientId: "",
+      beneficiaryId: "",
       notes: "",
       referenceNumber: "",
     },
@@ -67,8 +74,15 @@ export function OrganizationSelectForm({
   }
 
   const handleClientSelect = (clientId: string, client: Client) => {
+    console.log("Selected client with data:", client)
+    console.log("Client beneficiarios:", client.beneficiarios)
+    
     setSelectedClientId(clientId)
+    setSelectedClient(client)
     form.setValue("clientId", clientId)
+    // Reset beneficiary when client changes
+    setSelectedBeneficiaryId("")
+    form.setValue("beneficiaryId", "")
     
     // If client has an organization, auto-select it
     if (client.organizationId) {
@@ -81,6 +95,11 @@ export function OrganizationSelectForm({
       setSelectedOrganizationId("")
       form.setValue("organizationId", "")
     }
+  }
+
+  const handleBeneficiarySelect = (beneficiaryId: string, beneficiary: Beneficiary) => {
+    setSelectedBeneficiaryId(beneficiaryId)
+    form.setValue("beneficiaryId", beneficiaryId)
   }
 
   const onSubmit = async (values: SaleFormValues) => {
@@ -135,6 +154,27 @@ export function OrganizationSelectForm({
                       selectedOrganizationId={field.value}
                       onOrganizationSelect={handleOrganizationSelect}
                       initialOrganizations={initialOrganizations}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Beneficiary Selection */}
+            <FormField
+              control={form.control}
+              name="beneficiaryId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Beneficiary</FormLabel>
+                  <FormControl>
+                    <BeneficiarySelect
+                      selectedBeneficiaryId={field.value}
+                      onBeneficiarySelect={handleBeneficiarySelect}
+                      clientId={selectedClientId}
+                      organizationId={selectedOrganizationId}
+                      beneficiaries={selectedClient?.beneficiarios || []}
                     />
                   </FormControl>
                   <FormMessage />

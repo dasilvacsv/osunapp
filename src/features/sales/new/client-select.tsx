@@ -8,7 +8,7 @@ import { ClientForm } from "@/features/clients/create-client-form"
 import { createClient } from "@/app/(app)/clientes/client"
 import { PlusIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { getClient, getClients } from "./actions"
+import { getClientDetail, getClients } from "./actions"
 
 export interface Client {
   id: string
@@ -16,12 +16,40 @@ export interface Client {
   document: string | null
   phone: string | null
   whatsapp: string | null
+  contactInfo: unknown
+  organizationId: string | null
   role: "PARENT" | "EMPLOYEE" | "INDIVIDUAL"
   status: "ACTIVE" | "INACTIVE" | null
-  organizationId: string | null
-  contactInfo: unknown
   createdAt: Date | null
   updatedAt: Date | null
+  organization?: {
+    id: string
+    name: string
+    type: "SCHOOL" | "COMPANY" | "OTHER"
+    address: string | null
+    contactInfo: unknown
+    status: "ACTIVE" | "INACTIVE" | null
+    nature: "PUBLIC" | "PRIVATE" | null
+    cityId: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+  beneficiarios?: {
+    id: string
+    name: string
+    clientId: string
+    organizationId: string | null
+    grade: string | null
+    section: string | null
+    status: "ACTIVE" | "INACTIVE" | null
+    bundleId: string | null
+    firstName: string | null
+    lastName: string | null
+    school: string | null
+    level: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }[]
 }
 
 interface ClientSelectProps {
@@ -42,6 +70,7 @@ export function ClientSelect({
   const { toast } = useToast()
   const [clients, setClients] = useState<Client[]>(initialClients)
   const [loading, setLoading] = useState(false)
+  const [selectionLoading, setSelectionLoading] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   // Refresh clients list
@@ -70,6 +99,46 @@ export function ClientSelect({
     }
   }
 
+  // Handle client selection
+  const handleClientChange = async (value: string) => {
+    // Optimistically update the selection
+    const selectedClient = clients.find(c => c.id === value)
+    if (selectedClient) {
+      onClientSelect(value, selectedClient)
+    }
+    
+    setSelectionLoading(true)
+    // Fetch complete client data when selected
+    try {
+      const result = await getClientDetail(value)
+      console.log("Client detail result:", result)
+      if (result.data) {
+        // Map children to beneficiarios
+        const clientWithBeneficiarios = {
+          ...result.data.client,
+          beneficiarios: result.data.children || []
+        }
+        console.log("Client with mapped beneficiarios:", clientWithBeneficiarios)
+        onClientSelect(value, clientWithBeneficiarios)
+      } else if (result.error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.error
+        })
+      }
+    } catch (error) {
+      console.error("Failed to fetch client details:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch client details"
+      })
+    } finally {
+      setSelectionLoading(false)
+    }
+  }
+
   // Handle client creation
   const handleCreateClient = async (data: any) => {
     try {
@@ -82,8 +151,16 @@ export function ClientSelect({
       const result = await createClient(clientData)
       if (result.success && result.data) {
         await refreshClients()
-        // Select the newly created client
-        onClientSelect(result.data.id, result.data)
+        // Get full client details including beneficiaries
+        const detailResult = await getClientDetail(result.data.id)
+        if (detailResult.data) {
+          // Map children to beneficiarios
+          const clientWithBeneficiarios = {
+            ...detailResult.data.client,
+            beneficiarios: detailResult.data.children || []
+          }
+          onClientSelect(result.data.id, clientWithBeneficiarios)
+        }
         setShowCreateDialog(false)
         toast({
           title: "Success",
@@ -102,30 +179,6 @@ export function ClientSelect({
         variant: "destructive",
         title: "Error",
         description: "Failed to create client"
-      })
-    }
-  }
-
-  // Handle client selection
-  const handleClientChange = async (value: string) => {
-    // Fetch complete client data when selected
-    try {
-      const result = await getClient(value)
-      if (result.data) {
-        onClientSelect(value, result.data)
-      } else if (result.error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.error
-        })
-      }
-    } catch (error) {
-      console.error("Failed to fetch client details:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to fetch client details"
       })
     }
   }
@@ -157,7 +210,7 @@ export function ClientSelect({
           <div className="flex-1 space-y-2">
             <PopoverSelect
               options={clients.map(client => ({
-                label: `${client.name}${client.document ? ` (${client.document})` : ''}`,
+                label: `${client.name}${client.document ? ` (${client.document})` : ''}${selectionLoading && client.id === selectedClientId ? ' (Loading...)' : ''}`,
                 value: client.id
               }))}
               value={selectedClientId}
