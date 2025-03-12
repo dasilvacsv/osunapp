@@ -21,6 +21,7 @@ import { OrganizationSelect } from "./organization-select"
 import { ClientSelect } from "./client-select"
 import { BeneficiarySelect, Beneficiary } from "./beneficiary-select"
 import { Organization } from "@/lib/types"
+import { ProductSelect } from "./product-select"
 
 interface InventoryItem {
   id: string
@@ -61,6 +62,7 @@ const saleFormSchema = z.object({
   organizationId: z.string().min(1, "Please select an organization"),
   clientId: z.string().min(1, "Please select a client"),
   beneficiaryId: z.string().min(1, "Please select a beneficiary"),
+  productId: z.string().min(1, "Please select a product"),
   notes: z.string().optional(),
   referenceNumber: z.string().optional(),
 })
@@ -82,6 +84,8 @@ export function OrganizationSelectForm({
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [selectedClient, setSelectedClient] = useState<any | null>(null)
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>("")
+  const [selectedProductId, setSelectedProductId] = useState<string>("")
+  const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null)
   
   // Initialize form
   const form = useForm<SaleFormValues>({
@@ -90,6 +94,7 @@ export function OrganizationSelectForm({
       organizationId: "",
       clientId: "",
       beneficiaryId: "",
+      productId: "",
       notes: "",
       referenceNumber: "",
     },
@@ -124,6 +129,17 @@ export function OrganizationSelectForm({
   const handleBeneficiarySelect = (beneficiaryId: string, beneficiary: Beneficiary) => {
     setSelectedBeneficiaryId(beneficiaryId)
     form.setValue("beneficiaryId", beneficiaryId)
+  }
+
+  const handleProductSelect = (productId: string, product: InventoryItem) => {
+    setSelectedProductId(productId)
+    setSelectedProduct(product)
+    form.setValue("productId", productId)
+  }
+
+  const handleCreateNewProduct = () => {
+    // This will be implemented later
+    console.log("Create new product")
   }
 
   const onSubmit = async (values: SaleFormValues) => {
@@ -200,6 +216,26 @@ export function OrganizationSelectForm({
                         clientId={selectedClientId}
                         organizationId={selectedOrganizationId}
                         beneficiaries={selectedClient?.beneficiarios || []}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Product Selection */}
+              <FormField
+                control={form.control}
+                name="productId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product</FormLabel>
+                    <FormControl>
+                      <ProductSelect
+                        selectedProductId={field.value}
+                        onProductSelect={handleProductSelect}
+                        initialProducts={initialItems}
+                        onCreateNew={handleCreateNewProduct}
                       />
                     </FormControl>
                     <FormMessage />
