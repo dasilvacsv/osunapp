@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils"
 import { PaymentsTable } from "@/features/sales/payments-table"
 import { PaymentPlanDialog } from "@/features/sales/payment-plan-dialog"
 import { getPaymentsByPurchase, getPaymentPlan } from "@/features/sales/payment-actions"
+import { ExportSaleButton } from "@/features/sales/export-sale-button"
 
 const statusLabels = {
   PENDING: "Pendiente",
@@ -207,6 +208,7 @@ export function SaleDetails({ sale }: { sale: any }) {
           </Button>
 
           <div className="flex items-center gap-4">
+            <ExportSaleButton saleId={sale.id} variant="outline" className="mr-2" />
             <div className="flex flex-wrap items-center gap-2">
               {Object.entries(statusLabels).map(([value, label]) => {
                 const StatusIcon = statusIcons[value as keyof typeof statusIcons]

@@ -27,6 +27,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator"
 import type { BundleType, PurchaseStatus, PaymentMethod } from "@/features/packages/types"
 import { getOrganizationSections } from "@/app/(app)/organizations/organization"
+import { ExportButton } from "@/features/packages/export-button"
 
 // Helper function to safely format dates
 const formatDate = (date: Date | string | null): string => {
@@ -131,7 +132,7 @@ export default async function BeneficiaryDetailsPage({
   if (beneficiary.organizationId) {
     const sectionsResult = await getOrganizationSections(beneficiary.organizationId)
     if (sectionsResult.data) {
-      organizationSections = sectionsResult.data.map(section => ({
+      organizationSections = sectionsResult.data.map((section) => ({
         ...section,
         templateLink: section.templateLink || undefined,
         templateStatus: section.templateStatus || "INCOMPLETE",
@@ -172,6 +173,8 @@ export default async function BeneficiaryDetailsPage({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <ExportButton beneficiaryId={params.id} variant="outline" title="Exportar Datos" />
+
           <Link href={`/packages/${bundle.id}`}>
             <Button variant="outline" className="gap-2">
               <Package2 className="w-4 h-4" />

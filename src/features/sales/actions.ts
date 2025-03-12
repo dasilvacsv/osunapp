@@ -15,6 +15,237 @@ import {
 } from "@/db/schema"
 import { and, eq, sql, or } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+import { formatCurrency } from "@/lib/utils"
+import * as XLSX from "xlsx"
+import { writeFile } from "fs/promises"
+import { join } from "path"
+import { existsSync } from "fs"
+import { mkdir } from "fs/promises"
+
+// Helper function to format dates for export
+const formatExportDate = (date: Date | string | null): string => {
+  if (!date) return "N/A"
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date
+    return dateObj.toLocaleDateString()
+  } catch (error) {
+    console.error("Error formatting date:", error)
+    return "Invalid Date"
+  }
+}
+
+// Function to export sale to Excel
+export async function exportSaleToExcel(id: string, download = false) {
+  try {
+    // Get purchase details
+    const result = await db
+      .select({
+        purchase: purchases,
+        client: clients,
+        organization: organizations,
+      })
+      .from(purchases)
+      .where(eq(purchases.id, id))
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+
+    if (result.length === 0) {
+      return { success: false, error: "Venta no encontrada" }
+    }
+
+    const { purchase, client, organization } = result[0]
+
+    // Get purchase items
+    const itemsResult = await db
+      .select({
+        id: purchaseItems.id,
+        quantity: purchaseItems.quantity,
+        unitPrice: purchaseItems.unitPrice,
+        totalPrice: purchaseItems.totalPrice,
+        inventoryItem: {
+          id: inventoryItems.id,
+          name: inventoryItems.name,
+          sku: inventoryItems.sku,
+        },
+      })
+      .from(purchaseItems)
+      .leftJoin(inventoryItems, eq(purchaseItems.itemId, inventoryItems.id))
+      .where(eq(purchaseItems.purchaseId, id))
+
+    // Get payments information if available
+    let paymentsInfo = null
+    try {
+      // Get all payments using Drizzle syntax
+      const payments = await db.select().from(db.schema.payments).where(eq(db.schema.payments.purchaseId, id))
+
+      if (payments.length > 0) {
+        const pendingPayments = payments.filter(
+          (payment) => payment.status === "PENDING" || payment.status === "OVERDUE",
+        )
+        const pendingAmount = pendingPayments.reduce((sum, payment) => sum + Number(payment.amount), 0)
+
+        // Get next payment due date
+        let nextPaymentDue = null
+        if (pendingPayments.length > 0) {
+          nextPaymentDue = pendingPayments.sort(
+            (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+          )[0]
+        }
+
+        // Get payment plan
+        const paymentPlans = await db
+          .select()
+          .from(db.schema.paymentPlans)
+          .where(eq(db.schema.paymentPlans.purchaseId, id))
+
+        const paymentPlan = paymentPlans.length > 0 ? paymentPlans[0] : null
+
+        // Format installment plan
+        let installmentPlanText = "No aplica"
+        if (paymentPlan) {
+          installmentPlanText = `${paymentPlan.installmentCount} cuotas ${
+            paymentPlan.installmentFrequency === "WEEKLY"
+              ? "semanales"
+              : paymentPlan.installmentFrequency === "BIWEEKLY"
+                ? "quincenales"
+                : "mensuales"
+          }`
+        }
+
+        paymentsInfo = {
+          paymentsCount: payments.length,
+          pendingPayments: pendingPayments.length,
+          nextPaymentDueDate: nextPaymentDue ? formatExportDate(nextPaymentDue.dueDate) : null,
+          pendingAmount: pendingAmount > 0 ? formatCurrency(pendingAmount) : null,
+          installmentPlan: installmentPlanText,
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching payments:", error)
+      // Continue without payments data
+    }
+
+    // Format items for the export
+    const formattedItems = itemsResult.map((item) => ({
+      name: item.inventoryItem?.name || "Producto eliminado",
+      sku: item.inventoryItem?.sku || "N/A",
+      quantity: item.quantity,
+      unitPrice: formatCurrency(Number(item.unitPrice)),
+      totalPrice: formatCurrency(Number(item.totalPrice)),
+    }))
+
+    // Format data for export
+    const exportData = {
+      id: purchase.id,
+      clientName: client?.name || "Cliente no registrado",
+      clientEmail: client?.email || "",
+      clientPhone: client?.phone || "",
+      purchaseDate: formatExportDate(purchase.purchaseDate),
+      status: purchase.status,
+      paymentMethod: purchase.paymentMethod,
+      totalAmount: formatCurrency(Number(purchase.totalAmount)),
+      transactionReference: purchase.transactionReference || "",
+      isPaid: purchase.isPaid || false,
+      saleType: purchase.saleType || "DIRECT",
+      organizationName: organization?.name || "",
+      organizationType: organization?.type || "",
+      items: formattedItems,
+      // Add payment information if available
+      ...(paymentsInfo || {}),
+    }
+
+    if (download) {
+      // Create Excel workbook with multiple sheets
+      const workbook = XLSX.utils.book_new()
+
+      // Sale details sheet
+      const saleDetailsSheet = XLSX.utils.json_to_sheet([
+        {
+          "ID de Venta": exportData.id,
+          "Fecha de Compra": exportData.purchaseDate,
+          Estado: exportData.status,
+          "Método de Pago": exportData.paymentMethod,
+          "Monto Total": exportData.totalAmount,
+          Referencia: exportData.transactionReference,
+          Pagado: exportData.isPaid ? "Sí" : "No",
+          "Tipo de Venta":
+            exportData.saleType === "DIRECT"
+              ? "Directa"
+              : exportData.saleType === "PRESALE"
+                ? "Preventa"
+                : exportData.saleType,
+        },
+      ])
+      XLSX.utils.book_append_sheet(workbook, saleDetailsSheet, "Detalles de Venta")
+
+      // Client details sheet
+      const clientDetailsSheet = XLSX.utils.json_to_sheet([
+        {
+          "Nombre del Cliente": exportData.clientName,
+          Email: exportData.clientEmail,
+          Teléfono: exportData.clientPhone,
+          Organización: exportData.organizationName,
+          "Tipo de Organización": exportData.organizationType,
+        },
+      ])
+      XLSX.utils.book_append_sheet(workbook, clientDetailsSheet, "Cliente")
+
+      // Items sheet
+      const itemsSheet = XLSX.utils.json_to_sheet(
+        formattedItems.map((item) => ({
+          Producto: item.name,
+          SKU: item.sku,
+          Cantidad: item.quantity,
+          "Precio Unitario": item.unitPrice,
+          "Precio Total": item.totalPrice,
+        })),
+      )
+      XLSX.utils.book_append_sheet(workbook, itemsSheet, "Productos")
+
+      // Payments sheet (if available)
+      if (paymentsInfo) {
+        const paymentsSheet = XLSX.utils.json_to_sheet([
+          {
+            "Total de Pagos": paymentsInfo.paymentsCount,
+            "Pagos Pendientes": paymentsInfo.pendingPayments,
+            "Próximo Vencimiento": paymentsInfo.nextPaymentDueDate || "N/A",
+            "Monto Pendiente": paymentsInfo.pendingAmount || "0.00",
+            "Plan de Pagos": paymentsInfo.installmentPlan,
+          },
+        ])
+        XLSX.utils.book_append_sheet(workbook, paymentsSheet, "Pagos")
+      }
+
+      // Generate a unique filename
+      const filename = `venta_${purchase.id.substring(0, 8)}_${Date.now()}.xlsx`
+
+      // Make sure the exports directory exists
+      const exportsDir = join(process.cwd(), "public", "exports")
+      if (!existsSync(exportsDir)) {
+        await mkdir(exportsDir, { recursive: true })
+      }
+
+      const filepath = join(exportsDir, filename)
+
+      // Save the file
+      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" })
+      await writeFile(filepath, excelBuffer)
+
+      // Return the public URL path to the file
+      return {
+        success: true,
+        downloadUrl: `/exports/${filename}`,
+        filename: filename,
+        message: "Archivo Excel generado correctamente",
+      }
+    }
+
+    return { success: true, data: exportData }
+  } catch (error) {
+    console.error("Error exporting sale:", error)
+    return { success: false, error: "Error al exportar la venta" }
+  }
+}
 
 export async function getPurchaseDetails(id: string) {
   try {

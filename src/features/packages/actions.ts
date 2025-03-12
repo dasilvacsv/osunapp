@@ -9,9 +9,15 @@ import {
   bundleItems,
   inventoryItems,
   bundleCategories,
+  organizations,
 } from "@/db/schema"
-import { eq, sql, desc, and, count } from "drizzle-orm"
+import { eq, sql, desc, and, count, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+import { formatCurrency } from "@/lib/utils"
+import * as XLSX from "xlsx"
+import { writeFile } from "fs/promises"
+import { join } from "path"
+import { v4 as uuidv4 } from "uuid"
 
 // Tipos
 export type BundleType = "SCHOOL_PACKAGE" | "ORGANIZATION_PACKAGE" | "REGULAR"
@@ -70,6 +76,39 @@ export type BundleWithBeneficiaries = {
       type: string
     }
   }>
+}
+
+// Type for beneficiary data export
+export type BeneficiaryExportData = {
+  id: string
+  firstName: string
+  lastName: string
+  school: string
+  level: string
+  section: string
+  status: string
+  createdAt: string
+  bundleName: string
+  bundleType: string
+  bundlePrice: string
+  purchaseStatus?: string
+  purchaseDate?: string
+  paymentMethod?: string
+  totalAmount?: string
+  organizationName?: string
+  organizationType?: string
+}
+
+// Helper function to format dates for export
+const formatExportDate = (date: Date | string | null): string => {
+  if (!date) return "N/A"
+  try {
+    const dateObj = typeof date === "string" ? new Date(date) : date
+    return dateObj.toLocaleDateString()
+  } catch (error) {
+    console.error("Error formatting date:", error)
+    return "Invalid Date"
+  }
 }
 
 export async function addBundleBeneficiary(
@@ -204,6 +243,25 @@ export async function getPackagesWithStats() {
     return { success: true, data: result }
   } catch (error) {
     console.error("Error fetching packages:", error)
+    return { success: false, error: "Error al obtener los paquetes" }
+  }
+}
+
+export async function getBundles() {
+  try {
+    const bundlesResult = await db
+      .select({
+        id: bundles.id,
+        name: bundles.name,
+        type: bundles.type,
+        basePrice: bundles.basePrice,
+        status: bundles.status,
+      })
+      .from(bundles)
+
+    return { success: true, data: bundlesResult }
+  } catch (error) {
+    console.error("Error fetching bundles:", error)
     return { success: false, error: "Error al obtener los paquetes" }
   }
 }
@@ -485,6 +543,271 @@ export async function updateBeneficiary(
   } catch (error) {
     console.error("Error updating beneficiary:", error)
     return { success: false, error: "Error al actualizar beneficiario" }
+  }
+}
+
+// Function to export a single beneficiary to Excel
+export async function exportBeneficiaryToExcel(id: string, download = false) {
+  try {
+    // Get beneficiary details
+    const [beneficiary] = await db
+      .select({
+        id: bundleBeneficiaries.id,
+        firstName: bundleBeneficiaries.firstName,
+        lastName: bundleBeneficiaries.lastName,
+        school: bundleBeneficiaries.school,
+        level: bundleBeneficiaries.level,
+        section: bundleBeneficiaries.section,
+        status: bundleBeneficiaries.status,
+        bundleId: bundleBeneficiaries.bundleId,
+        createdAt: bundleBeneficiaries.createdAt,
+        organizationId: bundleBeneficiaries.organizationId,
+      })
+      .from(bundleBeneficiaries)
+      .where(eq(bundleBeneficiaries.id, id))
+
+    if (!beneficiary) {
+      return { success: false, error: "Beneficiario no encontrado" }
+    }
+
+    // Get bundle details
+    const [bundle] = await db
+      .select({
+        id: bundles.id,
+        name: bundles.name,
+        basePrice: bundles.basePrice,
+        type: bundles.type,
+      })
+      .from(bundles)
+      .where(eq(bundles.id, beneficiary.bundleId))
+
+    // Get purchase details
+    const [purchase] = await db
+      .select({
+        id: purchases.id,
+        status: purchases.status,
+        purchaseDate: purchases.purchaseDate,
+        paymentMethod: purchases.paymentMethod,
+        totalAmount: purchases.totalAmount,
+        clientId: purchases.clientId,
+      })
+      .from(purchases)
+      .where(eq(purchases.bundleId, beneficiary.bundleId))
+
+    // Get client details if purchase exists
+    let client = null
+    if (purchase) {
+      ;[client] = await db
+        .select({
+          id: clients.id,
+          name: clients.name,
+        })
+        .from(clients)
+        .where(eq(clients.id, purchase.clientId))
+    }
+
+    // Get organization details if organizationId exists
+    let organization = null
+    if (beneficiary.organizationId) {
+      ;[organization] = await db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          type: organizations.type,
+        })
+        .from(organizations)
+        .where(eq(organizations.id, beneficiary.organizationId))
+    }
+
+    // Format data for export
+    const exportData: BeneficiaryExportData = {
+      id: beneficiary.id,
+      firstName: beneficiary.firstName || "",
+      lastName: beneficiary.lastName || "",
+      school: beneficiary.school || "",
+      level: beneficiary.level || "",
+      section: beneficiary.section || "",
+      status: beneficiary.status || "",
+      createdAt: formatExportDate(beneficiary.createdAt),
+      bundleName: bundle?.name || "N/A",
+      bundleType: bundle?.type || "N/A",
+      bundlePrice: bundle ? formatCurrency(Number(bundle.basePrice)) : "N/A",
+      purchaseStatus: purchase?.status || "N/A",
+      purchaseDate: purchase ? formatExportDate(purchase.purchaseDate) : "N/A",
+      paymentMethod: purchase?.paymentMethod || "N/A",
+      totalAmount: purchase ? formatCurrency(Number(purchase.totalAmount)) : "N/A",
+      organizationName: organization?.name || "N/A",
+      organizationType: organization?.type || "N/A",
+    }
+
+    if (download) {
+      // Create Excel file
+      const worksheet = XLSX.utils.json_to_sheet([exportData])
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Beneficiario")
+
+      // Generate a unique filename
+      const filename = `beneficiario_${beneficiary.id.substring(0, 8)}_${Date.now()}.xlsx`
+      const filepath = join(process.cwd(), "public", "exports", filename)
+
+      // Save the file
+      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" })
+      await writeFile(filepath, excelBuffer)
+
+      // Return the download URL
+      return {
+        success: true,
+        downloadUrl: `/exports/${filename}`,
+        filename: filename,
+        message: "Archivo Excel generado correctamente",
+      }
+    }
+
+    return { success: true, data: exportData }
+  } catch (error) {
+    console.error("Error exporting beneficiary:", error)
+    return { success: false, error: "Error al exportar beneficiario" }
+  }
+}
+
+// Function to export multiple beneficiaries
+export async function exportBeneficiariesToExcel(download = false, ids?: string[]) {
+  try {
+    // Base query to get all beneficiaries or filter by ids
+    let query = db
+      .select({
+        id: bundleBeneficiaries.id,
+        firstName: bundleBeneficiaries.firstName,
+        lastName: bundleBeneficiaries.lastName,
+        school: bundleBeneficiaries.school,
+        level: bundleBeneficiaries.level,
+        section: bundleBeneficiaries.section,
+        status: bundleBeneficiaries.status,
+        bundleId: bundleBeneficiaries.bundleId,
+        createdAt: bundleBeneficiaries.createdAt,
+        organizationId: bundleBeneficiaries.organizationId,
+      })
+      .from(bundleBeneficiaries)
+
+    // Apply filter if ids are provided
+    if (ids && ids.length > 0) {
+      query = query.where(inArray(bundleBeneficiaries.id, ids))
+    }
+
+    const beneficiaries = await query
+
+    if (beneficiaries.length === 0) {
+      return { success: false, error: "No se encontraron beneficiarios" }
+    }
+
+    // Get all bundle ids
+    const bundleIds = [...new Set(beneficiaries.map((b) => b.bundleId))]
+
+    // Get all bundles in one query
+    const bundlesData = await db
+      .select({
+        id: bundles.id,
+        name: bundles.name,
+        basePrice: bundles.basePrice,
+        type: bundles.type,
+      })
+      .from(bundles)
+      .where(inArray(bundles.id, bundleIds))
+
+    // Create a map for quick lookup
+    const bundlesMap = new Map(bundlesData.map((b) => [b.id, b]))
+
+    // Get all organization ids
+    const orgIds = beneficiaries.map((b) => b.organizationId).filter((id): id is string => id !== null)
+
+    // Get all organizations in one query if there are any
+    let orgsMap = new Map()
+    if (orgIds.length > 0) {
+      const orgsData = await db
+        .select({
+          id: organizations.id,
+          name: organizations.name,
+          type: organizations.type,
+        })
+        .from(organizations)
+        .where(inArray(organizations.id, orgIds))
+
+      orgsMap = new Map(orgsData.map((o) => [o.id, o]))
+    }
+
+    // Get all purchases for these bundles
+    const purchasesData = await db
+      .select({
+        id: purchases.id,
+        bundleId: purchases.bundleId,
+        status: purchases.status,
+        purchaseDate: purchases.purchaseDate,
+        paymentMethod: purchases.paymentMethod,
+        totalAmount: purchases.totalAmount,
+      })
+      .from(purchases)
+      .where(inArray(purchases.bundleId, bundleIds))
+
+    // Create a map of bundle id to purchase
+    const purchasesMap = new Map()
+    for (const purchase of purchasesData) {
+      purchasesMap.set(purchase.bundleId, purchase)
+    }
+
+    // Format data for export
+    const exportData: BeneficiaryExportData[] = beneficiaries.map((beneficiary) => {
+      const bundle = bundlesMap.get(beneficiary.bundleId)
+      const purchase = purchasesMap.get(beneficiary.bundleId)
+      const organization = beneficiary.organizationId ? orgsMap.get(beneficiary.organizationId) : null
+
+      return {
+        id: beneficiary.id,
+        firstName: beneficiary.firstName || "",
+        lastName: beneficiary.lastName || "",
+        school: beneficiary.school || "",
+        level: beneficiary.level || "",
+        section: beneficiary.section || "",
+        status: beneficiary.status || "",
+        createdAt: formatExportDate(beneficiary.createdAt),
+        bundleName: bundle?.name || "N/A",
+        bundleType: bundle?.type || "N/A",
+        bundlePrice: bundle ? formatCurrency(Number(bundle.basePrice)) : "N/A",
+        purchaseStatus: purchase?.status || "N/A",
+        purchaseDate: purchase ? formatExportDate(purchase.purchaseDate) : "N/A",
+        paymentMethod: purchase?.paymentMethod || "N/A",
+        totalAmount: purchase ? formatCurrency(Number(purchase.totalAmount)) : "N/A",
+        organizationName: organization?.name || "N/A",
+        organizationType: organization?.type || "N/A",
+      }
+    })
+
+    if (download) {
+      // Create Excel file
+      const worksheet = XLSX.utils.json_to_sheet(exportData)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Beneficiarios")
+
+      // Generate a unique filename
+      const filename = `beneficiarios_${uuidv4().substring(0, 8)}_${Date.now()}.xlsx`
+      const filepath = join(process.cwd(), "public", "exports", filename)
+
+      // Save the file
+      const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" })
+      await writeFile(filepath, excelBuffer)
+
+      // Return the download URL
+      return {
+        success: true,
+        downloadUrl: `/exports/${filename}`,
+        filename: filename,
+        message: `Se exportaron ${exportData.length} beneficiarios correctamente`,
+      }
+    }
+
+    return { success: true, data: exportData }
+  } catch (error) {
+    console.error("Error exporting beneficiaries:", error)
+    return { success: false, error: "Error al exportar beneficiarios" }
   }
 }
 
