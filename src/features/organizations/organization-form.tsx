@@ -11,7 +11,7 @@ import { DialogFooter } from "@/components/ui/dialog"
 import { Loader2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { getCities } from "@/app/(app)/cities/actions"
+import { getCities } from "@/features/cities/actions"
 
 interface OrganizationFormData {
   name: string

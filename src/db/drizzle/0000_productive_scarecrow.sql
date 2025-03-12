@@ -17,18 +17,21 @@ CREATE TYPE "public"."sale_type" AS ENUM('DIRECT', 'PRESALE');--> statement-brea
 CREATE TYPE "public"."section_template_status" AS ENUM('COMPLETE', 'INCOMPLETE', 'PENDING');--> statement-breakpoint
 CREATE TYPE "public"."status" AS ENUM('ACTIVE', 'INACTIVE');--> statement-breakpoint
 CREATE TYPE "public"."transaction_type" AS ENUM('INITIAL', 'IN', 'OUT', 'ADJUSTMENT', 'RESERVATION', 'FULFILLMENT');--> statement-breakpoint
-CREATE TABLE "bundle_beneficiaries" (
+CREATE TABLE "beneficiarios" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"bundle_id" uuid NOT NULL,
-	"first_name" varchar(255) NOT NULL,
-	"last_name" varchar(255) NOT NULL,
-	"school" varchar(255) NOT NULL,
-	"level" varchar(50) NOT NULL,
-	"section" varchar(50) NOT NULL,
-	"status" "bundle_beneficiary_status" DEFAULT 'ACTIVE',
+	"name" varchar(255) NOT NULL,
+	"client_id" uuid NOT NULL,
+	"organization_id" uuid,
+	"grade" varchar(50),
+	"section" varchar(50),
+	"status" "status" DEFAULT 'ACTIVE',
+	"bundle_id" uuid,
+	"first_name" varchar(255),
+	"last_name" varchar(255),
+	"school" varchar(255),
+	"level" varchar(50),
 	"created_at" timestamp with time zone DEFAULT now(),
-	"updated_at" timestamp with time zone DEFAULT now(),
-	"organization_id" uuid
+	"updated_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE "bundle_categories" (
@@ -66,18 +69,6 @@ CREATE TABLE "bundles" (
 	"total_sales" integer DEFAULT 0 NOT NULL,
 	"last_sale_date" timestamp with time zone,
 	"total_revenue" numeric(10, 2) DEFAULT '0' NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "children" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"name" varchar(255) NOT NULL,
-	"client_id" uuid NOT NULL,
-	"organization_id" uuid,
-	"grade" varchar(50),
-	"section" varchar(50),
-	"status" "status" DEFAULT 'ACTIVE',
-	"created_at" timestamp with time zone DEFAULT now(),
-	"updated_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE "cities" (
@@ -118,11 +109,11 @@ CREATE TABLE "inventory_items" (
 	"expected_restock" timestamp with time zone,
 	"metadata" jsonb,
 	"status" "status" DEFAULT 'ACTIVE',
-	"created_at" timestamp with time zone DEFAULT now(),
-	"updated_at" timestamp with time zone DEFAULT now(),
 	"margin" numeric(5, 2) DEFAULT '0.30',
 	"projected_stock" integer,
 	"average_daily_sales" numeric(10, 2),
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now(),
 	CONSTRAINT "inventory_items_sku_unique" UNIQUE("sku")
 );
 --> statement-breakpoint
@@ -189,10 +180,10 @@ CREATE TABLE "organizations" (
 	"address" text,
 	"contact_info" jsonb,
 	"status" "status" DEFAULT 'ACTIVE',
-	"created_at" timestamp with time zone DEFAULT now(),
-	"updated_at" timestamp with time zone DEFAULT now(),
 	"nature" "organization_nature" DEFAULT 'PRIVATE',
-	"city_id" uuid
+	"city_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now(),
+	"updated_at" timestamp with time zone DEFAULT now()
 );
 --> statement-breakpoint
 CREATE TABLE "payment_methods" (
@@ -246,7 +237,7 @@ CREATE TABLE "purchase_items" (
 CREATE TABLE "purchases" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"client_id" uuid NOT NULL,
-	"child_id" uuid,
+	"beneficiario_id" uuid,
 	"bundle_id" uuid,
 	"organization_id" uuid,
 	"status" "purchase_status" DEFAULT 'PENDING' NOT NULL,
@@ -294,15 +285,14 @@ CREATE TABLE "users" (
 	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
-ALTER TABLE "bundle_beneficiaries" ADD CONSTRAINT "bundle_beneficiaries_bundle_id_bundles_id_fk" FOREIGN KEY ("bundle_id") REFERENCES "public"."bundles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "bundle_beneficiaries" ADD CONSTRAINT "bundle_beneficiaries_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "beneficiarios" ADD CONSTRAINT "beneficiarios_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "beneficiarios" ADD CONSTRAINT "beneficiarios_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "beneficiarios" ADD CONSTRAINT "beneficiarios_bundle_id_bundles_id_fk" FOREIGN KEY ("bundle_id") REFERENCES "public"."bundles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bundle_categories" ADD CONSTRAINT "bundle_categories_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bundle_items" ADD CONSTRAINT "bundle_items_bundle_id_bundles_id_fk" FOREIGN KEY ("bundle_id") REFERENCES "public"."bundles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bundle_items" ADD CONSTRAINT "bundle_items_item_id_inventory_items_id_fk" FOREIGN KEY ("item_id") REFERENCES "public"."inventory_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bundles" ADD CONSTRAINT "bundles_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bundles" ADD CONSTRAINT "bundles_category_id_bundle_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."bundle_categories"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "children" ADD CONSTRAINT "children_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "children" ADD CONSTRAINT "children_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "clients" ADD CONSTRAINT "clients_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inventory_purchase_items" ADD CONSTRAINT "inventory_purchase_items_purchase_id_inventory_purchases_id_fk" FOREIGN KEY ("purchase_id") REFERENCES "public"."inventory_purchases"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inventory_purchase_items" ADD CONSTRAINT "inventory_purchase_items_item_id_inventory_items_id_fk" FOREIGN KEY ("item_id") REFERENCES "public"."inventory_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -317,12 +307,8 @@ ALTER TABLE "payments" ADD CONSTRAINT "payments_purchase_id_purchases_id_fk" FOR
 ALTER TABLE "purchase_items" ADD CONSTRAINT "purchase_items_purchase_id_purchases_id_fk" FOREIGN KEY ("purchase_id") REFERENCES "public"."purchases"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "purchase_items" ADD CONSTRAINT "purchase_items_item_id_inventory_items_id_fk" FOREIGN KEY ("item_id") REFERENCES "public"."inventory_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "purchases" ADD CONSTRAINT "purchases_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "purchases" ADD CONSTRAINT "purchases_child_id_children_id_fk" FOREIGN KEY ("child_id") REFERENCES "public"."children"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "purchases" ADD CONSTRAINT "purchases_beneficiario_id_beneficiarios_id_fk" FOREIGN KEY ("beneficiario_id") REFERENCES "public"."beneficiarios"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "purchases" ADD CONSTRAINT "purchases_bundle_id_bundles_id_fk" FOREIGN KEY ("bundle_id") REFERENCES "public"."bundles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "purchases" ADD CONSTRAINT "purchases_organization_id_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sale_items" ADD CONSTRAINT "sale_items_sale_id_sales_id_fk" FOREIGN KEY ("sale_id") REFERENCES "public"."sales"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "sale_items" ADD CONSTRAINT "sale_items_item_id_inventory_items_id_fk" FOREIGN KEY ("item_id") REFERENCES "public"."inventory_items"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "cities_name_idx" ON "cities" USING btree ("name");--> statement-breakpoint
-CREATE UNIQUE INDEX "inventory_items_sku_idx" ON "inventory_items" USING btree ("sku");--> statement-breakpoint
-CREATE INDEX "inventory_items_status_idx" ON "inventory_items" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "inventory_items_stock_idx" ON "inventory_items" USING btree ("current_stock");
+ALTER TABLE "sale_items" ADD CONSTRAINT "sale_items_item_id_inventory_items_id_fk" FOREIGN KEY ("item_id") REFERENCES "public"."inventory_items"("id") ON DELETE no action ON UPDATE no action;

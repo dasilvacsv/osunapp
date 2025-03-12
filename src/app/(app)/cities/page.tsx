@@ -1,4 +1,5 @@
-import { getCities } from "./actions"
+
+import { getCities } from "@/features/cities/actions"
 import CityManagement from "@/features/cities/city-management"
 
 export const dynamic = "force-dynamic"

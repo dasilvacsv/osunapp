@@ -1,11 +1,11 @@
 {
-  "id": "e2e69852-b320-4384-ad66-d7ebf42d2d5d",
+  "id": "951e8917-304b-4e3a-a106-254ee6e1aff8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.bundle_beneficiaries": {
-      "name": "bundle_beneficiaries",
+    "public.beneficiarios": {
+      "name": "beneficiarios",
       "schema": "",
       "columns": {
         "id": {
@@ -15,49 +15,73 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "bundle_id": {
-          "name": "bundle_id",
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "first_name": {
-          "name": "first_name",
-          "type": "varchar(255)",
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "last_name": {
-          "name": "last_name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "school": {
-          "name": "school",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "level": {
-          "name": "level",
+        "grade": {
+          "name": "grade",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "section": {
           "name": "section",
           "type": "varchar(50)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "status": {
           "name": "status",
-          "type": "bundle_beneficiary_status",
+          "type": "status",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": false,
           "default": "'ACTIVE'"
+        },
+        "bundle_id": {
+          "name": "bundle_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "school": {
+          "name": "school",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "level": {
+          "name": "level",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -72,22 +96,16 @@
           "primaryKey": false,
           "notNull": false,
           "default": "now()"
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
       "foreignKeys": {
-        "bundle_beneficiaries_bundle_id_bundles_id_fk": {
-          "name": "bundle_beneficiaries_bundle_id_bundles_id_fk",
-          "tableFrom": "bundle_beneficiaries",
-          "tableTo": "bundles",
+        "beneficiarios_client_id_clients_id_fk": {
+          "name": "beneficiarios_client_id_clients_id_fk",
+          "tableFrom": "beneficiarios",
+          "tableTo": "clients",
           "columnsFrom": [
-            "bundle_id"
+            "client_id"
           ],
           "columnsTo": [
             "id"
@@ -95,12 +113,25 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "bundle_beneficiaries_organization_id_organizations_id_fk": {
-          "name": "bundle_beneficiaries_organization_id_organizations_id_fk",
-          "tableFrom": "bundle_beneficiaries",
+        "beneficiarios_organization_id_organizations_id_fk": {
+          "name": "beneficiarios_organization_id_organizations_id_fk",
+          "tableFrom": "beneficiarios",
           "tableTo": "organizations",
           "columnsFrom": [
             "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "beneficiarios_bundle_id_bundles_id_fk": {
+          "name": "beneficiarios_bundle_id_bundles_id_fk",
+          "tableFrom": "beneficiarios",
+          "tableTo": "bundles",
+          "columnsFrom": [
+            "bundle_id"
           ],
           "columnsTo": [
             "id"
@@ -406,105 +437,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.children": {
-      "name": "children",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "client_id": {
-          "name": "client_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "grade": {
-          "name": "grade",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "section": {
-          "name": "section",
-          "type": "varchar(50)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'ACTIVE'"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "children_client_id_clients_id_fk": {
-          "name": "children_client_id_clients_id_fk",
-          "tableFrom": "children",
-          "tableTo": "clients",
-          "columnsFrom": [
-            "client_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "children_organization_id_organizations_id_fk": {
-          "name": "children_organization_id_organizations_id_fk",
-          "tableFrom": "children",
-          "tableTo": "organizations",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.cities": {
       "name": "cities",
       "schema": "",
@@ -558,23 +490,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "cities_name_idx": {
-          "name": "cities_name_idx",
-          "columns": [
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -772,20 +688,6 @@
           "notNull": false,
           "default": "'ACTIVE'"
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
         "margin": {
           "name": "margin",
           "type": "numeric(5, 2)",
@@ -804,55 +706,23 @@
           "type": "numeric(10, 2)",
           "primaryKey": false,
           "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
         }
       },
-      "indexes": {
-        "inventory_items_sku_idx": {
-          "name": "inventory_items_sku_idx",
-          "columns": [
-            {
-              "expression": "sku",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "inventory_items_status_idx": {
-          "name": "inventory_items_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "inventory_items_stock_idx": {
-          "name": "inventory_items_stock_idx",
-          "columns": [
-            {
-              "expression": "current_stock",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
@@ -1342,20 +1212,6 @@
           "notNull": false,
           "default": "'ACTIVE'"
         },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "now()"
-        },
         "nature": {
           "name": "nature",
           "type": "organization_nature",
@@ -1369,6 +1225,20 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
         }
       },
       "indexes": {},
@@ -1753,8 +1623,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "child_id": {
-          "name": "child_id",
+        "beneficiario_id": {
+          "name": "beneficiario_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -1866,12 +1736,12 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "purchases_child_id_children_id_fk": {
-          "name": "purchases_child_id_children_id_fk",
+        "purchases_beneficiario_id_beneficiarios_id_fk": {
+          "name": "purchases_beneficiario_id_beneficiarios_id_fk",
           "tableFrom": "purchases",
-          "tableTo": "children",
+          "tableTo": "beneficiarios",
           "columnsFrom": [
-            "child_id"
+            "beneficiario_id"
           ],
           "columnsTo": [
             "id"

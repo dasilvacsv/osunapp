@@ -7,7 +7,7 @@ import { PlusIcon, MapPin } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CityForm } from "./city-form"
 import { CityTable } from "./city-table"
-import { type CityFormData, createCity, updateCity, deleteCity } from "@/app/(app)/cities/actions"
+import { type CityFormData, createCity, updateCity, deleteCity } from "@/features/cities/actions"
 
 interface City {
   id: string
