@@ -17,15 +17,43 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { OrganizationSelect, Organization } from "./organization-select"
-import { ClientSelect, Client } from "./client-select"
+import { OrganizationSelect } from "./organization-select"
+import { ClientSelect } from "./client-select"
 import { BeneficiarySelect, Beneficiary } from "./beneficiary-select"
+import { Organization } from "@/lib/types"
+
+interface InventoryItem {
+  id: string
+  name: string
+  currentStock: number
+  basePrice: string
+  status: "ACTIVE" | "INACTIVE" | null
+  metadata: Record<string, any> | null
+  sku?: string
+  description?: string | null
+}
+
+interface Bundle {
+  id: string
+  name: string
+  description: string | null
+  type: "SCHOOL_PACKAGE" | "ORGANIZATION_PACKAGE" | "REGULAR"
+  basePrice: string
+  status: "ACTIVE" | "INACTIVE" | null
+  items: Array<{
+    id: string
+    quantity: number
+    overridePrice?: string | null
+    item: InventoryItem
+  }>
+}
 
 interface OrganizationSelectFormProps {
-  onSelect?: (organization: Organization) => void
   className?: string
   initialOrganizations: Organization[]
-  initialClients: Client[]
+  initialClients: any[] // Using any for now since we don't have access to the Client type
+  initialBundles: Bundle[]
+  initialItems: InventoryItem[]
 }
 
 // Define form schema
@@ -40,17 +68,19 @@ const saleFormSchema = z.object({
 type SaleFormValues = z.infer<typeof saleFormSchema>
 
 export function OrganizationSelectForm({ 
-  onSelect, 
-  className, 
-  initialOrganizations,
-  initialClients 
+  className,
+  initialOrganizations, 
+  initialClients,
+  initialBundles,
+  initialItems 
 }: OrganizationSelectFormProps) {
-  console.log(initialClients);
+  console.log("bundles", initialBundles);
+  console.log("items", initialItems);
   
   const router = useRouter()
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>("")
   const [selectedClientId, setSelectedClientId] = useState<string>("")
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [selectedClient, setSelectedClient] = useState<any | null>(null)
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>("")
   
   // Initialize form
@@ -68,15 +98,9 @@ export function OrganizationSelectForm({
   const handleOrganizationSelect = (organizationId: string, organization: Organization) => {
     setSelectedOrganizationId(organizationId)
     form.setValue("organizationId", organizationId)
-    if (onSelect) {
-      onSelect(organization)
-    }
   }
 
-  const handleClientSelect = (clientId: string, client: Client) => {
-    console.log("Selected client with data:", client)
-    console.log("Client beneficiarios:", client.beneficiarios)
-    
+  const handleClientSelect = (clientId: string, client: any) => {
     setSelectedClientId(clientId)
     setSelectedClient(client)
     form.setValue("clientId", clientId)
@@ -115,113 +139,115 @@ export function OrganizationSelectForm({
   }
 
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle>Create New Sale</CardTitle>
-        <CardDescription>Select a client and organization for this sale</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Client Selection */}
-            <FormField
-              control={form.control}
-              name="clientId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Client</FormLabel>
-                  <FormControl>
-                    <ClientSelect
-                      selectedClientId={field.value}
-                      onClientSelect={handleClientSelect}
-                      initialClients={initialClients}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Organization Selection */}
-            <FormField
-              control={form.control}
-              name="organizationId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Organization</FormLabel>
-                  <FormControl>
-                    <OrganizationSelect
-                      selectedOrganizationId={field.value}
-                      onOrganizationSelect={handleOrganizationSelect}
-                      initialOrganizations={initialOrganizations}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Beneficiary Selection */}
-            <FormField
-              control={form.control}
-              name="beneficiaryId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Beneficiary</FormLabel>
-                  <FormControl>
-                    <BeneficiarySelect
-                      selectedBeneficiaryId={field.value}
-                      onBeneficiarySelect={handleBeneficiarySelect}
-                      clientId={selectedClientId}
-                      organizationId={selectedOrganizationId}
-                      beneficiaries={selectedClient?.beneficiarios || []}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Sale Details */}
-            <div className="space-y-4 pt-4">
+    <div className={className}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Create New Sale</CardTitle>
+          <CardDescription>Select a client and organization for this sale</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {/* Client Selection */}
               <FormField
                 control={form.control}
-                name="referenceNumber"
+                name="clientId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Reference Number</FormLabel>
+                    <FormLabel>Client</FormLabel>
                     <FormControl>
-                      <Input placeholder="Sale reference or PO number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Notes</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Any additional notes for this sale" 
-                        {...field} 
+                      <ClientSelect
+                        selectedClientId={field.value}
+                        onClientSelect={handleClientSelect}
+                        initialClients={initialClients}
                       />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
-            
-            <Button type="submit" className="w-full">
-              Create Sale
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+
+              {/* Organization Selection */}
+              <FormField
+                control={form.control}
+                name="organizationId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Organization</FormLabel>
+                    <FormControl>
+                      <OrganizationSelect
+                        selectedOrganizationId={field.value}
+                        onOrganizationSelect={handleOrganizationSelect}
+                        initialOrganizations={initialOrganizations}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Beneficiary Selection */}
+              <FormField
+                control={form.control}
+                name="beneficiaryId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Beneficiary</FormLabel>
+                    <FormControl>
+                      <BeneficiarySelect
+                        selectedBeneficiaryId={field.value}
+                        onBeneficiarySelect={handleBeneficiarySelect}
+                        clientId={selectedClientId}
+                        organizationId={selectedOrganizationId}
+                        beneficiaries={selectedClient?.beneficiarios || []}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Sale Details */}
+              <div className="space-y-4 pt-4">
+                <FormField
+                  control={form.control}
+                  name="referenceNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reference Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Sale reference or PO number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Any additional notes for this sale" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <Button type="submit" className="w-full">
+                Create Sale
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

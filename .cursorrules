@@ -1,5 +1,8 @@
 # Development Workflow Rules
 
+# IMPORTANT RULE
+DONT WASTE TIME ON TYPE ERRORS OR LINTER ERRORS THAT DONT AFFECT THE CORE FUNCITONALITY, I WILL HAVE TIME TO FIX THAT LATER
+
 ## 1. Types First
 1. Create types in `src/lib/types.d.ts` or feature-specific `types.ts`
 2. Follow existing patterns:
