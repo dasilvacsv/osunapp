@@ -58,12 +58,6 @@ export function BeneficiarySelect({
   organizationId,
   beneficiaries = []
 }: BeneficiarySelectProps) {
-  console.log("BeneficiarySelect props:", {
-    clientId,
-    organizationId,
-    beneficiariesLength: beneficiaries?.length,
-    beneficiaries
-  })
   
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)

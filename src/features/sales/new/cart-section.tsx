@@ -128,28 +128,35 @@ export const CartSection = memo(function CartSection({
   }
 
   const addBundleToCart = (bundle: Bundle) => {
-    const bundleItems = bundle.items.map(item => ({
-      itemId: item.item.id,
-      name: item.item.name,
-      quantity: item.quantity,
-      unitPrice: typeof item.overridePrice === "string" ? 
-        Number.parseFloat(item.overridePrice) : 
-        typeof item.item.basePrice === "string" ? 
-          Number.parseFloat(item.item.basePrice) : 
-          Number(item.item.basePrice),
-      stock: item.item.currentStock,
-      allowPreSale: item.item.status === "ACTIVE",
-    }))
+    const bundleItems = bundle.items.map(item => {
+      // Get the correct price - use override price if available, otherwise use base price
+      const unitPrice = item.overridePrice 
+        ? typeof item.overridePrice === 'string' 
+          ? Number.parseFloat(item.overridePrice) 
+          : Number(item.overridePrice)
+        : typeof item.item.basePrice === 'string' 
+          ? Number.parseFloat(item.item.basePrice) 
+          : Number(item.item.basePrice);
 
-    const newCart = [...cart, ...bundleItems]
-    setCart(newCart)
+      return {
+        itemId: item.item.id,
+        name: item.item.name,
+        quantity: item.quantity,
+        unitPrice,
+        stock: item.item.currentStock,
+        allowPreSale: item.item.status === "ACTIVE",
+      };
+    });
 
-    const bundleItemIds = new Set(bundle.items.map(item => item.item.id))
-    setAvailableItems(availableItems.filter(item => !bundleItemIds.has(item.id)))
-    setAvailableBundles(availableBundles.filter(b => b.id !== bundle.id))
+    const newCart = [...cart, ...bundleItems];
+    setCart(newCart);
 
-    onCartChange(newCart)
-    onTotalChange(calculateTotal(newCart))
+    const bundleItemIds = new Set(bundle.items.map(item => item.item.id));
+    setAvailableItems(availableItems.filter(item => !bundleItemIds.has(item.id)));
+    setAvailableBundles(availableBundles.filter(b => b.id !== bundle.id));
+
+    onCartChange(newCart);
+    onTotalChange(calculateTotal(newCart));
   }
 
   const clearCart = () => {

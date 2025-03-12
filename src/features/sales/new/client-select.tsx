@@ -111,14 +111,12 @@ export function ClientSelect({
     // Fetch complete client data when selected
     try {
       const result = await getClientDetail(value)
-      console.log("Client detail result:", result)
       if (result.data) {
         // Map children to beneficiarios
         const clientWithBeneficiarios = {
           ...result.data.client,
           beneficiarios: result.data.children || []
         }
-        console.log("Client with mapped beneficiarios:", clientWithBeneficiarios)
         onClientSelect(value, clientWithBeneficiarios)
       } else if (result.error) {
         toast({

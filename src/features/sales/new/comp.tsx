@@ -23,50 +23,23 @@ import { BeneficiarySelect, Beneficiary } from "./beneficiary-select"
 import { Organization } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { CartSection } from "./cart-section"
+import { type Bundle, type CartItem, type InventoryItem } from "./types"
+import { type Client } from "./client-select"
 
-
-interface InventoryItem {
-  id: string
-  name: string
-  currentStock: number
-  basePrice: string
-  status: "ACTIVE" | "INACTIVE" | null
-  metadata: Record<string, any> | null
-  sku?: string
-  description?: string | null
-}
-
-interface Bundle {
-  id: string
-  name: string
-  description: string | null
-  type: "SCHOOL_PACKAGE" | "ORGANIZATION_PACKAGE" | "REGULAR"
-  basePrice: string
-  status: "ACTIVE" | "INACTIVE" | null
-  items: Array<{
-    id: string
-    quantity: number
-    overridePrice?: string | null
-    item: InventoryItem
-  }>
-}
-
-interface CartItem {
-  itemId: string
-  name: string
-  quantity: number
-  unitPrice: number
-  overridePrice?: number
-  stock?: number
-  allowPreSale?: boolean
-}
-
-interface OrganizationSelectFormProps {
-  className?: string
-  initialOrganizations: Organization[]
-  initialClients: any[] // Using any for now since we don't have access to the Client type
-  initialBundles: Bundle[]
-  initialItems: InventoryItem[]
+export interface OrganizationSelectFormProps {
+  className?: string;
+  initialOrganizations: Organization[];
+  initialClients: Client[];
+  initialBundles: Bundle[];
+  initialItems: InventoryItem[];
+  onSubmit: (data: {
+    organizationId: string;
+    clientId: string;
+    beneficiarioId: string;
+    bundleId?: string;
+    cart: CartItem[];
+    totalAmount: number;
+  }) => Promise<void>;
 }
 
 // Define form schema
@@ -155,6 +128,32 @@ export function OrganizationSelectForm({
 
   const handleCartChange = (newCart: CartItem[]) => {
     form.setValue("cart", newCart)
+  }
+
+  const handleBundleSelect = (bundleId: string, bundle: Bundle) => {
+    form.setValue("bundleId", bundleId)
+    
+    // Add bundle items to cart with proper price handling
+    const bundleItems = bundle.items.map(item => {
+      const unitPrice = item.overridePrice 
+        ? typeof item.overridePrice === 'string' 
+          ? Number.parseFloat(item.overridePrice) 
+          : Number(item.overridePrice)
+        : typeof item.item.basePrice === 'string' 
+          ? Number.parseFloat(item.item.basePrice) 
+          : Number(item.item.basePrice)
+
+      return {
+        itemId: item.item.id,
+        name: item.item.name,
+        quantity: item.quantity,
+        unitPrice,
+        stock: item.item.currentStock,
+        allowPreSale: item.item.status === "ACTIVE",
+      }
+    })
+
+    form.setValue("cart", bundleItems)
   }
 
   const onSubmit = async (values: SaleFormValues) => {
