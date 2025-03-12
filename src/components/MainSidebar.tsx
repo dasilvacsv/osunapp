@@ -34,6 +34,12 @@ const navItems = [
     title: "Panel Principal",
     url: "/",
     icon: LayoutDashboard,
+    items: [
+      {
+        title: "Panel",
+        url: "/",
+      },
+    ],
   },
   {
     title: "Organizaciones",
@@ -92,23 +98,25 @@ const navItems = [
     title: "Ciudades",
     url: "/cities",
     icon: Building,
+    items: [
+      {
+        title: "Lista de Ciudades",
+        url: "/cities",
+      },
+    ],
   },
    {
     title: "Paquetes",
     url: "/packages",
     icon: Package2,
-  },
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
     items: [
       {
-        title: "Resumen",
-        url: "/",
+        title: "Administrar Paquetes",
+        url: "/packages",
       },
     ],
-  }
+  },
+
 ];
 
 export default function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
