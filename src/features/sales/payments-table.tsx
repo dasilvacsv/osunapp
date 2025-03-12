@@ -147,6 +147,7 @@ export function PaymentsTable({ payments, onPaymentUpdated }: PaymentsTableProps
               <TableHead>Fecha de Vencimiento</TableHead>
               <TableHead>Fecha de Pago</TableHead>
               <TableHead>Método</TableHead>
+              <TableHead>Referencia</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -166,6 +167,7 @@ export function PaymentsTable({ payments, onPaymentUpdated }: PaymentsTableProps
                   <TableCell>{payment.dueDate ? formatDate(payment.dueDate) : "-"}</TableCell>
                   <TableCell>{payment.paymentDate ? formatDate(payment.paymentDate) : "-"}</TableCell>
                   <TableCell>{payment.paymentMethod || "-"}</TableCell>
+                  <TableCell className="font-mono text-xs">{payment.transactionReference || "-"}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       {payment.status === "PENDING" && (

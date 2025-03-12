@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   ArrowLeft,
   Loader2,
@@ -19,7 +18,6 @@ import {
   AlertCircle,
   Tag,
   Receipt,
-  ChevronDown,
   MapPin,
   Phone,
   Mail,
@@ -209,54 +207,36 @@ export function SaleDetails({ sale }: { sale: any }) {
           </Button>
 
           <div className="flex items-center gap-4">
-            <Select value={currentStatus} onValueChange={handleStatusChange} disabled={isPending}>
-              <SelectTrigger
-                className={cn(
-                  "w-[280px] h-11 transition-all duration-300",
-                  "bg-white dark:bg-black/40 backdrop-blur-sm",
-                  "border border-gray-200 dark:border-gray-800",
-                  "hover:border-gray-300 dark:hover:border-gray-700",
-                  "rounded-xl shadow-sm",
-                  "text-gray-900 dark:text-gray-100",
-                  "flex items-center justify-between",
-                  "focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-600 focus:ring-opacity-50",
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  {currentStatus && (
-                    <>
-                      {(() => {
-                        const StatusIcon = statusIcons[currentStatus as keyof typeof statusIcons]
-                        return <StatusIcon className="h-4 w-4" />
-                      })()}
-                    </>
-                  )}
-                  <SelectValue placeholder="Seleccionar estado" className="text-gray-900 dark:text-gray-100" />
+            <div className="flex flex-wrap items-center gap-2">
+              {Object.entries(statusLabels).map(([value, label]) => {
+                const StatusIcon = statusIcons[value as keyof typeof statusIcons]
+                const isActive = currentStatus === value
+
+                return (
+                  <Button
+                    key={value}
+                    variant={isActive ? "default" : "outline"}
+                    size="sm"
+                    className={cn(
+                      "gap-2 transition-all duration-300",
+                      isActive && statusColors[value as keyof typeof statusColors].light,
+                      isActive && statusColors[value as keyof typeof statusColors].dark,
+                    )}
+                    onClick={() => handleStatusChange(value)}
+                    disabled={isPending || isActive}
+                  >
+                    <StatusIcon className="h-4 w-4" />
+                    {label}
+                  </Button>
+                )
+              })}
+              {isPending && (
+                <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-black/20 backdrop-blur-sm px-4 py-2 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm font-medium">Actualizando...</span>
                 </div>
-                <ChevronDown className="h-4 w-4 opacity-50" />
-              </SelectTrigger>
-              <SelectContent className="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg backdrop-blur-sm">
-                {Object.entries(statusLabels).map(([value, label]) => {
-                  const StatusIcon = statusIcons[value as keyof typeof statusIcons]
-                  return (
-                    <SelectItem
-                      key={value}
-                      value={value}
-                      className={cn(
-                        "flex items-center gap-3 py-3 px-4 cursor-pointer",
-                        "text-gray-900 dark:text-gray-100",
-                        "hover:bg-gray-50 dark:hover:bg-gray-900/50",
-                        "transition-colors duration-200",
-                        "rounded-lg mx-1 my-0.5",
-                      )}
-                    >
-                      <StatusIcon className="h-4 w-4" />
-                      {label}
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
+              )}
+            </div>
 
             {isPending && (
               <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-black/20 backdrop-blur-sm px-4 py-2 rounded-xl border border-gray-200/50 dark:border-gray-800/50">
@@ -397,6 +377,14 @@ export function SaleDetails({ sale }: { sale: any }) {
                           : sale.paymentMethod}
                   </Badge>
                 </div>
+                {sale.transactionReference && (
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Referencia</span>
+                    <Badge variant="outline" className="font-mono">
+                      {sale.transactionReference}
+                    </Badge>
+                  </div>
+                )}
 
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Estado de pago</span>

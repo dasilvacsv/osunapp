@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 
 interface PaymentPlanDialogProps {
   open: boolean
@@ -32,6 +33,7 @@ export function PaymentPlanDialog({ open, onOpenChange, purchaseId, totalAmount,
   const [installmentFrequency, setInstallmentFrequency] = useState<"WEEKLY" | "BIWEEKLY" | "MONTHLY">("MONTHLY")
   const [startDate, setStartDate] = useState<Date>(new Date())
   const [installmentAmount, setInstallmentAmount] = useState(totalAmount / 3)
+  const [transactionReference, setTransactionReference] = useState("")
 
   // Calcular el monto de las cuotas cuando cambian los valores
   const calculateInstallmentAmount = (total: number, down: number, count: number) => {
@@ -82,6 +84,7 @@ export function PaymentPlanDialog({ open, onOpenChange, purchaseId, totalAmount,
         installmentCount,
         installmentFrequency,
         startDate,
+        transactionReference,
       })
 
       if (result.success) {
@@ -192,6 +195,25 @@ export function PaymentPlanDialog({ open, onOpenChange, purchaseId, totalAmount,
                 </PopoverContent>
               </Popover>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="transactionReference" className="flex items-center gap-2">
+                <span>Referencia de transacción</span>
+                <Badge variant="outline" className="font-normal">
+                  Importante
+                </Badge>
+              </Label>
+              <Input
+                id="transactionReference"
+                value={transactionReference}
+                onChange={(e) => setTransactionReference(e.target.value)}
+                placeholder="Número de referencia, recibo, etc."
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Este número aparecerá en los detalles de la venta y en la tabla de pagos
+              </p>
+            </div>
           </div>
 
           <div className="bg-muted/50 p-4 rounded-lg border border-border space-y-2">
@@ -219,3 +241,4 @@ export function PaymentPlanDialog({ open, onOpenChange, purchaseId, totalAmount,
     </Dialog>
   )
 }
+
