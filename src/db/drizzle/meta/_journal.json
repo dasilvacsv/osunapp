@@ -5,85 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1736724619730,
-      "tag": "0000_daffy_reavers",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1736784964160,
-      "tag": "0001_white_sauron",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1736785507063,
-      "tag": "0002_young_captain_cross",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1736787602573,
-      "tag": "0003_remarkable_network",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1736891563320,
-      "tag": "0004_condemned_blue_marvel",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1739574546768,
-      "tag": "0005_chemical_argent",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1739673960232,
-      "tag": "0006_remarkable_romulus",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1739982495122,
-      "tag": "0007_absent_vulture",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1741262818309,
-      "tag": "0008_groovy_fat_cobra",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1741498065745,
-      "tag": "0009_brainy_quentin_quire",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1741538340808,
-      "tag": "0010_left_inhumans",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1741541903434,
-      "tag": "0011_dapper_rhodey",
+      "when": 1741788847794,
+      "tag": "0000_third_venus",
       "breakpoints": true
     }
   ]

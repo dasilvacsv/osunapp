@@ -453,6 +453,59 @@ export const salesRelations = relations(sales, ({ many }) => ({
   items: many(saleItems),
 }))
 
+export const inventoryTransactionsRelations = relations(inventoryTransactions, ({ one }) => ({
+  item: one(inventoryItems, {
+    fields: [inventoryTransactions.itemId],
+    references: [inventoryItems.id],
+  }),
+}))
+
+export const bundleItemsRelations = relations(bundleItems, ({ one }) => ({
+  bundle: one(bundles, {
+    fields: [bundleItems.bundleId],
+    references: [bundles.id],
+  }),
+  item: one(inventoryItems, {
+    fields: [bundleItems.itemId],
+    references: [inventoryItems.id],
+  }),
+}))
+
+export const bundlesRelations = relations(bundles, ({ many }) => ({
+  items: many(bundleItems),
+}))
+
+export const purchaseItemsRelations = relations(purchaseItems, ({ one }) => ({
+  purchase: one(purchases, {
+    fields: [purchaseItems.purchaseId],
+    references: [purchases.id],
+  }),
+  item: one(inventoryItems, {
+    fields: [purchaseItems.itemId],
+    references: [inventoryItems.id],
+  }),
+}))
+
+export const purchasesRelations = relations(purchases, ({ many, one }) => ({
+  items: many(purchaseItems),
+  client: one(clients, {
+    fields: [purchases.clientId],
+    references: [clients.id],
+  }),
+  child: one(children, {
+    fields: [purchases.childId],
+    references: [children.id],
+  }),
+  bundle: one(bundles, {
+    fields: [purchases.bundleId],
+    references: [bundles.id],
+  }),
+  organization: one(organizations, {
+    fields: [purchases.organizationId],
+    references: [organizations.id],
+  }),
+}))
+
 export const saleItemsRelations = relations(saleItems, ({ one }) => ({
   sale: one(sales, {
     fields: [saleItems.saleId],
