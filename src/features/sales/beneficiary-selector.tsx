@@ -2,32 +2,44 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Check, ChevronsUpDown, Plus, User } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { User, Plus } from "lucide-react"
 import { getBeneficiariesByClient } from "@/app/(app)/clientes/client"
-import { Beneficiary } from "@/lib/types"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Beneficiary, Organization } from "@/lib/types"
+import { BeneficiaryDialog } from "./beneficiary-dialog"
+import { PopoverSelect } from "@/components/popover-select"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 interface BeneficiarySelectorProps {
   clientId: string | null
   onBeneficiarySelect: (beneficiary: Beneficiary | null) => void
   selectedBeneficiary: Beneficiary | null
-  onCreateBeneficiary?: () => void
+  organizations: Organization[]
+  disabled?: boolean
+  placeholder?: string
 }
 
 export function BeneficiarySelector({
   clientId,
   onBeneficiarySelect,
   selectedBeneficiary,
-  onCreateBeneficiary,
+  organizations,
+  disabled = false,
+  placeholder = "Seleccionar beneficiario"
 }: BeneficiarySelectorProps) {
-  const [open, setOpen] = useState(false)
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([])
   const [loading, setLoading] = useState(false)
+  const [showAddDialog, setShowAddDialog] = useState(false)
+  
+  // Convert beneficiaries to the format expected by PopoverSelect
+  const beneficiaryOptions = beneficiaries.map(beneficiary => ({
+    value: beneficiary.id,
+    label: getBeneficiaryDisplayName(beneficiary),
+    // Additional data not used by PopoverSelect but useful for us
+    data: beneficiary 
+  }));
 
+  // Load beneficiaries when clientId changes
   useEffect(() => {
     async function loadBeneficiaries() {
       if (!clientId) {
@@ -52,121 +64,84 @@ export function BeneficiarySelector({
     }
 
     loadBeneficiaries()
+    
+    // Clear selection if client changes
     if (selectedBeneficiary && clientId !== selectedBeneficiary.clientId) {
       onBeneficiarySelect(null)
     }
   }, [clientId, selectedBeneficiary, onBeneficiarySelect])
 
-  return (
-    <div className="flex gap-2 items-center">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="justify-between w-full"
-            disabled={!clientId}
-          >
-            {selectedBeneficiary && selectedBeneficiary.name ? (
-              <div className="flex items-center gap-2 overflow-hidden">
-                <User className="h-4 w-4 shrink-0" />
-                <span className="truncate">{selectedBeneficiary.name}</span>
-                {selectedBeneficiary.grade && selectedBeneficiary.section && (
-                  <Badge variant="outline" className="ml-2 text-xs">
-                    {selectedBeneficiary.grade} - {selectedBeneficiary.section}
-                  </Badge>
-                )}
-              </div>
-            ) : (
-              <span className="text-muted-foreground flex items-center gap-2">
-                <User className="h-4 w-4" />
-                {clientId ? "Seleccionar beneficiario" : "Seleccione un cliente primero"}
-              </span>
-            )}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="p-0 w-[300px]">
-          <Command>
-            <CommandInput placeholder="Buscar beneficiario..." />
-            <CommandList>
-              {loading ? (
-                <div className="p-2 space-y-2">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                </div>
-              ) : (
-                <>
-                  <CommandEmpty>
-                    {clientId ? (
-                      <div className="flex flex-col items-center justify-center py-3 text-center">
-                        <p className="text-sm text-muted-foreground">No se encontraron beneficiarios</p>
-                        {onCreateBeneficiary && (
-                          <Button variant="link" size="sm" onClick={onCreateBeneficiary} className="mt-2">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Crear nuevo beneficiario
-                          </Button>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="py-3 text-center text-sm text-muted-foreground">
-                        Seleccione un cliente primero
-                      </p>
-                    )}
-                  </CommandEmpty>
-                  
-                  {Array.isArray(beneficiaries) && beneficiaries.length > 0 && (
-                    <CommandGroup heading="Beneficiarios">
-                      {beneficiaries.map((beneficiary) => (
-                        <CommandItem
-                          key={beneficiary.id}
-                          value={beneficiary.id}
-                          data-value={beneficiary.id}
-                          onSelect={() => {
-                            onBeneficiarySelect(beneficiary)
-                            setOpen(false)
-                          }}
-                        >
-                          <div className="flex items-center justify-between w-full">
-                            <div className="flex items-center">
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedBeneficiary?.id === beneficiary.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              <span>{beneficiary.name || `${beneficiary.firstName} ${beneficiary.lastName}`}</span>
-                            </div>
-                            {beneficiary.grade && beneficiary.section && (
-                              <Badge variant="outline" className="ml-2 text-xs">
-                                {beneficiary.grade} - {beneficiary.section}
-                              </Badge>
-                            )}
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  )}
-                </>
-              )}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+  // Handle creating a new beneficiary
+  const handleAddBeneficiary = () => {
+    setShowAddDialog(true)
+  }
 
-      {onCreateBeneficiary && clientId && (
+  // Handle successful beneficiary creation
+  const handleAddSuccess = (newBeneficiary: Beneficiary) => {
+    setBeneficiaries((prev) => [...prev, newBeneficiary])
+    onBeneficiarySelect(newBeneficiary)
+  }
+
+  // Format beneficiary display name
+  function getBeneficiaryDisplayName(beneficiary: Beneficiary) {
+    if (beneficiary.name) return beneficiary.name;
+    return `${beneficiary.firstName || ''} ${beneficiary.lastName || ''}`.trim();
+  }
+
+  // Handle selecting a beneficiary
+  const handleSelectBeneficiary = (value: string) => {
+    const selected = beneficiaries.find(b => b.id === value);
+    if (selected) {
+      onBeneficiarySelect(selected);
+    }
+  };
+
+  // Create custom trigger content to display the badge
+  const customTriggerContent = selectedBeneficiary ? (
+    <>
+      <User className="h-4 w-4 shrink-0" />
+      <span className="truncate ml-2">{getBeneficiaryDisplayName(selectedBeneficiary)}</span>
+      {selectedBeneficiary.grade && selectedBeneficiary.section && (
+        <Badge variant="outline" className="ml-2 text-xs">
+          {selectedBeneficiary.grade} - {selectedBeneficiary.section}
+        </Badge>
+      )}
+    </>
+  ) : null;
+
+  return (
+    <div className={cn("flex gap-2 items-center", loading && "opacity-60")}>
+      <PopoverSelect
+        options={beneficiaryOptions}
+        value={selectedBeneficiary?.id}
+        onValueChange={handleSelectBeneficiary}
+        onAddItem={clientId ? handleAddBeneficiary : undefined}
+        placeholder={clientId ? placeholder : "Seleccione un cliente primero"}
+        emptyMessage={clientId ? "No se encontraron beneficiarios" : "Seleccione un cliente primero"}
+        disabled={!clientId || disabled || loading}
+        triggerContent={customTriggerContent}
+      />
+
+      {clientId && (
         <Button
           variant="outline"
           size="icon"
-          onClick={onCreateBeneficiary}
+          onClick={handleAddBeneficiary}
           className="shrink-0"
           title="Crear nuevo beneficiario"
+          disabled={disabled || loading}
         >
           <Plus className="h-4 w-4" />
         </Button>
       )}
+
+      <BeneficiaryDialog
+        isOpen={showAddDialog}
+        onClose={() => setShowAddDialog(false)}
+        onSuccess={handleAddSuccess}
+        clientId={clientId}
+        organizations={organizations}
+      />
     </div>
   )
 } 

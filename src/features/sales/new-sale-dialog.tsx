@@ -19,7 +19,8 @@ import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
-import { Beneficiary } from "@/lib/types"
+import { Beneficiary, Organization } from "@/lib/types"
+import { getOrganizations } from "@/app/(app)/clientes/client"
 
 interface NewSaleDialogProps {
   open: boolean
@@ -74,6 +75,9 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
   const [paymentMethod, setPaymentMethod] = useState("CASH")
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(null)
   const [transactionReference, setTransactionReference] = useState("")
+  
+  // State for organizations
+  const [organizations, setOrganizations] = useState<Organization[]>([])
 
   // Beneficiary fields for bundle sales
   const [beneficiaryFirstName, setBeneficiaryFirstName] = useState("")
@@ -102,43 +106,47 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
     }
   }, [searchQuery])
 
+  useEffect(() => {
+    // Fetch organizations when component mounts
+    const fetchOrganizations = async () => {
+      try {
+        const result = await getOrganizations();
+        if (result && result.data) {
+          // Type cast to Organization[] to fix TypeScript error
+          setOrganizations(result.data as unknown as Organization[]);
+        }
+      } catch (error) {
+        console.error("Error fetching organizations:", error);
+      }
+    };
+    
+    fetchOrganizations();
+  }, []);
+
   const searchProducts = async () => {
     if (searchQuery.length < 2) return
 
     setSearchLoading(true)
     try {
-      // Buscar productos individuales
-      const itemsResult = await searchInventoryItems(searchQuery)
-      if (itemsResult.success) {
-        setSearchResults(itemsResult.data || [])
-      } else {
-        setSearchResults([])
+      const [inventoryResults, bundleResults] = await Promise.all([
+        searchInventoryItems(searchQuery),
+        searchBundles(searchQuery)
+      ])
+
+      // Add type assertions to fix TS errors
+      if (inventoryResults && inventoryResults.data) {
+        setSearchResults(inventoryResults.data as unknown as InventoryItem[])
       }
 
-      // Buscar paquetes
-      const bundleResult = await searchBundles(searchQuery)
-      if (bundleResult.success) {
-        if (bundleResult.data) {
-          // Asegurarse de que los datos de bundle tengan el formato correcto
-          const formattedBundles = bundleResult.data.map((bundle: any) => {
-            // Asegurarse de que items sea un array
-            const items = Array.isArray(bundle.items) ? bundle.items : []
-            return {
-              ...bundle,
-              items: items.filter((item: any) => item && item.item), // Filtrar items inválidos
-            }
-          })
-          setbundleResults(formattedBundles)
-        } else {
-          setbundleResults([])
-        }
+      if (bundleResults && bundleResults.data) {
+        setbundleResults(bundleResults.data as unknown as Bundle[])
       }
     } catch (error) {
       console.error("Error searching products:", error)
       toast({
-        title: "Error",
-        description: "No se pudieron cargar los resultados de búsqueda",
         variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar los productos",
       })
     } finally {
       setSearchLoading(false)
@@ -327,26 +335,24 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
 
       const result = await createPurchase(purchaseData)
 
-      if (result.success) {
-        toast({
-          title: "Venta creada",
-          description: `La venta se ha registrado correctamente`,
-          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
-        })
-
-        // Llamar al callback de éxito si existe
-        if (onSuccess && result.data) {
-          onSuccess(result.data)
-        }
-
-        onOpenChange(false)
-
-        // Redirigir a la página de detalles de la venta
-        if (result.data?.id) {
-          router.push(`/sales/${result.data.id}`)
+      // Add type assertions to fix TS errors
+      if (result && result.success) {
+        if (result.data) {
+          toast({
+            title: "¡Éxito!",
+            description: `Venta ${result.data.id} creada correctamente`,
+          })
+          
+          onSuccess?.(result.data)
+          resetForm()
+          onOpenChange(false)
         }
       } else {
-        throw new Error(result.error)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result?.error || "No se pudo crear la venta",
+        })
       }
     } catch (error) {
       toast({
@@ -384,17 +390,6 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
       resetForm()
     }
   }, [open])
-
-  // Handler for creating a new beneficiary - this would open a modal or redirect
-  const handleCreateBeneficiary = () => {
-    if (!selectedClient) return
-    
-    // Here you would typically open a modal to create a beneficiary
-    toast({
-      title: "Crear beneficiario",
-      description: "Para crear un nuevo beneficiario, vaya a la sección de clientes",
-    })
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -451,7 +446,7 @@ export function NewSaleDialog({ open, onOpenChange, onSuccess }: NewSaleDialogPr
                 clientId={selectedClient.id}
                 onBeneficiarySelect={setSelectedBeneficiary}
                 selectedBeneficiary={selectedBeneficiary}
-                onCreateBeneficiary={handleCreateBeneficiary}
+                organizations={organizations}
               />
               {beneficiaryError && !selectedBeneficiary && (
                 <p className="text-sm text-destructive flex items-center gap-1 mt-1">
