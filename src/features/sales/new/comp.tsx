@@ -18,32 +18,41 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { OrganizationSelect, Organization } from "./organization-select"
+import { ClientSelect, Client } from "./client-select"
 
 interface OrganizationSelectFormProps {
   onSelect?: (organization: Organization) => void
   className?: string
   initialOrganizations: Organization[]
+  initialClients: Client[]
 }
 
 // Define form schema
 const saleFormSchema = z.object({
   organizationId: z.string().min(1, "Please select an organization"),
+  clientId: z.string().min(1, "Please select a client"),
   notes: z.string().optional(),
   referenceNumber: z.string().optional(),
 })
 
 type SaleFormValues = z.infer<typeof saleFormSchema>
 
-export function OrganizationSelectForm({ onSelect, className, initialOrganizations }: OrganizationSelectFormProps) {
+export function OrganizationSelectForm({ 
+  onSelect, 
+  className, 
+  initialOrganizations,
+  initialClients 
+}: OrganizationSelectFormProps) {
   const router = useRouter()
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>("")
-  const [formStep, setFormStep] = useState<"select-organization" | "create-sale">("select-organization")
+  const [selectedClientId, setSelectedClientId] = useState<string>("")
   
   // Initialize form
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
     defaultValues: {
       organizationId: "",
+      clientId: "",
       notes: "",
       referenceNumber: "",
     },
@@ -57,6 +66,23 @@ export function OrganizationSelectForm({ onSelect, className, initialOrganizatio
     }
   }
 
+  const handleClientSelect = (clientId: string, client: Client) => {
+    setSelectedClientId(clientId)
+    form.setValue("clientId", clientId)
+    
+    // If client has an organization, auto-select it
+    if (client.organizationId) {
+      const clientOrg = initialOrganizations.find(org => org.id === client.organizationId)
+      if (clientOrg) {
+        handleOrganizationSelect(clientOrg.id, clientOrg)
+      }
+    } else {
+      // Reset organization if client has none
+      setSelectedOrganizationId("")
+      form.setValue("organizationId", "")
+    }
+  }
+
   const onSubmit = async (values: SaleFormValues) => {
     console.log("Form submitted with values:", values)
     
@@ -65,85 +91,94 @@ export function OrganizationSelectForm({ onSelect, className, initialOrganizatio
     // 2. Navigate to the next step or sale details page
     
     // For now, just log the values and pretend we navigated
-    alert(`Sale created for organization: ${values.organizationId}`)
+    alert(`Sale created for organization: ${values.organizationId} and client: ${values.clientId}`)
     router.push("/sales")
   }
 
-  // Continue to sale form after selecting an organization
-  const continueToSaleForm = () => {
-    if (selectedOrganizationId) {
-      setFormStep("create-sale")
-    }
-  }
-
-  // Render different content based on the current step
-  if (formStep === "select-organization") {
-    return (
-      <OrganizationSelect
-        initialOrganizations={initialOrganizations}
-        selectedOrganizationId={selectedOrganizationId}
-        onOrganizationSelect={handleOrganizationSelect}
-        onContinue={continueToSaleForm}
-        className={className}
-      />
-    )
-  }
-  
-  // Create sale form (shown after organization selection)
   return (
     <Card className={className}>
       <CardHeader>
         <CardTitle>Create New Sale</CardTitle>
-        <CardDescription>
-          For {initialOrganizations.find(org => org.id === selectedOrganizationId)?.name}
-        </CardDescription>
+        <CardDescription>Select a client and organization for this sale</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Client Selection */}
             <FormField
               control={form.control}
-              name="referenceNumber"
+              name="clientId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Reference Number</FormLabel>
+                  <FormLabel>Client</FormLabel>
                   <FormControl>
-                    <Input placeholder="Sale reference or PO number" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notes</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Any additional notes for this sale" 
-                      {...field} 
+                    <ClientSelect
+                      selectedClientId={field.value}
+                      onClientSelect={handleClientSelect}
+                      initialClients={initialClients}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            
-            <div className="flex gap-4 pt-4">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setFormStep("select-organization")}
-              >
-                Back
-              </Button>
-              <Button type="submit" className="flex-1">
-                Create Sale
-              </Button>
+
+            {/* Organization Selection */}
+            <FormField
+              control={form.control}
+              name="organizationId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Organization</FormLabel>
+                  <FormControl>
+                    <OrganizationSelect
+                      selectedOrganizationId={field.value}
+                      onOrganizationSelect={handleOrganizationSelect}
+                      initialOrganizations={initialOrganizations}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Sale Details */}
+            <div className="space-y-4 pt-4">
+              <FormField
+                control={form.control}
+                name="referenceNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reference Number</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Sale reference or PO number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Notes</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Any additional notes for this sale" 
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
+            
+            <Button type="submit" className="w-full">
+              Create Sale
+            </Button>
           </form>
         </Form>
       </CardContent>

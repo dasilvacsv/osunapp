@@ -259,5 +259,48 @@ export async function getClientDetail(clientId: string): Promise<{data?: Detaile
   }
 }
 
+export async function getClient(id: string) {
+  try {
+    const data = await db
+      .select()
+      .from(clients)
+      .where(eq(clients.id, id))
+      .limit(1);
+    
+    return { data: data[0] };
+  } catch (error) {
+    return { error: "Failed to fetch client" };
+  }
+}
+
+export async function getClientsByOrganization(organizationId: string) {
+  try {
+    const data = await db
+      .select()
+      .from(clients)
+      .where(
+        eq(clients.organizationId, organizationId)
+      );
+    
+    return { data };
+  } catch (error) {
+    return { error: "Failed to fetch clients" };
+  }
+}
+
+export async function getOrganization(id: string) {
+  try {
+    const data = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, id))
+      .limit(1);
+    
+    return { data: data[0] };
+  } catch (error) {
+    return { error: "Failed to fetch organization" };
+  }
+}
+
 
 
