@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { OrganizationForm } from "@/features/organizations/organization-form"
 import { createOrganization } from "@/app/(app)/organizations/organization"
 import { PlusIcon } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export interface Organization {
   id: string
@@ -39,6 +40,7 @@ export function OrganizationSelect({
   onContinue,
   className
 }: OrganizationSelectProps) {
+  const { toast } = useToast()
   const [organizations, setOrganizations] = useState<Organization[]>(initialOrganizations)
   const [loading, setLoading] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -50,26 +52,52 @@ export function OrganizationSelect({
       const result = await getOrganizations()
       if (result.data) {
         setOrganizations(result.data)
+      } else if (result.error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.error
+        })
       }
     } catch (error) {
       console.error("Failed to load organizations:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load organizations"
+      })
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [toast])
 
   // Handle organization creation
   const handleCreateOrganization = async (data: any) => {
     try {
       const result = await createOrganization(data)
-      if (result.data) {
+      if (result.success && result.data) {
         await refreshOrganizations()
         // Select the newly created organization
         onOrganizationSelect(result.data.id, result.data)
         setShowCreateDialog(false)
+        toast({
+          title: "Success",
+          description: result.success
+        })
+      } else if (result.error) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.error
+        })
       }
     } catch (error) {
       console.error("Failed to create organization:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create organization"
+      })
     }
   }
 
