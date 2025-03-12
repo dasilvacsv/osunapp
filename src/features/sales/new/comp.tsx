@@ -21,11 +21,8 @@ import { OrganizationSelect } from "./organization-select"
 import { ClientSelect } from "./client-select"
 import { BeneficiarySelect, Beneficiary } from "./beneficiary-select"
 import { Organization } from "@/lib/types"
-import { ProductSelect } from "./product-select"
-import { BundleSelect } from "./bundle-select"
-import { formatCurrency } from "@/lib/utils"
-import { Trash } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { CartSection } from "./cart-section"
 
 
 interface InventoryItem {
@@ -101,20 +98,14 @@ export function OrganizationSelectForm({
   initialBundles,
   initialItems 
 }: OrganizationSelectFormProps) {
-  console.log("bundles", initialBundles);
-  console.log("items", initialItems);
   const { toast } = useToast()
-
-  
   const router = useRouter()
+  
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>("")
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [selectedClient, setSelectedClient] = useState<any | null>(null)
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>("")
-  const [selectedProductId, setSelectedProductId] = useState<string>("")
-  const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null)
-  const [selectedBundleId, setSelectedBundleId] = useState<string>("")
-  const [selectedBundle, setSelectedBundle] = useState<Bundle | null>(null)
+  const [cartTotal, setCartTotal] = useState(0)
   
   // Initialize form
   const form = useForm<SaleFormValues>({
@@ -130,93 +121,6 @@ export function OrganizationSelectForm({
       cart: []
     },
   })
-
-  // Cart state
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [availableItems, setAvailableItems] = useState<InventoryItem[]>(initialItems)
-  const [availableBundles, setAvailableBundles] = useState<Bundle[]>(initialBundles)
-
-  // Cart functions
-  const addToCart = (item: InventoryItem) => {
-    const existingItem = cart.find((cartItem) => cartItem.itemId === item.id)
-
-    if (existingItem) {
-      setCart(
-        cart.map((cartItem) =>
-          cartItem.itemId === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem,
-        ),
-      )
-    } else {
-      setCart([
-        ...cart,
-        {
-          itemId: item.id,
-          name: item.name,
-          quantity: 1,
-          unitPrice: typeof item.basePrice === "string" ? Number.parseFloat(item.basePrice) : Number(item.basePrice),
-          stock: item.currentStock,
-          allowPreSale: item.status === "ACTIVE",
-        },
-      ])
-    }
-
-    // Remove item from available items
-    setAvailableItems(availableItems.filter(i => i.id !== item.id))
-  }
-
-  const removeFromCart = (itemId: string) => {
-    // Get the item being removed
-    const removedItem = cart.find(item => item.itemId === itemId)
-    
-    // Remove from cart
-    setCart(cart.filter((item) => item.itemId !== itemId))
-
-    // Add back to available items if it was a product
-    if (removedItem) {
-      const originalItem = initialItems.find(item => item.id === itemId)
-      if (originalItem) {
-        setAvailableItems([...availableItems, originalItem])
-      }
-    }
-  }
-
-  const updateQuantity = (itemId: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(itemId)
-      return
-    }
-
-    setCart(cart.map((item) => (item.itemId === itemId ? { ...item, quantity } : item)))
-  }
-
-  const addBundleToCart = (bundle: Bundle) => {
-    // Add all bundle items to cart
-    const bundleItems = bundle.items.map(item => ({
-      itemId: item.item.id,
-      name: item.item.name,
-      quantity: item.quantity,
-      unitPrice: typeof item.overridePrice === "string" ? 
-        Number.parseFloat(item.overridePrice) : 
-        typeof item.item.basePrice === "string" ? 
-          Number.parseFloat(item.item.basePrice) : 
-          Number(item.item.basePrice),
-      stock: item.item.currentStock,
-      allowPreSale: item.item.status === "ACTIVE",
-    }))
-
-    setCart([...cart, ...bundleItems])
-
-    // Remove bundle items from available items
-    const bundleItemIds = new Set(bundle.items.map(item => item.item.id))
-    setAvailableItems(availableItems.filter(item => !bundleItemIds.has(item.id)))
-    
-    // Remove bundle from available bundles
-    setAvailableBundles(availableBundles.filter(b => b.id !== bundle.id))
-  }
-
-  const calculateTotal = () => {
-    return cart.reduce((total, item) => total + item.unitPrice * item.quantity, 0)
-  }
 
   const handleOrganizationSelect = (organizationId: string, organization: Organization) => {
     setSelectedOrganizationId(organizationId)
@@ -249,39 +153,14 @@ export function OrganizationSelectForm({
     form.setValue("beneficiaryId", beneficiaryId)
   }
 
-  const handleProductSelect = (productId: string, product: InventoryItem) => {
-    setSelectedProductId(productId)
-    setSelectedProduct(product)
-    form.setValue("productId", productId)
-  }
-
-  const handleBundleSelect = (bundleId: string, bundle: Bundle) => {
-    setSelectedBundleId(bundleId)
-    setSelectedBundle(bundle)
-    form.setValue("bundleId", bundleId)
-    addBundleToCart(bundle)
-  }
-
-  const handleCreateNewProduct = () => {
-    // This will be implemented later
-    console.log("Create new product")
+  const handleCartChange = (newCart: CartItem[]) => {
+    form.setValue("cart", newCart)
   }
 
   const onSubmit = async (values: SaleFormValues) => {
-    // Validate cart has items
-    if (cart.length === 0) {
-      form.setError("cart", {
-        type: "manual",
-        message: "At least one item must be added to cart"
-      })
-      return
-    }
-
-    // Add cart items to form data
     const formData = {
       ...values,
-      cart,
-      total: calculateTotal()
+      total: cartTotal
     }
 
     console.log("Form submitted with values:", formData)
@@ -295,12 +174,8 @@ export function OrganizationSelectForm({
         description: "Sale created successfully",
       })
       
-      // Reset form and cart
+      // Reset form
       form.reset()
-      setCart([])
-      setAvailableItems(initialItems)
-      setAvailableBundles(initialBundles)
-      
       router.push("/sales")
     } catch (error) {
       toast({
@@ -380,139 +255,14 @@ export function OrganizationSelectForm({
                 )}
               />
 
-              {/* Bundle Selection */}
-              <FormField
-                control={form.control}
-                name="bundleId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bundle</FormLabel>
-                    <FormControl>
-                      <BundleSelect
-                        selectedBundleId={field.value}
-                        onBundleSelect={handleBundleSelect}
-                        initialBundles={initialBundles}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Product Selection */}
-              {!selectedBundleId && (
-                <FormField
-                  control={form.control}
-                  name="productId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Product</FormLabel>
-                      <FormControl>
-                        <ProductSelect
-                          selectedProductId={field.value}
-                          onProductSelect={(productId, product) => {
-                            handleProductSelect(productId, product)
-                            addToCart(product)
-                          }}
-                          initialProducts={availableItems}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
               {/* Cart Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold flex items-center gap-2">
-                    Cart <span className="text-destructive">*</span>
-                  </h3>
-                  {cart.length > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setCart([])
-                        setAvailableItems(initialItems)
-                        setAvailableBundles(initialBundles)
-                      }}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      Clear Cart
-                    </Button>
-                  )}
-                </div>
-
-                {cart.length === 0 ? (
-                  <div className="text-center py-8 border rounded-md bg-muted/30">
-                    <p className="text-muted-foreground">Cart is empty</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
-                      {cart.map((item) => (
-                        <div
-                          key={item.itemId}
-                          className="flex justify-between items-center p-3 border rounded-md"
-                        >
-                          <div>
-                            <p className="font-medium">{item.name}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 w-6 p-0"
-                                onClick={() => updateQuantity(item.itemId, item.quantity - 1)}
-                              >
-                                -
-                              </Button>
-                              <Input
-                                type="number"
-                                min="1"
-                                value={item.quantity}
-                                onChange={(e) => updateQuantity(item.itemId, Number.parseInt(e.target.value) || 1)}
-                                className="w-16 h-8 text-center"
-                              />
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-6 w-6 p-0"
-                                onClick={() => updateQuantity(item.itemId, item.quantity + 1)}
-                                disabled={item.stock !== undefined && item.quantity >= item.stock && !item.allowPreSale}
-                              >
-                                +
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end">
-                            <span className="font-semibold">{formatCurrency(item.unitPrice * item.quantity)}</span>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-sm text-muted-foreground">
-                                {item.quantity} x {formatCurrency(item.unitPrice)}
-                              </span>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                                onClick={() => removeFromCart(item.itemId)}
-                              >
-                                <Trash className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex justify-between items-center p-3 border-t pt-4">
-                      <span className="font-semibold">Total</span>
-                      <span className="text-xl font-bold">{formatCurrency(calculateTotal())}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <CartSection 
+                control={form.control}
+                initialItems={initialItems}
+                initialBundles={initialBundles}
+                onCartChange={handleCartChange}
+                onTotalChange={setCartTotal}
+              />
 
               {/* Sale Details */}
               <div className="space-y-4 pt-4">
