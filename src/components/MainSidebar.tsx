@@ -13,7 +13,9 @@ import {
   Settings2,
   ImagePlus,
   UserPlus,
-  FolderPlus
+  FolderPlus,
+  Building,
+  Package2
 } from "lucide-react"
 
 import {
@@ -85,6 +87,16 @@ const navItems = [
         url: "/sales",
       },
     ],
+  },
+  {
+    title: "Ciudades",
+    url: "/cities",
+    icon: Building,
+  },
+   {
+    title: "Paquetes",
+    url: "/packages",
+    icon: Package2,
   },
   {
     title: "Dashboard",
