@@ -51,6 +51,7 @@ const saleFormSchema = z.object({
   bundleId: z.string().optional(),
   notes: z.string().optional(),
   referenceNumber: z.string().optional(),
+  saleType: z.enum(["DIRECT", "PRESALE"]).default("DIRECT"),
   cart: z.array(z.object({
     itemId: z.string(),
     name: z.string(),
@@ -91,6 +92,7 @@ export function OrganizationSelectForm({
       bundleId: "",
       notes: "",
       referenceNumber: "",
+      saleType: "DIRECT",
       cart: []
     },
   })
@@ -154,6 +156,10 @@ export function OrganizationSelectForm({
     })
 
     form.setValue("cart", bundleItems)
+  }
+
+  const handleSaleTypeChange = (type: "DIRECT" | "PRESALE") => {
+    form.setValue("saleType", type)
   }
 
   const onSubmit = async (values: SaleFormValues) => {
@@ -261,6 +267,7 @@ export function OrganizationSelectForm({
                 initialBundles={initialBundles}
                 onCartChange={handleCartChange}
                 onTotalChange={setCartTotal}
+                onSaleTypeChange={handleSaleTypeChange}
               />
 
               {/* Sale Details */}

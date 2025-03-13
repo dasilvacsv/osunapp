@@ -12,6 +12,7 @@ import { Control } from "react-hook-form"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { motion, AnimatePresence } from "framer-motion"
+import { SaleTypeSelector } from "./sale-type-selector"
 
 interface InventoryItem {
   id: string
@@ -55,6 +56,7 @@ interface CartSectionProps {
   initialBundles: Bundle[]
   onCartChange: (cart: CartItem[]) => void
   onTotalChange: (total: number) => void
+  onSaleTypeChange: (type: "DIRECT" | "PRESALE") => void
 }
 
 export const CartSection = memo(function CartSection({ 
@@ -62,7 +64,8 @@ export const CartSection = memo(function CartSection({
   initialItems,
   initialBundles,
   onCartChange,
-  onTotalChange
+  onTotalChange,
+  onSaleTypeChange
 }: CartSectionProps) {
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([])
@@ -202,6 +205,27 @@ export const CartSection = memo(function CartSection({
 
   return (
     <div className="space-y-6">
+      {/* Sale Type Selector */}
+      <FormField
+        control={control}
+        name="saleType"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Sale Type</FormLabel>
+            <FormControl>
+              <SaleTypeSelector
+                onTypeChange={(type) => {
+                  field.onChange(type)
+                  onSaleTypeChange(type)
+                }}
+                defaultValue={field.value || "DIRECT"}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
       {/* Selection Tabs */}
       <Tabs defaultValue="products" className="w-full">
         <TabsList className="grid grid-cols-2 w-full">
