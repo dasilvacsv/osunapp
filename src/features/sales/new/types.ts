@@ -1,12 +1,13 @@
 export interface InventoryItem {
   id: string;
   name: string;
-  sku: string;
-  description: string | null;
-  currentStock: number;
   basePrice: string | number;
+  currentStock: number;
+  sku?: string;
   status: "ACTIVE" | "INACTIVE";
-  metadata?: Record<string, any>;
+  allowPreSale?: boolean;
+  description?: string;
+  metadata?: any;
 }
 
 export interface BundleItem {
@@ -19,11 +20,16 @@ export interface BundleItem {
 export interface Bundle {
   id: string;
   name: string;
-  description: string | null;
-  type: "SCHOOL_PACKAGE" | "ORGANIZATION_PACKAGE" | "REGULAR";
   basePrice: string | number;
-  status: "ACTIVE" | "INACTIVE";
-  items: BundleItem[];
+  type: string;
+  status: "ACTIVE" | "INACTIVE" | null;
+  discountPercentage?: number;
+  items: Array<{
+    id: string;
+    quantity: number;
+    overridePrice?: string | number;
+    item: InventoryItem;
+  }>;
 }
 
 export interface CartItem {
@@ -31,6 +37,9 @@ export interface CartItem {
   name: string;
   quantity: number;
   unitPrice: number;
+  overridePrice?: number;
   stock?: number;
   allowPreSale?: boolean;
+  isFromBundle?: boolean;
+  bundleId?: string;
 } 

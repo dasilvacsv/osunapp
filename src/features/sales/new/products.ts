@@ -88,3 +88,112 @@ export async function getAllBundlesAndItems() {
       return { success: false, error: "Failed to fetch bundles and items" };
     }
   }
+
+/**
+ * Create a new sale/purchase
+ */
+export async function createSale(data: {
+  organizationId: string;
+  clientId: string;
+  beneficiaryId: string;
+  bundleId?: string;
+  notes?: string;
+  saleType: "DIRECT" | "PRESALE";
+  paymentMethod: "CASH" | "CARD" | "TRANSFER" | "OTHER";
+  transactionReference?: string;
+  cart: Array<{
+    itemId: string;
+    name: string;
+    quantity: number;
+    unitPrice: number;
+    overridePrice?: number;
+    stock?: number;
+    allowPreSale?: boolean;
+  }>;
+  total: number;
+}) {
+  try {
+    console.log("Creating sale with data:", data);
+
+    // Calculate total amount from cart items
+    const totalAmount = data.total || data.cart.reduce(
+      (sum, item) => sum + (item.unitPrice * item.quantity), 
+      0
+    );
+
+    // Create the purchase record
+    const [purchaseResult] = await db.insert(purchases).values({
+      clientId: data.clientId,
+      beneficiarioId: data.beneficiaryId,
+      bundleId: data.bundleId,
+      organizationId: data.organizationId === "" ? null : data.organizationId,
+      status: data.saleType === "PRESALE" ? "PENDING" : "COMPLETED",
+      totalAmount: totalAmount.toString(),
+      paymentMethod: data.paymentMethod,
+      transactionReference: data.transactionReference,
+      paymentStatus: "PAID", // Assuming direct payment for now
+      isPaid: true, // Assuming direct payment for now
+    }).returning();
+
+    if (!purchaseResult) {
+      throw new Error("Failed to create purchase record");
+    }
+
+    // Create purchase items for each cart item
+    const purchaseItemsData = data.cart.map(item => ({
+      purchaseId: purchaseResult.id,
+      itemId: item.itemId,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice.toString(),
+      totalPrice: (item.unitPrice * item.quantity).toString(),
+      metadata: item.overridePrice ? { overridePrice: item.overridePrice } : null,
+    }));
+
+    await db.insert(purchaseItems).values(purchaseItemsData);
+
+    // Update inventory stock for each item
+    for (const item of data.cart) {
+      if (data.saleType === "DIRECT") {
+        await db.update(inventoryItems)
+          .set({
+            currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}`,
+          })
+          .where(eq(inventoryItems.id, item.itemId));
+      } else if (data.saleType === "PRESALE") {
+        await db.update(inventoryItems)
+          .set({
+            reservedStock: sql`${inventoryItems.reservedStock} + ${item.quantity}`,
+          })
+          .where(eq(inventoryItems.id, item.itemId));
+      }
+    }
+
+    // If this is a bundle sale, update the bundle's sales statistics
+    if (data.bundleId) {
+      await db.update(bundles)
+        .set({
+          totalSales: sql`${bundles.totalSales} + 1`,
+          lastSaleDate: new Date(),
+          totalRevenue: sql`${bundles.totalRevenue} + ${totalAmount}`,
+        })
+        .where(eq(bundles.id, data.bundleId));
+    }
+
+    // Revalidate the sales page to show the new sale
+    revalidatePath('/sales');
+
+    return {
+      success: true,
+      data: {
+        ...purchaseResult,
+        items: data.cart,
+      }
+    };
+  } catch (error) {
+    console.error("Error creating sale:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Failed to create sale" 
+    };
+  }
+}

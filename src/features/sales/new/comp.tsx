@@ -32,10 +32,11 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
-import { CreditCard } from "lucide-react"
+import { CreditCard, Loader2 } from "lucide-react"
 import { Tabs, TabsList, TabsContent, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency } from "@/lib/utils"
+import { createSale } from "./products"
 
 export interface OrganizationSelectFormProps {
   className?: string;
@@ -93,6 +94,7 @@ export function OrganizationSelectForm({
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>("")
   const [selectedBundleId, setSelectedBundleId] = useState<string>("")
   const [cartTotal, setCartTotal] = useState(0)
+  const [loading, setLoading] = useState(false)
   
   // Initialize form
   const form = useForm<SaleFormValues>({
@@ -192,31 +194,43 @@ export function OrganizationSelectForm({
   }
 
   const onSubmit = async (values: SaleFormValues) => {
-    const formData = {
-      ...values,
-      total: cartTotal
-    }
-
-    console.log("Form submitted with values:", formData)
-    
     try {
-      // Here you would call your server action to create the sale
-      // const result = await createSale(formData)
+      setLoading(true)
       
-      toast({
-        title: "Success",
-        description: "Sale created successfully",
-      })
+      const formData = {
+        ...values,
+        total: cartTotal
+      }
+
+      console.log("Form submitted with values:", formData)
       
-      // Reset form
-      form.reset()
-      router.push("/sales")
+      // Call the server action to create the sale
+      const result = await createSale(formData)
+      
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: `Sale created successfully${result.data?.id ? ` with ID: ${result.data.id}` : ''}`,
+        })
+        
+        // Reset form
+        form.reset()
+        router.push("/sales")
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to create sale",
+          variant: "destructive"
+        })
+      }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to create sale",
+        description: error instanceof Error ? error.message : "Failed to create sale",
         variant: "destructive"
       })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -367,8 +381,15 @@ export function OrganizationSelectForm({
                 />
               </div>
               
-              <Button type="submit" className="w-full">
-                Create Sale
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating Sale...
+                  </>
+                ) : (
+                  "Create Sale"
+                )}
               </Button>
             </form>
           </Form>
