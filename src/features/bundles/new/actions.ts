@@ -10,7 +10,8 @@ import {
   inventoryPurchases,
   inventoryPurchaseItems,
   purchaseItems, 
-  purchases, 
+  purchases,
+  organizations, 
 } from "@/db/schema"
 import { eq, desc, sql, and, gte, or, gt } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
@@ -22,8 +23,17 @@ import type {
   CreateBundleInput,
   InventoryItem,
 } from "./types"
-import {purchaseSchema } from "./validation"
 
+
+export async function getOrganizations() {
+  try {
+    const data = await db.select().from(organizations)
+      .where(eq(organizations.status, "ACTIVE"));
+    return { data };
+  } catch (error) {
+    return { error: "Failed to fetch organizations" };
+  }
+}
 
 export async function createBundleCategory(input: CreateBundleCategoryInput) {
   try {
