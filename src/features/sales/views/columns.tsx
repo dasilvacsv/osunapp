@@ -23,6 +23,8 @@ import {
   AlertTriangle,
   DollarSign,
   Calendar,
+  User,
+  BookOpen,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -46,6 +48,21 @@ export type Sale = {
     id: string
     name: string
   }
+  beneficiario?: {
+    id: string
+    name: string
+    grade?: string
+    section?: string
+    firstName?: string
+    lastName?: string
+    school?: string
+    level?: string
+  }
+  bundle?: {
+    id: string
+    name: string
+  }
+  bundleName?: string
   status: "PENDING" | "APPROVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
   totalAmount: number
   paymentMethod: string
@@ -147,6 +164,68 @@ export const columns: ColumnDef<Sale>[] = [
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+      )
+    },
+  },
+  {
+    accessorKey: "beneficiario.name",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <User className="h-3.5 w-3.5" />
+        <span className="text-xs">Beneficiario</span>
+      </div>
+    ),
+    cell: ({ row }) => {
+      const beneficiario = row.original?.beneficiario
+
+      if (!beneficiario) {
+        return <span className="text-muted-foreground text-xs">-</span>
+      }
+
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">{beneficiario.name}</span>
+                {beneficiario.grade && beneficiario.section && (
+                  <span className="text-xs text-muted-foreground">
+                    {beneficiario.grade} - {beneficiario.section}
+                  </span>
+                )}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="text-xs space-y-1">
+              <p><strong>Nombre:</strong> {beneficiario.firstName || '-'}</p>
+              <p><strong>Apellido:</strong> {beneficiario.lastName || '-'}</p>
+              <p><strong>Escuela:</strong> {beneficiario.school || '-'}</p>
+              <p><strong>Nivel:</strong> {beneficiario.level || '-'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    },
+  },
+  {
+    accessorKey: "bundleName",
+    header: () => (
+      <div className="flex items-center gap-1">
+        <BookOpen className="h-3.5 w-3.5" />
+        <span className="text-xs">Paquete</span>
+      </div>
+    ),
+    cell: ({ row }) => {
+      const bundleName = row.original?.bundle?.name || row.original?.bundleName
+
+      if (!bundleName) {
+        return <span className="text-muted-foreground text-xs">-</span>
+      }
+
+      return (
+        <div className="flex items-center gap-1">
+          <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium truncate max-w-[120px]">{bundleName}</span>
+        </div>
       )
     },
   },

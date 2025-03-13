@@ -7,16 +7,16 @@ import { PlusIcon, RefreshCw, ShoppingCart, CreditCard } from "lucide-react"
 import { NewSaleDialog } from "@/features/sales/new-sale-dialog"
 import { DeletePackageDialog } from "@/features/sales/delete-package-dialog"
 import { PaymentPlanDialog } from "@/features/sales/payment-plan-dialog"
-import { PaymentTable } from "@/features/sales/payment-table"
+import { PaymentTable } from "@/features/sales/views/payment-table"
 import { useCallback, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { getSalesData } from "@/features/sales/actions"
+import { getSalesData2 } from "@/features/sales/views/actions"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 export default function SalesPageContent({ initialSales }: { initialSales: any[] }) {
-  const [sales, setSales] = useState(initialSales)
+  const [sales, setSales] = useState<any[]>(initialSales)
   const [showDialog, setShowDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showPaymentPlanDialog, setShowPaymentPlanDialog] = useState(false)
@@ -25,22 +25,45 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [activeTab, setActiveTab] = useState("sales")
+  
   const router = useRouter()
   const { toast } = useToast()
 
   const refreshSales = useCallback(async () => {
     setIsRefreshing(true)
     try {
-      const result = await getSalesData()
-      if (result.success) {
-        setSales(result.data)
+      const result = await getSalesData2()
+      if (result.success && result.data) {
+        // Transform the data to match the expected format for the table
+        const formattedSales = result.data.map((sale: any) => ({
+          ...sale,
+          // Ensure the client object has the expected structure
+          client: sale.client,
+          // Include beneficiario information
+          beneficiario: sale.beneficiario,
+          // Include bundle name
+          bundleName: sale.bundle?.name || 'N/A',
+          // Ensure organization is properly structured
+          organization: sale.organization,
+          // Format totalAmount as number if it's a string
+          totalAmount: typeof sale.totalAmount === 'string' ? parseFloat(sale.totalAmount) : sale.totalAmount,
+          // Ensure purchaseDate is a Date object
+          purchaseDate: sale.purchaseDate ? new Date(sale.purchaseDate) : null,
+          // Include payment information
+          payments: sale.payments || [],
+          paymentPlans: sale.paymentPlans || [],
+          // Include items information
+          items: sale.items || []
+        }))
+        
+        setSales(formattedSales)
         toast({
           title: "Datos actualizados",
           description: "La lista de ventas ha sido actualizada",
           className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
         })
       } else {
-        throw new Error(result.error)
+        throw new Error(result.error || "No se pudieron cargar los datos")
       }
     } catch (error) {
       toast({

@@ -1,5 +1,6 @@
 
 import { getSalesData2 } from '@/features/sales/views/actions'
+import SalesPageContent from '@/features/sales/views/sales-content'
 import { TestComponent } from '@/features/sales/views/comp'
 
 export default async function SalesPage() {
@@ -12,7 +13,8 @@ export default async function SalesPage() {
   
   return (
     <div className="container mx-auto">
-<TestComponent data={salesData.data} />
+
+<SalesPageContent initialSales={salesData.success ? salesData.data : []} />
     </div>
   )
 }

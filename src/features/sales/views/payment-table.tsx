@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { CreditCard, CheckCircle, Clock, AlertCircle, XCircle, Loader2, RefreshCw } from "lucide-react"
-import { recordPayment, updatePaymentStatus, getPaymentsByPurchase } from "./payment-actions"
-import { useToast } from "@/hooks/use-toast"
+import { recordPayment, updatePaymentStatus, getPaymentsByPurchase } from "@/features/sales/views/payment-actions"
+import { useToast } from "@/hooks/use-toast"  
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -30,9 +30,10 @@ interface Payment {
 interface PaymentTableProps {
   purchaseId: string
   refreshTrigger?: number
+  onPaymentUpdated?: () => void
 }
 
-export function PaymentTable({ purchaseId, refreshTrigger = 0 }: PaymentTableProps) {
+export function PaymentTable({ purchaseId, refreshTrigger = 0, onPaymentUpdated }: PaymentTableProps) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [payments, setPayments] = useState<Payment[]>([])
@@ -85,6 +86,9 @@ export function PaymentTable({ purchaseId, refreshTrigger = 0 }: PaymentTablePro
         })
         fetchPayments()
         setShowPaymentDialog(false)
+        if (onPaymentUpdated) {
+          onPaymentUpdated();
+        }
       } else {
         throw new Error(result.error)
       }
@@ -111,6 +115,9 @@ export function PaymentTable({ purchaseId, refreshTrigger = 0 }: PaymentTablePro
           className: "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800",
         })
         fetchPayments()
+        if (onPaymentUpdated) {
+          onPaymentUpdated();
+        }
       } else {
         throw new Error(result.error)
       }
