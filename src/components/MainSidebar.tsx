@@ -114,6 +114,10 @@ const navItems = [
         title: "Administrar Paquetes",
         url: "/bundles",
       },
+      {
+        title: "Test de Paquetes",
+        url: "/bundles/test",
+      },
     ],
   },
 

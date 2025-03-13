@@ -6,8 +6,6 @@ export default async function InventoryPage() {
   const {data: categories} = await getBundleCategories() || { data: [] }
   const {data: organizations} = await getOrganizations() || { data: [] }
   const {data: items} = await getInventoryItems() || { data: [] }
-  const {data: bundles} = await getBundles() || { data: [] }
-
   return (
     <div className="container mx-auto py-6">
       <BundleCreationForm 
@@ -16,7 +14,6 @@ export default async function InventoryPage() {
         items={items || []}
       />
 
-      <TestComponent data{bundles}/>
     </div>
   )
 } 

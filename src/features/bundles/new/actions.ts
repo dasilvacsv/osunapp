@@ -128,23 +128,29 @@ export async function getBundles() {
         type: bundles.type,
         categoryId: bundles.categoryId,
         categoryName: bundleCategories.name, // Nombre de la categoría asociada
+        organizationId: bundles.organizationId,
+        organizationName: organizations.name, // Organization name
+        organizationType: organizations.type, // Organization type
         basePrice: bundles.basePrice,
+        bundlePrice: bundles.bundlePrice, // Include bundle price
         discountPercentage: bundles.discountPercentage,
         status: bundles.status,
         createdAt: bundles.createdAt,
         updatedAt: bundles.updatedAt,
       })
       .from(bundles)
-      .leftJoin(bundleCategories, eq(bundles.categoryId, bundleCategories.id)) // Unir con categorías
-      .where(eq(bundles.status, "ACTIVE")) // Filtrar solo bundles activos
-      .orderBy(desc(bundles.createdAt)) // Ordenar por fecha de creación descendente
+      .leftJoin(bundleCategories, eq(bundles.categoryId, bundleCategories.id)) // Join with categories
+      .leftJoin(organizations, eq(bundles.organizationId, organizations.id)) // Join with organizations
+      .where(eq(bundles.status, "ACTIVE")) // Filter only active bundles
+      .orderBy(desc(bundles.createdAt)) // Order by creation date descending
 
     // Consulta adicional para obtener los items de cada bundle
     const bundleItemsData = await db
       .select({
         bundleId: bundleItems.bundleId,
         itemId: bundleItems.itemId,
-        itemName: inventoryItems.name, // Nombre del artículo
+        itemName: inventoryItems.name, // Item name
+        basePrice: inventoryItems.basePrice, // Item base price
         quantity: bundleItems.quantity,
         overridePrice: bundleItems.overridePrice,
       })
@@ -160,19 +166,49 @@ export async function getBundles() {
         acc[item.bundleId].push({
           itemId: item.itemId,
           itemName: item.itemName,
+          basePrice: Number(item.basePrice),
           quantity: item.quantity,
           overridePrice: item.overridePrice !== null ? Number(item.overridePrice) : null,
         })
         return acc
       },
-      {} as Record<string, Array<{ itemId: string; itemName: string; quantity: number; overridePrice: number | null }>>,
+      {} as Record<string, Array<{ 
+        itemId: string; 
+        itemName: string; 
+        basePrice: number;
+        quantity: number; 
+        overridePrice: number | null 
+      }>>,
     )
 
-    // Asociar los items a cada bundle
-    const bundlesWithItems = bundlesData.map((bundle) => ({
-      ...bundle,
-      items: groupedItems[bundle.id] || [], // Items asociados al bundle
-    }))
+    // Calculate additional bundle metrics
+    const bundlesWithItems = bundlesData.map((bundle) => {
+      const items = groupedItems[bundle.id] || [];
+      
+      // Calculate total base price (sum of all items' base price * quantity)
+      const totalBasePrice = items.reduce((acc, item) => {
+        return acc + (item.basePrice * item.quantity);
+      }, 0);
+      
+      // Calculate total bundle price (sum of all items' override price or base price * quantity)
+      const totalBundlePrice = items.reduce((acc, item) => {
+        const price = item.overridePrice !== null ? item.overridePrice : item.basePrice;
+        return acc + (price * item.quantity);
+      }, 0);
+      
+      // Calculate savings
+      const savings = totalBasePrice - totalBundlePrice;
+      const savingsPercentage = totalBasePrice > 0 ? (savings / totalBasePrice) * 100 : 0;
+      
+      return {
+        ...bundle,
+        items,
+        totalBasePrice,
+        totalBundlePrice,
+        savings,
+        savingsPercentage,
+      };
+    });
 
     return { success: true, data: bundlesWithItems }
   } catch (error) {
