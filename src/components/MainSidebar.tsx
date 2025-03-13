@@ -4,16 +4,9 @@ import React from "react"
 import {
   LayoutDashboard,
   Users,
-  GraduationCap,
-  Camera,
   Package,
   Receipt,
   School,
-  BadgeCheck,
-  Settings2,
-  ImagePlus,
-  UserPlus,
-  FolderPlus,
   Building,
   Package2
 } from "lucide-react"
@@ -33,24 +26,12 @@ const navItems = [
   {
     title: "Panel Principal",
     url: "/",
-    icon: LayoutDashboard,
-    items: [
-      {
-        title: "Panel",
-        url: "/",
-      },
-    ],
+    icon: LayoutDashboard
   },
   {
     title: "Organizaciones",
     url: "/organizations",
-    icon: School,
-    items: [
-      {
-        title: "Lista de Organizaciones",
-        url: "/organizations",
-      },
-    ],
+    icon: School
   },
   {
     title: "Clientes",
@@ -59,68 +40,34 @@ const navItems = [
     items: [
       {
         title: "Lista de Clientes",
-        url: "/clientes",
+        url: "/clients",
       },
       {
         title: "Clientes por Organización",
-        url: "/clientes/byOrg",
-      },
-      {
-        title: "Registrar Hijo",
-        url: "/clients/children/new",
+        url: "/clients/by-organization",
       }
     ],
   },
   {
     title: "Inventario",
     url: "/inventory",
-    icon: Package,
-    items: [
-      {
-        title: "Lista de Items",
-        url: "/inventory",
-      },
-
-    ],
+    icon: Package
   },
   {
     title: "Ventas",
     url: "/sales",
-    icon: Receipt,
-    items: [
-      {
-        title: "Historial de Ventas",
-        url: "/sales",
-      },
-    ],
+    icon: Receipt
   },
   {
     title: "Ciudades",
     url: "/cities",
-    icon: Building,
-    items: [
-      {
-        title: "Lista de Ciudades",
-        url: "/cities",
-      },
-    ],
+    icon: Building
   },
-   {
+  {
     title: "Paquetes",
     url: "/bundles",
-    icon: Package2,
-    items: [
-      { 
-        title: "Administrar Paquetes",
-        url: "/bundles",
-      },
-      {
-        title: "Test de Paquetes",
-        url: "/bundles/test",
-      },
-    ],
+    icon: Package2
   },
-
 ];
 
 export default function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
