@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, memo } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input" 
 import { Textarea } from "@/components/ui/textarea"
@@ -25,6 +25,17 @@ import { useToast } from "@/hooks/use-toast"
 import { CartSection } from "./cart-section"
 import { type Bundle, type CartItem, type InventoryItem } from "./types"
 import { type Client } from "./client-select"
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
+import { CreditCard } from "lucide-react"
+import { Tabs, TabsList, TabsContent, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { formatCurrency } from "@/lib/utils"
 
 export interface OrganizationSelectFormProps {
   className?: string;
@@ -50,8 +61,9 @@ const saleFormSchema = z.object({
   productId: z.string().optional(),
   bundleId: z.string().optional(),
   notes: z.string().optional(),
-  referenceNumber: z.string().optional(),
   saleType: z.enum(["DIRECT", "PRESALE"]).default("DIRECT"),
+  paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "OTHER"]).default("CASH"),
+  transactionReference: z.string().optional(),
   cart: z.array(z.object({
     itemId: z.string(),
     name: z.string(),
@@ -91,8 +103,9 @@ export function OrganizationSelectForm({
       productId: "",
       bundleId: "",
       notes: "",
-      referenceNumber: "",
       saleType: "DIRECT",
+      paymentMethod: "CASH",
+      transactionReference: "",
       cart: []
     },
   })
@@ -132,30 +145,40 @@ export function OrganizationSelectForm({
     form.setValue("cart", newCart)
   }
 
-  const handleBundleSelect = (bundleId: string, bundle: Bundle) => {
+  const handleBundleSelect = async (bundleId: string, bundle: Bundle) => {
     form.setValue("bundleId", bundleId)
     
-    // Add bundle items to cart with proper price handling
-    const bundleItems = bundle.items.map(item => {
-      const unitPrice = item.overridePrice 
-        ? typeof item.overridePrice === 'string' 
-          ? Number.parseFloat(item.overridePrice) 
-          : Number(item.overridePrice)
-        : typeof item.item.basePrice === 'string' 
-          ? Number.parseFloat(item.item.basePrice) 
-          : Number(item.item.basePrice)
+    // Check inventory status for all items
+    const status: Record<string, boolean> = {}
+    for (const item of bundle.items) {
+      status[item.item.id] = item.item.currentStock >= item.quantity
+    }
+    setInventoryStatus(status)
 
-      return {
-        itemId: item.item.id,
-        name: item.item.name,
-        quantity: item.quantity,
-        unitPrice,
-        stock: item.item.currentStock,
-        allowPreSale: item.item.status === "ACTIVE",
-      }
-    })
+    // Calculate prices with discounts
+    const cartItems = bundle.items.map(item => ({
+      itemId: item.item.id,
+      name: item.item.name,
+      quantity: item.quantity,
+      unitPrice: calculateBundleItemPrice(item, bundle.discountPercentage),
+      originalPrice: item.item.basePrice,
+      stock: item.item.currentStock,
+      allowPreSale: item.item.status === "ACTIVE",
+      isFromBundle: true,
+      bundleId: bundle.id
+    }))
 
-    form.setValue("cart", bundleItems)
+    handleCartChange(cartItems)
+    setCartTotal(calculateTotal(cartItems))
+  }
+
+  const calculateBundleItemPrice = (item: BundleItem, bundleDiscount: number = 0) => {
+    const basePrice = item.overridePrice || item.item.basePrice
+    return Number(basePrice) * (1 - (bundleDiscount / 100))
+  }
+
+  const calculateTotal = (cartItems: CartItem[]): number => {
+    return cartItems.reduce((total, item) => total + item.unitPrice * item.quantity, 0)
   }
 
   const handleSaleTypeChange = (type: "DIRECT" | "PRESALE") => {
@@ -272,14 +295,46 @@ export function OrganizationSelectForm({
 
               {/* Sale Details */}
               <div className="space-y-4 pt-4">
+                {/* Payment Method */}
                 <FormField
                   control={form.control}
-                  name="referenceNumber"
+                  name="paymentMethod"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Reference Number</FormLabel>
+                      <FormLabel className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Payment Method
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="Sale reference or PO number" {...field} />
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select payment method" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="CASH">Cash</SelectItem>
+                            <SelectItem value="CARD">Card</SelectItem>
+                            <SelectItem value="TRANSFER">Transfer</SelectItem>
+                            <SelectItem value="OTHER">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Transaction Reference */}
+                <FormField
+                  control={form.control}
+                  name="transactionReference"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Transaction Reference</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="Receipt number, transaction ID, etc." 
+                          {...field} 
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
