@@ -17,14 +17,14 @@ import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { OrganizationSelect } from "./organization-select"
-import { ClientSelect } from "./client-select"
-import { BeneficiarySelect, Beneficiary } from "./beneficiary-select"
+import { OrganizationSelect } from "./selectors/organization-select"
+import { ClientSelect } from "./selectors/client-select"
+import { BeneficiarySelect, Beneficiary } from "./selectors/beneficiary-select"
 import { Organization } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { CartSection } from "./cart-section"
 import { type Bundle, type CartItem, type InventoryItem } from "./types"
-import { type Client } from "./client-select"
+import { type Client } from "./selectors/client-select"
 import { 
   Select,
   SelectContent,
@@ -33,9 +33,6 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { CreditCard, Loader2 } from "lucide-react"
-import { Tabs, TabsList, TabsContent, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { formatCurrency } from "@/lib/utils"
 import { createSale } from "./products"
 
 export interface OrganizationSelectFormProps {

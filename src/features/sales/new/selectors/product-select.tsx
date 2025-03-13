@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PlusIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { Badge } from "@/components/ui/badge"
 import { formatCurrency } from "@/lib/utils"
 
 export interface InventoryItem {

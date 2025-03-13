@@ -8,7 +8,7 @@ import { OrganizationForm } from "@/features/organizations/organization-form"
 import { createOrganization } from "@/app/(app)/organizations/organization"
 import { PlusIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { getOrganizations } from "./actions"
+import { getOrganizations } from "@/features/sales/new/actions"
 
 export interface Organization {
   id: string

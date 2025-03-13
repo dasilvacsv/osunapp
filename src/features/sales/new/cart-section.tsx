@@ -5,14 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Trash, Plus, Package, Search, Loader2 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
-import { ProductSelect } from "./product-select"
-import { BundleSelect } from "./bundle-select"
+import { ProductSelect } from "./selectors/product-select"
+import { BundleSelect } from "./selectors/bundle-select"
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
 import { Control } from "react-hook-form"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { motion, AnimatePresence } from "framer-motion"
-import { SaleTypeSelector } from "./sale-type-selector"
+import { SaleTypeSelector } from "./selectors/sale-type-selector"
 
 interface InventoryItem {
   id: string

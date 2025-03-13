@@ -8,7 +8,7 @@ import { ClientForm } from "@/features/clients/create-client-form"
 import { createClient } from "@/app/(app)/clientes/client"
 import { PlusIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { getClientDetail, getClients } from "./actions"
+import { getClientDetail, getClients } from "@/features/sales/new/actions"
 
 export interface Client {
   id: string

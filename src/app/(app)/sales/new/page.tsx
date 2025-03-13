@@ -1,5 +1,5 @@
 import React from 'react'
-import { OrganizationSelectForm } from "@/features/sales/new/comp"
+import { OrganizationSelectForm } from "@/features/sales/new/Main"
 import { getOrganizations, getClients } from "@/features/sales/new/actions"
 import { getAllBundlesAndItems } from '@/features/sales/new/products'
 
