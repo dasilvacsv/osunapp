@@ -91,6 +91,7 @@ export function OrganizationSelectForm({
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [selectedClient, setSelectedClient] = useState<any | null>(null)
   const [selectedBeneficiaryId, setSelectedBeneficiaryId] = useState<string>("")
+  const [selectedBundleId, setSelectedBundleId] = useState<string>("")
   const [cartTotal, setCartTotal] = useState(0)
   
   // Initialize form
@@ -146,6 +147,12 @@ export function OrganizationSelectForm({
   }
 
   const handleBundleSelect = async (bundleId: string, bundle: Bundle) => {
+    // Clear previous cart items
+    handleCartChange([])
+    setCartTotal(0)
+    
+    // Set the selected bundle ID
+    setSelectedBundleId(bundleId)
     form.setValue("bundleId", bundleId)
     
     // Check inventory status for all items
@@ -153,26 +160,25 @@ export function OrganizationSelectForm({
     for (const item of bundle.items) {
       status[item.item.id] = item.item.currentStock >= item.quantity
     }
-    setInventoryStatus(status)
-
+    
     // Calculate prices with discounts
     const cartItems = bundle.items.map(item => ({
       itemId: item.item.id,
       name: item.item.name,
       quantity: item.quantity,
-      unitPrice: calculateBundleItemPrice(item, bundle.discountPercentage),
-      originalPrice: item.item.basePrice,
+      unitPrice: calculateBundleItemPrice(item, bundle.discountPercentage || 0),
       stock: item.item.currentStock,
       allowPreSale: item.item.status === "ACTIVE",
       isFromBundle: true,
       bundleId: bundle.id
     }))
 
+    // Update the cart with the bundle items
     handleCartChange(cartItems)
     setCartTotal(calculateTotal(cartItems))
   }
 
-  const calculateBundleItemPrice = (item: BundleItem, bundleDiscount: number = 0) => {
+  const calculateBundleItemPrice = (item: any, bundleDiscount: number = 0) => {
     const basePrice = item.overridePrice || item.item.basePrice
     return Number(basePrice) * (1 - (bundleDiscount / 100))
   }
@@ -291,6 +297,8 @@ export function OrganizationSelectForm({
                 onCartChange={handleCartChange}
                 onTotalChange={setCartTotal}
                 onSaleTypeChange={handleSaleTypeChange}
+                selectedBundleId={selectedBundleId}
+                onBundleSelect={handleBundleSelect}
               />
 
               {/* Sale Details */}

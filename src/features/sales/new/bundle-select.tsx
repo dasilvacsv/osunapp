@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { PopoverSelect } from "@/components/popover-select"
 import { useToast } from "@/hooks/use-toast"
 
@@ -43,7 +43,12 @@ export function BundleSelect({
   initialBundles
 }: BundleSelectProps) {
   const { toast } = useToast()
-  const [bundles] = useState<Bundle[]>(initialBundles)
+  const [bundles, setBundles] = useState<Bundle[]>(initialBundles)
+
+  // Update bundles when initialBundles changes
+  useEffect(() => {
+    setBundles(initialBundles);
+  }, [initialBundles]);
 
   // Handle bundle selection
   const handleBundleChange = (value: string) => {

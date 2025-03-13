@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, memo } from "react"
+import { useState, memo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Trash, Plus, Package, Search, Loader2 } from "lucide-react"
@@ -48,6 +48,8 @@ interface CartItem {
   overridePrice?: number
   stock?: number
   allowPreSale?: boolean
+  isFromBundle?: boolean
+  bundleId?: string
 }
 
 interface CartSectionProps {
@@ -57,6 +59,8 @@ interface CartSectionProps {
   onCartChange: (cart: CartItem[]) => void
   onTotalChange: (total: number) => void
   onSaleTypeChange: (type: "DIRECT" | "PRESALE") => void
+  selectedBundleId?: string
+  onBundleSelect?: (bundleId: string, bundle: Bundle) => void
 }
 
 export const CartSection = memo(function CartSection({ 
@@ -65,16 +69,35 @@ export const CartSection = memo(function CartSection({
   initialBundles,
   onCartChange,
   onTotalChange,
-  onSaleTypeChange
+  onSaleTypeChange,
+  selectedBundleId,
+  onBundleSelect
 }: CartSectionProps) {
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([])
   const [availableItems, setAvailableItems] = useState<InventoryItem[]>(initialItems)
   const [availableBundles, setAvailableBundles] = useState<Bundle[]>(initialBundles)
-  const [selectedBundleId, setSelectedBundleId] = useState<string>("")
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<InventoryItem[]>([])
   const [bundleResults, setBundleResults] = useState<Bundle[]>([])
+
+  // Get cart value from form
+  useEffect(() => {
+    const cartValue = control._formValues?.cart;
+    if (cartValue && Array.isArray(cartValue) && cartValue.length > 0) {
+      setCart(cartValue);
+    }
+  }, [control._formValues?.cart]);
+
+  // Reset available items when initialItems changes
+  useEffect(() => {
+    setAvailableItems(initialItems);
+  }, [initialItems]);
+
+  // Reset available bundles when initialBundles changes
+  useEffect(() => {
+    setAvailableBundles(initialBundles);
+  }, [initialBundles]);
 
   // Filter products and bundles based on search query
   const filterItems = (query: string) => {
@@ -117,24 +140,13 @@ export const CartSection = memo(function CartSection({
         ]
 
     setCart(newCart)
-    setAvailableItems(availableItems.filter(i => i.id !== item.id))
     onCartChange(newCart)
     onTotalChange(calculateTotal(newCart))
   }
 
   const removeFromCart = (itemId: string) => {
-    const removedItem = cart.find(item => item.itemId === itemId)
     const newCart = cart.filter((item) => item.itemId !== itemId)
-    
     setCart(newCart)
-
-    if (removedItem) {
-      const originalItem = initialItems.find(item => item.id === itemId)
-      if (originalItem) {
-        setAvailableItems([...availableItems, originalItem])
-      }
-    }
-
     onCartChange(newCart)
     onTotalChange(calculateTotal(newCart))
   }
@@ -172,16 +184,13 @@ export const CartSection = memo(function CartSection({
         unitPrice,
         stock: item.item.currentStock,
         allowPreSale: item.item.status === "ACTIVE",
+        isFromBundle: true,
+        bundleId: bundle.id
       };
     });
 
     const newCart = [...cart, ...bundleItems];
     setCart(newCart);
-
-    const bundleItemIds = new Set(bundle.items.map(item => item.item.id));
-    setAvailableItems(availableItems.filter(item => !bundleItemIds.has(item.id)));
-    setAvailableBundles(availableBundles.filter(b => b.id !== bundle.id));
-
     onCartChange(newCart);
     onTotalChange(calculateTotal(newCart));
   }
@@ -199,8 +208,17 @@ export const CartSection = memo(function CartSection({
   }
 
   const handleBundleSelect = (bundleId: string, bundle: Bundle) => {
-    setSelectedBundleId(bundleId)
-    addBundleToCart(bundle)
+    // If parent provided a bundle select handler, use it
+    if (onBundleSelect) {
+      onBundleSelect(bundleId, bundle)
+      
+      // The parent will update the form values, which will trigger our useEffect
+      // to update the cart state
+    } else {
+      // Otherwise use local handler
+      clearCart()
+      addBundleToCart(bundle)
+    }
   }
 
   return (
@@ -264,7 +282,7 @@ export const CartSection = memo(function CartSection({
                 <FormLabel>Bundle</FormLabel>
                 <FormControl>
                   <BundleSelect
-                    selectedBundleId={field.value || ""}
+                    selectedBundleId={selectedBundleId || field.value || ""}
                     onBundleSelect={handleBundleSelect}
                     initialBundles={availableBundles}
                   />

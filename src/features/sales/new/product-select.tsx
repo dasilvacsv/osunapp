@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { PopoverSelect } from "@/components/popover-select"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -37,6 +37,11 @@ export function ProductSelect({
   const [products, setProducts] = useState<InventoryItem[]>(initialProducts)
   const [loading, setLoading] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+
+  // Update products when initialProducts changes
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
 
   // Handle product selection
   const handleProductChange = async (value: string) => {
