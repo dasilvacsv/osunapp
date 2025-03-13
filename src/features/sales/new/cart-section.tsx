@@ -3,12 +3,15 @@
 import { useState, memo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Trash } from "lucide-react"
+import { Trash, Plus, Package, Search, Loader2 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { ProductSelect } from "./product-select"
 import { BundleSelect } from "./bundle-select"
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
 import { Control } from "react-hook-form"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { motion, AnimatePresence } from "framer-motion"
 
 interface InventoryItem {
   id: string
@@ -66,6 +69,27 @@ export const CartSection = memo(function CartSection({
   const [availableItems, setAvailableItems] = useState<InventoryItem[]>(initialItems)
   const [availableBundles, setAvailableBundles] = useState<Bundle[]>(initialBundles)
   const [selectedBundleId, setSelectedBundleId] = useState<string>("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<InventoryItem[]>([])
+  const [bundleResults, setBundleResults] = useState<Bundle[]>([])
+
+  // Filter products and bundles based on search query
+  const filterItems = (query: string) => {
+    if (query.length >= 2) {
+      const filteredItems = availableItems.filter(item => 
+        item.name.toLowerCase().includes(query.toLowerCase()) ||
+        item.sku?.toLowerCase().includes(query.toLowerCase())
+      )
+      const filteredBundles = availableBundles.filter(bundle =>
+        bundle.name.toLowerCase().includes(query.toLowerCase())
+      )
+      setSearchResults(filteredItems)
+      setBundleResults(filteredBundles)
+    } else {
+      setSearchResults([])
+      setBundleResults([])
+    }
+  }
 
   // Cart functions
   const addToCart = (item: InventoryItem) => {
@@ -178,47 +202,55 @@ export const CartSection = memo(function CartSection({
 
   return (
     <div className="space-y-6">
-      {/* Bundle Selection */}
-      <FormField
-        control={control}
-        name="bundleId"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Bundle</FormLabel>
-            <FormControl>
-              <BundleSelect
-                selectedBundleId={field.value || ""}
-                onBundleSelect={handleBundleSelect}
-                initialBundles={availableBundles}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+      {/* Selection Tabs */}
+      <Tabs defaultValue="products" className="w-full">
+        <TabsList className="grid grid-cols-2 w-full">
+          <TabsTrigger value="products">Products</TabsTrigger>
+          <TabsTrigger value="bundles">Bundles</TabsTrigger>
+        </TabsList>
 
-      {/* Product Selection */}
-      {!selectedBundleId && (
-        <FormField
-          control={control}
-          name="productId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Product</FormLabel>
-              <FormControl>
-                <ProductSelect
-                  selectedProductId={field.value || ""}
-                  onProductSelect={(productId, product) => {
-                    addToCart(product)
-                  }}
-                  initialProducts={availableItems}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      )}
+        <TabsContent value="products" className="pt-4">
+          <FormField
+            control={control}
+            name="productId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Product</FormLabel>
+                <FormControl>
+                  <ProductSelect
+                    selectedProductId={field.value || ""}
+                    onProductSelect={(productId, product) => {
+                      addToCart(product)
+                    }}
+                    initialProducts={availableItems}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </TabsContent>
+
+        <TabsContent value="bundles" className="pt-4">
+          <FormField
+            control={control}
+            name="bundleId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Bundle</FormLabel>
+                <FormControl>
+                  <BundleSelect
+                    selectedBundleId={field.value || ""}
+                    onBundleSelect={handleBundleSelect}
+                    initialBundles={availableBundles}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Cart Section */}
       <div className="space-y-4">
