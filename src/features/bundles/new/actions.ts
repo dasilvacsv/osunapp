@@ -35,6 +35,16 @@ export async function getOrganizations() {
   }
 }
 
+export async function getInventoryItems() {
+  try {
+    const data = await db.select().from(inventoryItems)
+      .where(eq(inventoryItems.status, "ACTIVE"));
+    return { data };
+  } catch (error) {
+    return { error: "Failed to fetch inventory items" };
+  }
+}
+
 export async function createBundleCategory(input: CreateBundleCategoryInput) {
   try {
     const [category] = await db.insert(bundleCategories).values(input).returning()
