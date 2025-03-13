@@ -99,6 +99,12 @@ export function OrganizationSelect({
 
   // Handle organization selection
   const handleOrganizationChange = (value: string) => {
+    if (value === "none") {
+      // Handle "None" selection
+      onOrganizationSelect("", {} as Organization);
+      return;
+    }
+    
     const selectedOrg = organizations.find(org => org.id === value)
     if (selectedOrg) {
       onOrganizationSelect(value, selectedOrg)
@@ -131,11 +137,14 @@ export function OrganizationSelect({
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <PopoverSelect
-              options={organizations.map(org => ({
-                label: `${org.name} (${org.type})`,
-                value: org.id
-              }))}
-              value={selectedOrganizationId}
+              options={[
+                { label: "None (No Organization)", value: "none" },
+                ...organizations.map(org => ({
+                  label: `${org.name} (${org.type})`,
+                  value: org.id
+                }))
+              ]}
+              value={selectedOrganizationId || "none"}
               onValueChange={handleOrganizationChange}
               placeholder={loading ? "Loading organizations..." : "Select an organization"}
               disabled={loading}

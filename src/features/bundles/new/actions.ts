@@ -78,9 +78,10 @@ export async function createBundle(input: CreateBundleInput) {
         description: input.description,
         categoryId: input.categoryId,
         type: "REGULAR", // Use the string value directly
-        organizationId: null, // Set this if needed
-        basePrice: input.totalBasePrice.toFixed(2),
-        discountPercentage: input.savingsPercentage,
+        organizationId: input.organizationId || null, // Use the provided organizationId or null
+        basePrice: input.totalBasePrice.toString(),
+        bundlePrice: input.bundlePrice.toString(), // Save the bundle price as string
+        discountPercentage: input.savingsPercentage.toString(),
         status: "ACTIVE", // Use the string value directly
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -92,7 +93,9 @@ export async function createBundle(input: CreateBundleInput) {
       bundleId: bundle.id,
       itemId: item.itemId,
       quantity: item.quantity,
-      overridePrice: item.overridePrice !== undefined && item.overridePrice !== null ? item.overridePrice : null,
+      overridePrice: item.overridePrice !== undefined && item.overridePrice !== null 
+        ? item.overridePrice.toString() 
+        : null,
     }))
 
     await db.insert(bundleItems).values(itemsToInsert)

@@ -40,7 +40,7 @@ import { useRouter } from "next/navigation";
 
 // Define form schema
 const formSchema = z.object({
-  organizationId: z.string().min(1, "Please select an organization"),
+  organizationId: z.string().optional().nullable(),
   categoryId: z.string().min(1, "Please select a category"),
   name: z.string().min(3, "Name must be at least 3 characters"),
   description: z.string().optional(),
@@ -50,6 +50,7 @@ const formSchema = z.object({
     overridePrice: z.number().optional()
   })).min(1, "At least one item must be added to the bundle"),
   totalBasePrice: z.number(),
+  bundlePrice: z.number(),
   savingsPercentage: z.number()
 });
 
@@ -92,12 +93,13 @@ export function BundleCreationForm({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      organizationId: "",
+      organizationId: null,
       categoryId: "",
       name: "",
       description: "",
       items: [],
       totalBasePrice: 0,
+      bundlePrice: 0,
       savingsPercentage: 0
     },
   });
@@ -148,7 +150,8 @@ export function BundleCreationForm({
 
   const handleOrganizationSelect = (organizationId: string, organization: Organization) => {
     setSelectedOrganizationId(organizationId);
-    form.setValue("organizationId", organizationId);
+    // @ts-ignore - We know this is valid based on our schema
+    form.setValue("organizationId", organizationId || null);
   };
 
   const handleCategorySelect = (categoryId: string, category: Category) => {
@@ -162,12 +165,14 @@ export function BundleCreationForm({
       // Prepare bundle data
       const bundleData = {
         ...formData,
+        organizationId: formData.organizationId || null,
         items: Object.entries(selectedItems).map(([itemId, data]) => ({
           itemId,
           quantity: data.quantity,
           overridePrice: data.overridePrice,
         })),
         totalBasePrice,
+        bundlePrice: totalOverridePrice,
         savingsPercentage: totalBasePrice > 0 ? (savings / totalBasePrice) * 100 : 0,
       };
       
@@ -206,6 +211,7 @@ export function BundleCreationForm({
   // Update form values when selected items change
   useEffect(() => {
     form.setValue("totalBasePrice", totalBasePrice);
+    form.setValue("bundlePrice", totalOverridePrice);
     form.setValue("savingsPercentage", savingsPercentage);
     
     const items = Object.entries(selectedItems).map(([itemId, data]) => ({
@@ -215,7 +221,7 @@ export function BundleCreationForm({
     }));
     
     form.setValue("items", items);
-  }, [selectedItems, form, totalBasePrice, savingsPercentage]);
+  }, [selectedItems, form, totalBasePrice, totalOverridePrice, savingsPercentage]);
     
   // Item selector component
   const ItemSelector = () => {

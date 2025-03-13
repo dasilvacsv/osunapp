@@ -96,12 +96,14 @@ export type CreateBundleInput = {
   name: string;
   description?: string;
   categoryId: string;
+  organizationId?: string | null;
   items: {
     itemId: string;
     quantity: number;
     overridePrice?: number;
   }[];
   totalBasePrice: number;
+  bundlePrice: number;
   savingsPercentage: number;
 };
 

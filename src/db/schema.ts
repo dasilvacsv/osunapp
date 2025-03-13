@@ -258,6 +258,7 @@ export const bundles = pgTable("bundles", {
   type: bundleTypeEnum("type").notNull(),
   organizationId: uuid("organization_id").references(() => organizations.id),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
+  bundlePrice: decimal("bundle_price", { precision: 10, scale: 2 }),
   discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }),
   status: statusEnum("status").default("ACTIVE"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),

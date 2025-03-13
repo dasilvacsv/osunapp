@@ -1,0 +1,1 @@
+ALTER TABLE "bundles" ADD COLUMN "bundle_price" numeric(10, 2);
