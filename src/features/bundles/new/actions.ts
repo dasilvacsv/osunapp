@@ -95,7 +95,7 @@ export async function createBundle(input: CreateBundleInput) {
       quantity: item.quantity,
       overridePrice: item.overridePrice !== undefined && item.overridePrice !== null 
         ? item.overridePrice.toString() 
-        : null,
+        : null, // If no override price is provided, use null to indicate we should use the base price
     }))
 
     await db.insert(bundleItems).values(itemsToInsert)

@@ -25,7 +25,7 @@ export interface Organization {
 
 interface OrganizationSelectProps {
   initialOrganizations: Organization[]
-  selectedOrganizationId: string
+  selectedOrganizationId: string | null | undefined
   onOrganizationSelect: (organizationId: string, organization: Organization) => void
   className?: string
 }

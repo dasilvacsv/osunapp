@@ -111,7 +111,10 @@ export function BundleCreationForm({
   }, 0);
 
   const totalOverridePrice = Object.entries(selectedItems).reduce((acc, [itemId, data]) => {
-    return acc + (data.overridePrice || 0) * data.quantity;
+    const item = initialItems.find((i) => i.id === itemId);
+    // Use the override price if specified, otherwise use the item's base price
+    const price = data.overridePrice !== undefined ? data.overridePrice : (item?.basePrice || 0);
+    return acc + price * data.quantity;
   }, 0);
 
   const savings = totalBasePrice - totalOverridePrice;
@@ -166,11 +169,18 @@ export function BundleCreationForm({
       const bundleData = {
         ...formData,
         organizationId: formData.organizationId || null,
-        items: Object.entries(selectedItems).map(([itemId, data]) => ({
-          itemId,
-          quantity: data.quantity,
-          overridePrice: data.overridePrice,
-        })),
+        items: Object.entries(selectedItems).map(([itemId, data]) => {
+          const item = initialItems.find((i) => i.id === itemId);
+          // If the override price is the same as the base price, don't send it
+          // This ensures we use the default price in the database
+          const overridePrice = data.overridePrice !== item?.basePrice ? data.overridePrice : undefined;
+          
+          return {
+            itemId,
+            quantity: data.quantity,
+            overridePrice,
+          };
+        }),
         totalBasePrice,
         bundlePrice: totalOverridePrice,
         savingsPercentage: totalBasePrice > 0 ? (savings / totalBasePrice) * 100 : 0,
@@ -231,7 +241,10 @@ export function BundleCreationForm({
     const handleSelectItem = (item: InventoryItem) => {
       setSelectedItems(prev => ({
         ...prev,
-        [item.id]: { quantity: 1 }
+        [item.id]: { 
+          quantity: 1,
+          overridePrice: item.basePrice
+        }
       }));
       setOpen(false);
     };
@@ -389,6 +402,9 @@ export function BundleCreationForm({
                             <p className="font-medium text-foreground">{item.name}</p>
                             <p className="text-sm text-muted-foreground">
                               Base price: {formatCurrency(item.basePrice)}
+                              {itemData.overridePrice === item.basePrice && 
+                                <span className="ml-2 text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded-full">Default</span>
+                              }
                             </p>
                           </div>
                           
@@ -443,11 +459,17 @@ export function BundleCreationForm({
                               <Input
                                 type="number"
                                 className="w-32"
-                                placeholder="Custom price"
-                                value={itemData?.overridePrice || ""}
+                                placeholder={`Default: ${formatCurrency(item.basePrice)}`}
+                                value={itemData?.overridePrice ?? ""}
                                 onChange={(e) => {
                                   const price = Number.parseFloat(e.target.value);
-                                  if (price >= 0) {
+                                  if (e.target.value === "") {
+                                    // If the field is cleared, use the item's base price
+                                    setSelectedItems((prev) => ({
+                                      ...prev,
+                                      [item.id]: { ...prev[item.id], overridePrice: item.basePrice },
+                                    }));
+                                  } else if (price >= 0) {
                                     setSelectedItems((prev) => ({
                                       ...prev,
                                       [item.id]: { ...prev[item.id], overridePrice: price },
