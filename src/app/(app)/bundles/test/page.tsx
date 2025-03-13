@@ -10,7 +10,12 @@ export default async function BundlesTestPage() {
   return (
     <div className="container py-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Bundles Test Page</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Bundles Test Page</h1>
+          <p className="text-muted-foreground mt-1">
+            Bundles grouped by organization with collapsible sections
+          </p>
+        </div>
         <Link href="/bundles/new">
           <Button className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
