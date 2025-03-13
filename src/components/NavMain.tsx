@@ -52,7 +52,7 @@ export function NavMain({
                 <Link href={item.url} passHref legacyBehavior>
                   <SidebarMenuButton 
                     tooltip={item.title}
-                    className={isActive ? "bg-accent" : ""}
+                    className={isActive ? "bg-accent text-accent-foreground" : ""}
                   >
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
