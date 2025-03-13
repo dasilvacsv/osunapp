@@ -107,12 +107,12 @@ const navItems = [
   },
    {
     title: "Paquetes",
-    url: "/packages",
+    url: "/bundles",
     icon: Package2,
     items: [
-      {
+      { 
         title: "Administrar Paquetes",
-        url: "/packages",
+        url: "/bundles",
       },
     ],
   },

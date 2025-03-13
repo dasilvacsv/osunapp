@@ -1,7 +1,7 @@
 
 import { getSalesData2 } from '@/features/sales/views/actions'
 import SalesPageContent from '@/features/sales/views/sales-content'
-import { TestComponent } from '@/features/sales/views/comp'
+import { TestComponent } from '@/features/inventory/view/comp'
 
 export default async function SalesPage() {
   const salesData = await getSalesData2()

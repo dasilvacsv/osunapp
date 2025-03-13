@@ -7,9 +7,8 @@ interface EventsTableProps {
 }
 
 
-export function TestComponent({ data }: EventsTableProps) {
+export function TestComponent({ data  }: EventsTableProps) {
     console.log(data);
-    
   return (
     <div>
     test
