@@ -93,7 +93,7 @@ export function BundlesTable({ bundles }: BundlesTableProps) {
     // Create a special group for bundles without an organization
     const noOrgGroup: OrganizationGroup = {
       id: null,
-      name: "No Organization",
+      name: "Paquetes Generales",
       type: null,
       bundles: [],
       totalBundles: 0,
