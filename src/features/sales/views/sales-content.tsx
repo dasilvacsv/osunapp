@@ -1,7 +1,7 @@
 "use client"
 
-import { DataTable } from "@/features/sales/data-table"
-import { columns } from "./columns"
+import { DataTable } from "@/features/sales/views/data-table"
+import { columns } from "@/features/sales/views/columns"
 import { Button } from "@/components/ui/button"
 import { PlusIcon, RefreshCw, ShoppingCart, CreditCard } from "lucide-react"
 import { NewSaleDialog } from "@/features/sales/new-sale-dialog"

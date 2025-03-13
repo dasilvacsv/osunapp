@@ -1,9 +1,8 @@
-
-import { getSalesData2 } from '@/features/sales/views/actions'
-import { TestComponent } from '@/features/sales/views/comp'
+import SalesPageContent from '../../../features/sales/views/sales-content'
+import { getSalesData } from '@/features/sales/actions'
 
 export default async function SalesPage() {
-  const salesData = await getSalesData2()
+  const salesData = await getSalesData()
   
   // Add error handling for the sales data
   if (!salesData.success) {
@@ -12,7 +11,7 @@ export default async function SalesPage() {
   
   return (
     <div className="container mx-auto">
-<TestComponent data={salesData.data} />
+      <SalesPageContent initialSales={salesData.success ? salesData.data : []} />
     </div>
   )
 }
