@@ -4,9 +4,8 @@ import { DataTable } from "@/features/sales/views/data-table"
 import { columns } from "@/features/sales/views/columns"
 import { Button } from "@/components/ui/button"
 import { PlusIcon, RefreshCw, ShoppingCart, CreditCard } from "lucide-react"
-import { NewSaleDialog } from "@/features/sales/new-sale-dialog"
 import { DeletePackageDialog } from "@/features/sales/delete-package-dialog"
-import { PaymentPlanDialog } from "@/features/sales/payment-plan-dialog"
+import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { PaymentTable } from "@/features/sales/views/payment-table"
 import { useCallback, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -163,12 +162,6 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
           )}
         </TabsContent>
       </Tabs>
-
-      <NewSaleDialog 
-        open={showDialog} 
-        onOpenChange={setShowDialog} 
-        onSuccess={handleSaleSuccess} 
-      />
 
       {selectedBundle && (
         <DeletePackageDialog

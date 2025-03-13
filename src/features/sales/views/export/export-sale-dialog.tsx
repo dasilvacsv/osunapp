@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, Download, FileSpreadsheet, CheckCircle2, CreditCard, Calendar, Package, User } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { exportSaleToExcel } from "./actions"
+import { exportSaleToExcel } from "../../actions"
 
 interface SaleExportData {
   id: string

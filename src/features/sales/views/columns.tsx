@@ -35,7 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useState } from "react"
-import { PaymentPlanDialog } from "@/features/sales/payment-plan-dialog"
+import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { Switch } from "@/components/ui/switch"
 
 export type Sale = {

@@ -29,10 +29,10 @@ import { updatePurchaseStatus } from "@/features/sales/actions"
 import { useToast } from "@/hooks/use-toast"
 import { StatusTimeline } from "@/features/sales/status-timeline"
 import { cn } from "@/lib/utils"
-import { PaymentsTable } from "@/features/sales/payments-table"
-import { PaymentPlanDialog } from "@/features/sales/payment-plan-dialog"
-import { getPaymentsByPurchase, getPaymentPlan } from "@/features/sales/payment-actions"
-import { ExportSaleButton } from "@/features/sales/export-sale-button"
+import { PaymentsTable } from "@/features/sales/views/plan/payments-table"
+import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
+import { getPaymentsByPurchase, getPaymentPlan } from "@/features/sales/views/plan/payment-actions"
+import { ExportSaleButton } from "@/features/sales/views/export/export-sale-button"
 
 const statusLabels = {
   PENDING: "Pendiente",
