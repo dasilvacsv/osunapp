@@ -42,7 +42,6 @@ export function BeneficiaryForm({
 
   const form = useForm<BeneficiaryFormData>({
     defaultValues: {
-      name: initialData?.name || "",
       clientId: clientId,
       organizationId: initialData?.organizationId || "none",
       grade: initialData?.grade || "",
@@ -135,34 +134,16 @@ export function BeneficiaryForm({
           transition={{ duration: 0.3 }}
           className="space-y-4"
         >
-          <FormField
-            control={form.control}
-            name="name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nombre Completo</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Nombre del beneficiario"
-                    {...field}
-                    className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
               name="firstName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nombre</FormLabel>
+                  <FormLabel>Nombres</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Nombre"
+                      placeholder="Nombres"
                       {...field}
                       className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
                     />
@@ -177,10 +158,10 @@ export function BeneficiaryForm({
               name="lastName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Apellido</FormLabel>
+                  <FormLabel>Apellidos</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Apellido"
+                      placeholder="Apellidos"
                       {...field}
                       className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
                     />
