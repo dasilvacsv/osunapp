@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useCallback } from "react"
 
 import {
   useReactTable,
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { TransactionHistory } from "./transaction-history"
 import { getInventoryTransactions } from "./actions"
 import { columns } from "./columns"
-import type { InventoryItem, InventoryTransaction } from "./types"
+import type { InventoryTransaction } from "./types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import {
@@ -59,15 +59,29 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
 
   const { toast } = useToast()
 
-  const fetchTransactions = async (itemId: string) => {
-    if (transactions[itemId]) return
-    setLoading((prev) => ({ ...prev, [itemId]: true }))
-    const result = await getInventoryTransactions(itemId)
-    if (result.success) {
-      setTransactions((prev) => ({ ...prev, [itemId]: result.data }))
-    }
-    setLoading((prev) => ({ ...prev, [itemId]: false }))
-  }
+  // Memoize the fetchTransactions function to prevent unnecessary re-renders
+  const fetchTransactions = useCallback(
+    async (itemId: string) => {
+      if (transactions[itemId]) return
+      setLoading((prev) => ({ ...prev, [itemId]: true }))
+      try {
+        const result = await getInventoryTransactions(itemId)
+        if (result.success) {
+          setTransactions((prev) => ({ ...prev, [itemId]: result.data }))
+        }
+      } catch (error) {
+        console.error("Error fetching transactions:", error)
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar las transacciones",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading((prev) => ({ ...prev, [itemId]: false }))
+      }
+    },
+    [transactions, toast],
+  )
 
   const handleDisableItem = async (id: string) => {
     setItemToDisable(id)
@@ -118,13 +132,14 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
     }
   }
 
-  // Filtrar los items para mostrar solo los que tienen pre-venta habilitada
-  const filteredItems = showPreSaleOnly ? items.filter((item) => item.allowPreSale) : items
+  // Ensure items is always an array before filtering
+  const safeItems = Array.isArray(items) ? items : []
 
-  const safeData = Array.isArray(filteredItems) ? filteredItems : []
+  // Safely filter items for pre-sale
+  const filteredItems = showPreSaleOnly ? safeItems.filter((item) => item.allowPreSale === true) : safeItems
 
   const table = useReactTable({
-    data: safeData,
+    data: filteredItems,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -147,8 +162,8 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
     },
   })
 
-  // Contar cuántos productos tienen pre-venta habilitada
-  const preSaleCount = items.filter((item) => item.allowPreSale).length
+  // Safely count pre-sale items
+  const preSaleCount = safeItems.filter((item) => item.allowPreSale === true).length
 
   return (
     <div className="space-y-4">
@@ -349,7 +364,7 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
             )}
           </div>
           <div className="text-sm text-muted-foreground">
-            {safeData.length} producto(s) en total
+            {filteredItems.length} producto(s) en total
             {preSaleCount > 0 && (
               <span className="ml-2">
                 (<Flag className="h-3 w-3 inline-block text-red-500" /> {preSaleCount} con pre-venta)

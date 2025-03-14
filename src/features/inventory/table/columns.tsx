@@ -3,7 +3,7 @@
 import type { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency } from "@/lib/utils"
-import type { InventoryItem } from "@/lib/types"
+import type { InventoryItem } from "../types"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import {
   ArrowUpDown,
@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Switch } from "@/components/ui/switch"
 import { useState } from "react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { updateItemPreSaleFlag } from "@/features/inventory/table/actions"
+import { updatePreSaleFlag } from "../actions"
 import { useToast } from "@/hooks/use-toast"
 
 // Define the motion div component with proper types
@@ -102,9 +102,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
     cell: ({ row }) => {
       const type = row.getValue("type") as string
       return (
-        <Badge variant="outline">
-          {type === "PHYSICAL" ? "Físico" : type === "DIGITAL" ? "Digital" : "Servicio"}
-        </Badge>
+        <Badge variant="outline">{type === "PHYSICAL" ? "Físico" : type === "DIGITAL" ? "Digital" : "Servicio"}</Badge>
       )
     },
   },
@@ -207,7 +205,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
     ),
     cell: ({ row }) => {
       const count = row.getValue("preSaleCount") as number
-      
+
       return (
         <div className="flex items-center gap-2">
           {count > 0 ? (
@@ -247,73 +245,77 @@ export const columns: ColumnDef<InventoryItem>[] = [
       </div>
     ),
     cell: ({ row }) => {
-      const { toast } = useToast()
-      const [isEnabled, setIsEnabled] = useState(row.original.allowPreSale || false)
-      const [isUpdating, setIsUpdating] = useState(false)
+      const PreSaleSwitch = () => {
+        const { toast } = useToast()
+        const [isEnabled, setIsEnabled] = useState(row.original.allowPreSale || false)
+        const [isUpdating, setIsUpdating] = useState(false)
 
-      const handleToggle = async (checked: boolean) => {
-        setIsUpdating(true)
-        try {
-          const result = await updateItemPreSaleFlag(row.original.id, checked)
-          if (result.success) {
-            setIsEnabled(checked)
-            toast({
-              title: checked ? "Pre-venta habilitada" : "Pre-venta deshabilitada",
-              description: checked
-                ? "Ahora se puede vender este producto sin stock disponible"
-                : "Este producto ahora requiere stock disponible para venderse",
-              variant: checked ? "default" : "secondary",
-            })
-          } else {
+        const handleToggle = async (checked: boolean) => {
+          setIsUpdating(true)
+          try {
+            const result = await updatePreSaleFlag(row.original.id, checked)
+            if (result.success) {
+              setIsEnabled(checked)
+              toast({
+                title: checked ? "Pre-venta habilitada" : "Pre-venta deshabilitada",
+                description: checked
+                  ? "Ahora se puede vender este producto sin stock disponible"
+                  : "Este producto ahora requiere stock disponible para venderse",
+                variant: checked ? "default" : "secondary",
+              })
+            } else {
+              toast({
+                title: "Error",
+                description: result.error || "No se pudo actualizar el estado de pre-venta",
+                variant: "destructive",
+              })
+              // Revertir el estado visual si hay error
+              setIsEnabled(!checked)
+            }
+          } catch (error) {
+            console.error("Error updating pre-sale flag:", error)
             toast({
               title: "Error",
-              description: result.error || "No se pudo actualizar el estado de pre-venta",
+              description: "Ocurrió un error al actualizar el estado de pre-venta",
               variant: "destructive",
             })
             // Revertir el estado visual si hay error
             setIsEnabled(!checked)
+          } finally {
+            setIsUpdating(false)
           }
-        } catch (error) {
-          console.error("Error updating pre-sale flag:", error)
-          toast({
-            title: "Error",
-            description: "Ocurrió un error al actualizar el estado de pre-venta",
-            variant: "destructive",
-          })
-          // Revertir el estado visual si hay error
-          setIsEnabled(!checked)
-        } finally {
-          setIsUpdating(false)
         }
+
+        return (
+          <div className="flex items-center justify-center">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5">
+                    <Switch
+                      checked={isEnabled}
+                      onCheckedChange={handleToggle}
+                      disabled={isUpdating}
+                      className={cn("data-[state=checked]:bg-red-500", isEnabled && "ring-1 ring-red-300")}
+                    />
+                    {isEnabled && (
+                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs py-0 h-5">
+                        <Flag className="h-3 w-3 mr-1" />
+                        Activo
+                      </Badge>
+                    )}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  <p>{isEnabled ? "Permitir venta sin stock disponible" : "Requiere stock disponible para vender"}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )
       }
 
-      return (
-        <div className="flex items-center justify-center">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5">
-                  <Switch
-                    checked={isEnabled}
-                    onCheckedChange={handleToggle}
-                    disabled={isUpdating}
-                    className={cn("data-[state=checked]:bg-red-500", isEnabled && "ring-1 ring-red-300")}
-                  />
-                  {isEnabled && (
-                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs py-0 h-5">
-                      <Flag className="h-3 w-3 mr-1" />
-                      Activo
-                    </Badge>
-                  )}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">
-                <p>{isEnabled ? "Permitir venta sin stock disponible" : "Requiere stock disponible para vender"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-      )
+      return <PreSaleSwitch />
     },
   },
   {
