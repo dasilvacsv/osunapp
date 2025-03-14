@@ -117,7 +117,10 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
   const preSaleCount = Array.isArray(items) ? items.filter((item) => item.allowPresale === true).length : 0
 
   useEffect(() => {
-    const handleInventoryUpdated = () => {
+    const handleInventoryUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent
+      console.log("Inventario actualizado:", customEvent.detail)
+
       if (onItemUpdated) {
         onItemUpdated()
       }
@@ -152,6 +155,13 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
             ? "Ahora se puede vender este producto sin stock disponible"
             : "Este producto ahora requiere stock disponible para venderse",
         })
+
+        // Disparar evento personalizado para actualizar la tabla
+        window.dispatchEvent(
+          new CustomEvent("inventory-updated", {
+            detail: { itemId: id, allowPresale: !currentValue },
+          }),
+        )
 
         if (onItemUpdated) {
           onItemUpdated()
@@ -367,7 +377,10 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
                                   <Skeleton className="h-8 w-full" />
                                 </div>
                               ) : transactions[row.original.id]?.length > 0 ? (
-                                <TransactionHistory transactions={transactions[row.original.id]} />
+                                <TransactionHistory
+                                  transactions={transactions[row.original.id]}
+                                  itemId={row.original.id}
+                                />
                               ) : (
                                 <div className="flex items-center justify-center gap-2 text-muted-foreground py-8">
                                   <AlertCircle className="h-4 w-4" />

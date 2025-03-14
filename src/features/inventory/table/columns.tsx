@@ -27,7 +27,7 @@ import { useToast } from "@/hooks/use-toast"
 // Define the motion div component with proper types
 const MotionDiv = motion.div
 
-// Componente independiente para el toggle de pre-venta
+// Reemplazar el componente PreSaleToggle con esta versión mejorada
 function PreSaleToggle({
   itemId,
   initialValue,
@@ -62,6 +62,13 @@ function PreSaleToggle({
 
         // Notificar éxito para actualizar la tabla
         onToggleSuccess()
+
+        // Disparar evento personalizado para actualizar la tabla
+        window.dispatchEvent(
+          new CustomEvent("inventory-updated", {
+            detail: { itemId, allowPresale: checked },
+          }),
+        )
       } else {
         toast({
           title: "Error",
@@ -126,7 +133,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="group flex items-center gap-1 hover:bg-muted/50 transition-colors"
         >
-          <Package className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" /> Name{" "}
+          <Package className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" /> Nombre{" "}
           <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
         </Button>
       )
@@ -164,7 +171,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
                 </div>
                 <div className="flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-muted-foreground" />
-                  <span>Base Price: {formatCurrency(Number(item.basePrice))}</span>
+                  <span>Precio Base: {formatCurrency(Number(item.basePrice))}</span>
                 </div>
                 <Badge variant="outline" className="w-fit">
                   {item.type}
@@ -187,7 +194,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
   },
   {
     accessorKey: "type",
-    header: "Type",
+    header: "Tipo",
     cell: ({ row }) => {
       const type = row.getValue("type") as string
       return (
@@ -204,8 +211,8 @@ export const columns: ColumnDef<InventoryItem>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           className="group flex items-center gap-1 hover:bg-muted/50 transition-colors"
         >
-          <DollarSign className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" /> Base Price{" "}
-          <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+          <DollarSign className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" /> Precio
+          Base <ArrowUpDown className="ml-1 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
         </Button>
       )
     },
@@ -226,7 +233,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
   },
   {
     accessorKey: "currentStock",
-    header: "Current Stock",
+    header: "Stock Actual",
     cell: ({ row }) => {
       const stock = row.getValue("currentStock") as number
       const minStock = row.getValue("minimumStock") as number
@@ -279,7 +286,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
   },
   {
     accessorKey: "reservedStock",
-    header: "Reserved",
+    header: "Reservado",
     cell: ({ row }) => (
       <span className="font-medium tabular-nums text-muted-foreground">{row.getValue("reservedStock")}</span>
     ),
@@ -320,11 +327,12 @@ export const columns: ColumnDef<InventoryItem>[] = [
   },
   {
     accessorKey: "minimumStock",
-    header: "Min Stock",
+    header: "Stock Mín",
     cell: ({ row }) => (
       <span className="font-medium tabular-nums text-muted-foreground">{row.getValue("minimumStock")}</span>
     ),
   },
+  // Reemplazar la celda de allowPresale en las columnas
   {
     accessorKey: "allowPresale",
     header: () => (
@@ -333,7 +341,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
         <span>Pre-Venta</span>
       </div>
     ),
-    cell: ({ row, table }) => {
+    cell: ({ row }) => {
       // Extraer el ID único de la fila para evitar problemas de estado compartido
       const itemId = row.original.id
       const isAllowPresale = row.original.allowPresale
@@ -345,7 +353,11 @@ export const columns: ColumnDef<InventoryItem>[] = [
           initialValue={isAllowPresale}
           onToggleSuccess={() => {
             // Disparar evento para actualizar la tabla
-            window.dispatchEvent(new CustomEvent("inventory-updated", { detail: { itemId } }))
+            window.dispatchEvent(
+              new CustomEvent("inventory-updated", {
+                detail: { itemId, allowPresale: !isAllowPresale },
+              }),
+            )
           }}
         />
       )
@@ -353,7 +365,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
   },
   {
     accessorKey: "status",
-    header: "Status",
+    header: "Estado",
     cell: ({ row }) => {
       const status = row.getValue("status") as string
       const isActive = status === "ACTIVE"
@@ -374,7 +386,7 @@ export const columns: ColumnDef<InventoryItem>[] = [
                 : "hover:bg-muted/70",
             )}
           >
-            {status.toLowerCase()}
+            {status === "ACTIVE" ? "Activo" : "Inactivo"}
           </Badge>
           <AnimatePresence>
             {isActive && (

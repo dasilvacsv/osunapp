@@ -21,7 +21,7 @@ export function InventoryManager({ initialData }: InventoryManagerProps) {
         setItems(result.data)
       }
     } catch (error) {
-      console.error("Refresh error:", error)
+      console.error("Error de actualización:", error)
       toast({
         title: "Error",
         description: "Ocurrió un error al refrescar los datos del inventario.",
@@ -32,16 +32,14 @@ export function InventoryManager({ initialData }: InventoryManagerProps) {
     }
   }, [toast, isRefreshing])
 
-  // Escuchar eventos de actualización de inventario
+  // Reemplazar el useEffect para escuchar eventos
   useEffect(() => {
     const handleInventoryUpdated = (event: Event) => {
       const customEvent = event as CustomEvent
-      const itemId = customEvent.detail?.itemId
+      console.log("Inventario actualizado:", customEvent.detail)
 
-      // Si tenemos un ID específico, actualizar solo ese elemento
-      if (itemId && items.some((item) => item.id === itemId)) {
-        refreshData()
-      }
+      // Siempre actualizar la tabla completa cuando se recibe el evento
+      refreshData()
     }
 
     window.addEventListener("inventory-updated", handleInventoryUpdated)
@@ -49,7 +47,7 @@ export function InventoryManager({ initialData }: InventoryManagerProps) {
     return () => {
       window.removeEventListener("inventory-updated", handleInventoryUpdated)
     }
-  }, [refreshData, items])
+  }, [refreshData])
 
   return (
     <div className="space-y-4">

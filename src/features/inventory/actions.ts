@@ -33,7 +33,7 @@ export async function getInventoryItems(): Promise<ActionResponse<InventoryItem[
     return { success: true, data: enrichedItems }
   } catch (error) {
     console.error("Error fetching inventory items:", error)
-    return { success: false, error: "Failed to fetch inventory items" }
+    return { success: false, error: "Error al obtener los productos del inventario" }
   }
 }
 
@@ -49,7 +49,7 @@ export async function getInventoryTransactions(itemId: string): Promise<ActionRe
     return { success: true, data: transactions }
   } catch (error) {
     console.error("Error fetching transaction history:", error)
-    return { success: false, error: "Failed to fetch transaction history" }
+    return { success: false, error: "Error al obtener el historial de transacciones" }
   }
 }
 
@@ -57,12 +57,12 @@ export async function getInventoryItem(id: string): Promise<ActionResponse<Inven
   try {
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id))
     if (!item) {
-      return { success: false, error: "Item not found" }
+      return { success: false, error: "Producto no encontrado" }
     }
     return { success: true, data: item }
   } catch (error) {
     console.error("Error fetching inventory item:", error)
-    return { success: false, error: "Error fetching item" }
+    return { success: false, error: "Error al obtener el producto" }
   }
 }
 
@@ -76,7 +76,7 @@ export async function updateInventoryItemStatus(
     return { success: true }
   } catch (error) {
     console.error("Error updating item status:", error)
-    return { success: false, error: "Failed to update item status" }
+    return { success: false, error: "Error al actualizar el estado del producto" }
   }
 }
 
@@ -87,7 +87,7 @@ export async function updatePreSaleFlag(id: string, allowPresale: boolean): Prom
     const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id))
 
     if (!item) {
-      return { success: false, error: "Item no encontrado" }
+      return { success: false, error: "Producto no encontrado" }
     }
 
     // Actualizar el campo allowPresale directamente
@@ -111,7 +111,7 @@ export async function updatePreSaleFlag(id: string, allowPresale: boolean): Prom
     return { success: true }
   } catch (error) {
     console.error("Error updating pre-sale flag:", error)
-    return { success: false, error: "Failed to update pre-sale setting" }
+    return { success: false, error: "Error al actualizar la configuración de pre-venta" }
   }
 }
 
@@ -127,14 +127,14 @@ export async function decreaseInventoryForSale(
       const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId))
 
       if (!item) {
-        return { success: false, error: `Item with ID ${itemId} not found` }
+        return { success: false, error: `Producto con ID ${itemId} no encontrado` }
       }
 
       // Check if we have enough stock or if pre-sale is allowed
       if (item.currentStock < quantity && !item.allowPresale) {
         return {
           success: false,
-          error: `Insufficient stock for item ${item.name}. Available: ${item.currentStock}, Requested: ${quantity}`,
+          error: `Stock insuficiente para el producto ${item.name}. Disponible: ${item.currentStock}, Solicitado: ${quantity}`,
         }
       }
 
@@ -197,7 +197,7 @@ export async function decreaseInventoryForSale(
     return { success: true }
   } catch (error) {
     console.error("Error updating inventory for sale:", error)
-    return { success: false, error: "Failed to update inventory for sale" }
+    return { success: false, error: "Error al actualizar el inventario para la venta" }
   }
 }
 
