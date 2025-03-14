@@ -50,7 +50,7 @@ const navItems = [
   },
   {
     title: "Inventario",
-    url: "/inventory",
+    url: "/inventario",
     icon: Package
   },
   {
