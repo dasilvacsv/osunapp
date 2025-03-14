@@ -83,3 +83,53 @@ export interface CertificadoResponse {
   data?: OrganizationSalesGroup[];
   error?: string;
 } 
+
+// Ficha Data for PDF generation
+export interface BundleItemData {
+  name: string;
+  description: string;
+  quantity: number;
+}
+
+export interface PaymentData {
+  amount: number;
+  date: Date | null;
+  method: string;
+  status: string;
+}
+
+export interface FichaData {
+  // Purchase info
+  purchaseId: string;
+  purchaseDate: Date | null;
+  totalAmount: number;
+  status: PurchaseStatus;
+  isPaid: boolean;
+  
+  // Client info
+  clientName: string;
+  clientDocument: string;
+  clientPhone: string;
+  clientWhatsapp: string;
+  clientEmail: string;
+  
+  // Beneficiary info
+  beneficiarioName: string;
+  beneficiarioFirstName: string;
+  beneficiarioLastName: string;
+  beneficiarioGrade: string;
+  beneficiarioSection: string;
+  beneficiarioSchool: string;
+  
+  // Bundle info
+  bundleName: string;
+  bundleItems: BundleItemData[];
+  
+  // Organization info
+  organizationName: string;
+  
+  // Payment info
+  totalPaid: number;
+  remaining: number;
+  payments: PaymentData[];
+} 

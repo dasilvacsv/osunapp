@@ -9,7 +9,10 @@ import {
   purchases, 
   purchaseItems,
   bundles,
-  certificates
+  certificates,
+  bundleItems,
+  inventoryItems,
+  payments
 } from "@/db/schema";
 import { 
   CertificadoSale, 
@@ -17,7 +20,8 @@ import {
   CertificadoResponse,
   PurchaseStatus,
   PaymentStatus,
-  CertificateStatus
+  CertificateStatus,
+  FichaData
 } from "./types";
 
 export async function getCertificadoSales(): Promise<CertificadoResponse> {
@@ -199,5 +203,146 @@ export async function updateCertificateStatus(
   } catch (error) {
     console.error("Error updating certificate status:", error);
     return { success: false, error: "Failed to update certificate status" };
+  }
+}
+
+// Get complete data for a "Ficha" PDF
+export async function getFichaData(purchaseId: string): Promise<{ success: boolean; data?: FichaData; error?: string }> {
+  try {
+    // Get purchase with related data
+    const purchaseData = await db
+      .select({
+        // Purchase info
+        id: purchases.id,
+        purchaseDate: purchases.purchaseDate,
+        totalAmount: purchases.totalAmount,
+        status: purchases.status,
+        paymentStatus: purchases.paymentStatus,
+        isPaid: purchases.isPaid,
+        
+        // Client info
+        clientId: purchases.clientId,
+        clientName: clients.name,
+        clientDocument: clients.document,
+        clientPhone: clients.phone,
+        clientWhatsapp: clients.whatsapp,
+        clientContactInfo: clients.contactInfo,
+        
+        // Beneficiary info
+        beneficiarioId: purchases.beneficiarioId,
+        beneficiarioFirstName: beneficiarios.firstName,
+        beneficiarioLastName: beneficiarios.lastName,
+        beneficiarioGrade: beneficiarios.grade,
+        beneficiarioSection: beneficiarios.section,
+        beneficiarioSchool: beneficiarios.school,
+        
+        // Bundle info
+        bundleId: purchases.bundleId,
+        bundleName: bundles.name,
+        bundleBasePrice: bundles.basePrice,
+        bundlePrice: bundles.bundlePrice,
+        
+        // Organization info
+        organizationId: purchases.organizationId,
+        organizationName: organizations.name,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .where(eq(purchases.id, purchaseId))
+      .limit(1);
+
+    if (purchaseData.length === 0) {
+      return { success: false, error: "Purchase not found" };
+    }
+
+    // Get bundle items
+    const bundleItemsData = purchaseData[0].bundleId 
+      ? await db
+          .select({
+            itemName: inventoryItems.name,
+            itemDescription: inventoryItems.description,
+            quantity: bundleItems.quantity,
+          })
+          .from(bundleItems)
+          .leftJoin(inventoryItems, eq(bundleItems.itemId, inventoryItems.id))
+          .where(eq(bundleItems.bundleId, purchaseData[0].bundleId as string))
+      : [];
+
+    // Get payment data
+    const paymentsData = await db
+      .select({
+        id: payments.id,
+        amount: payments.amount,
+        paymentDate: payments.paymentDate,
+        method: payments.paymentMethod,
+        status: payments.status,
+      })
+      .from(payments)
+      .where(eq(payments.purchaseId, purchaseId))
+      .orderBy(desc(payments.paymentDate));
+
+    // Calculate total paid amount
+    const totalPaid = paymentsData.reduce((sum, payment) => 
+      sum + Number(payment.amount), 0);
+    
+    // Calculate remaining amount
+    const remaining = Number(purchaseData[0].totalAmount) - totalPaid;
+
+    const fichaData: FichaData = {
+      // Purchase info
+      purchaseId: purchaseData[0].id,
+      purchaseDate: purchaseData[0].purchaseDate,
+      totalAmount: Number(purchaseData[0].totalAmount),
+      status: purchaseData[0].status,
+      isPaid: purchaseData[0].isPaid ?? false,
+      
+      // Client info
+      clientName: purchaseData[0].clientName ?? "",
+      clientDocument: purchaseData[0].clientDocument ?? "",
+      clientPhone: purchaseData[0].clientPhone ?? "",
+      clientWhatsapp: purchaseData[0].clientWhatsapp ?? "",
+      clientEmail: purchaseData[0].clientContactInfo 
+        ? (purchaseData[0].clientContactInfo as any)?.email ?? ""
+        : "",
+      
+      // Beneficiary info
+      beneficiarioName: purchaseData[0].beneficiarioFirstName 
+        ? `${purchaseData[0].beneficiarioFirstName} ${purchaseData[0].beneficiarioLastName ?? ""}`
+        : "",
+      beneficiarioLastName: purchaseData[0].beneficiarioLastName ?? "",
+      beneficiarioFirstName: purchaseData[0].beneficiarioFirstName ?? "",
+      beneficiarioGrade: purchaseData[0].beneficiarioGrade ?? "",
+      beneficiarioSection: purchaseData[0].beneficiarioSection ?? "",
+      beneficiarioSchool: purchaseData[0].beneficiarioSchool ?? "",
+      
+      // Bundle info
+      bundleName: purchaseData[0].bundleName ?? "",
+      bundleItems: bundleItemsData.map(item => ({
+        name: item.itemName ?? "",
+        description: item.itemDescription ?? "",
+        quantity: item.quantity ?? 0,
+      })),
+      
+      // Organization info
+      organizationName: purchaseData[0].organizationName ?? "",
+      
+      // Payment info
+      totalPaid,
+      remaining,
+      payments: paymentsData.map(payment => ({
+        amount: Number(payment.amount),
+        date: payment.paymentDate,
+        method: payment.method ?? "",
+        status: payment.status ?? "",
+      })),
+    };
+
+    return { success: true, data: fichaData };
+  } catch (error) {
+    console.error("Error fetching ficha data:", error);
+    return { success: false, error: "Failed to fetch data for the ficha" };
   }
 } 

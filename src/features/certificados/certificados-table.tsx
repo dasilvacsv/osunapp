@@ -35,12 +35,14 @@ import {
   Receipt,
   User,
   Edit,
-  Download
+  Download,
+  FileDigit
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { OrganizationSalesGroup, PurchaseStatus, PaymentStatus, CertificateStatus } from "./types";
 import Link from "next/link";
+import { FichaTrigger } from "./ficha-pdf";
 
 interface CertificadosTableProps {
   salesGroups: OrganizationSalesGroup[];
@@ -272,6 +274,12 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                                   className="flex items-center gap-2"
                                 >
                                   <FileText className="h-4 w-4" /> Generar PDF
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => router.push(`/certificados/${sale.id}/ficha`)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <FileDigit className="h-4 w-4" /> Ver Ficha PDF
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => router.push(`/sales/${sale.id}`)}

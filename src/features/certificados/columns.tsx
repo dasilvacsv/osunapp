@@ -11,7 +11,8 @@ import {
   CheckCircle,
   XCircle,
   Edit,
-  Download
+  Download,
+  FileDigit
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -24,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
 import Link from "next/link"
+import { FichaTrigger } from "./ficha-pdf"
 
 export const columns: ColumnDef<CertificadoSale>[] = [
   {
@@ -200,6 +202,18 @@ export const columns: ColumnDef<CertificadoSale>[] = [
             <DropdownMenuItem asChild>
               <Link href={`/certificados/${sale.id}/pdf`} className="flex items-center gap-2">
                 <FileText className="h-4 w-4" /> Generar PDF
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              <FichaTrigger purchaseId={sale.id}>
+                <div className="flex items-center gap-2 w-full">
+                  <FileDigit className="h-4 w-4" /> Generar Ficha
+                </div>
+              </FichaTrigger>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/certificados/${sale.id}/ficha`} className="flex items-center gap-2">
+                <FileDigit className="h-4 w-4" /> Ver Ficha PDF
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
