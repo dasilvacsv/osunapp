@@ -2,14 +2,16 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
-import { CertificadoSale, PurchaseStatus, PaymentStatus } from "./types"
+import { CertificadoSale, PurchaseStatus, PaymentStatus, CertificateStatus } from "./types"
 import { 
   MoreHorizontal, 
   Receipt,
   User,
   FileText,
   CheckCircle,
-  XCircle
+  XCircle,
+  Edit,
+  Download
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -21,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
+import Link from "next/link"
 
 export const columns: ColumnDef<CertificadoSale>[] = [
   {
@@ -31,7 +34,9 @@ export const columns: ColumnDef<CertificadoSale>[] = [
       return (
         <div className="flex items-center gap-2">
           <Receipt className="h-4 w-4 text-muted-foreground" />
-          <span>{id.slice(-8)}</span>
+          <Link href={`/sales/${id}`} className="hover:underline text-blue-600">
+            {id.slice(-8)}
+          </Link>
         </div>
       );
     },
@@ -74,6 +79,20 @@ export const columns: ColumnDef<CertificadoSale>[] = [
       }
       
       return <span className="text-muted-foreground text-sm">Sin beneficiario</span>;
+    },
+  },
+  {
+    id: "gradeSection",
+    header: "Grado/Sección",
+    cell: ({ row }) => {
+      const grade = row.original.beneficiarioGrade;
+      const section = row.original.beneficiarioSection;
+      
+      if (grade || section) {
+        return `${grade || ""} ${section ? `- ${section}` : ""}`;
+      }
+      
+      return <span className="text-muted-foreground text-sm">N/A</span>;
     },
   },
   {
@@ -137,6 +156,27 @@ export const columns: ColumnDef<CertificadoSale>[] = [
     },
   },
   {
+    id: "certificateStatus",
+    header: "Certificado",
+    cell: ({ row }) => {
+      const status = row.original.certificateStatus;
+      
+      if (!status) return <Badge variant="outline">No generado</Badge>;
+      
+      switch (status) {
+        case "GENERATED":
+          return <Badge className="bg-blue-500 hover:bg-blue-600">Generado</Badge>;
+        case "APPROVED":
+          return <Badge className="bg-green-500 hover:bg-green-600">Aprobado</Badge>;
+        case "NEEDS_REVISION":
+          return <Badge className="bg-yellow-500 hover:bg-yellow-600">Necesita revisión</Badge>;
+        case "NOT_GENERATED":
+        default:
+          return <Badge variant="outline">No generado</Badge>;
+      }
+    },
+  },
+  {
     id: "actions",
     cell: ({ row }) => {
       const sale = row.original;
@@ -152,12 +192,56 @@ export const columns: ColumnDef<CertificadoSale>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <FileText className="h-4 w-4 mr-2" /> Ver detalles
+            <DropdownMenuItem asChild>
+              <Link href={`/certificados/${sale.id}`} className="flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Ver detalles
+              </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <FileText className="h-4 w-4 mr-2" /> Generar PDF
+            <DropdownMenuItem asChild>
+              <Link href={`/certificados/${sale.id}/pdf`} className="flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Generar PDF
+              </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`/sales/${sale.id}`} className="flex items-center gap-2">
+                <Receipt className="h-4 w-4" /> Ver venta
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {sale.certificateStatus === "GENERATED" ? (
+              <>
+                <DropdownMenuItem asChild>
+                  <Link 
+                    href={`/certificados/${sale.id}/approve`} 
+                    className="flex items-center gap-2 text-green-600 focus:text-green-600"
+                  >
+                    <CheckCircle className="h-4 w-4" /> Aprobar certificado
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link 
+                    href={`/certificados/${sale.id}/revision`}
+                    className="flex items-center gap-2 text-yellow-600 focus:text-yellow-600"
+                  >
+                    <Edit className="h-4 w-4" /> Solicitar revisión
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <DropdownMenuItem asChild>
+                <Link href={`/certificados/${sale.id}/generate`} className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Generar certificado
+                </Link>
+              </DropdownMenuItem>
+            )}
+            {sale.certificateFileUrl && (
+              <DropdownMenuItem 
+                onClick={() => window.open(sale.certificateFileUrl || "", "_blank")}
+                className="flex items-center gap-2"
+              >
+                <Download className="h-4 w-4" /> Descargar certificado
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             {sale.isPaid || sale.paymentStatus === "PAID" ? (
               <DropdownMenuItem className="text-destructive focus:text-destructive">

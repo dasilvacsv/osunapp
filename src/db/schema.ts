@@ -48,6 +48,7 @@ export const transactionTypeEnum = pgEnum("transaction_type", [
   "RESERVATION",
   "FULFILLMENT",
 ])
+export const certificateStatusEnum = pgEnum("certificate_status", ["GENERATED", "NOT_GENERATED", "NEEDS_REVISION", "APPROVED"])
 
 // Cities table for organization locations
 export const cities = pgTable("cities", {
@@ -173,6 +174,32 @@ export const beneficiariosRelations = relations(beneficiarios, ({ one, many }) =
     references: [bundles.id],
   }),
   purchases: many(purchases),
+  certificates: many(certificates),
+}))
+
+// Certificates Table for tracking certificate generation and approval status
+export const certificates = pgTable("certificates", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  purchaseId: uuid("purchase_id").notNull().references(() => purchases.id),
+  beneficiarioId: uuid("beneficiario_id").references(() => beneficiarios.id),
+  status: certificateStatusEnum("status").default("NOT_GENERATED"),
+  fileUrl: varchar("file_url", { length: 512 }),
+  notes: text("notes"),
+  generatedAt: timestamp("generated_at", { withTimezone: true }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+export const certificatesRelations = relations(certificates, ({ one, many }) => ({
+  purchase: one(purchases, {
+    fields: [certificates.purchaseId],
+    references: [purchases.id],
+  }),
+  beneficiario: one(beneficiarios, {
+    fields: [certificates.beneficiarioId],
+    references: [beneficiarios.id],
+  }),
 }))
 
 // Inventory Items Table
@@ -353,6 +380,7 @@ export const purchasesRelations = relations(purchases, ({ one, many }) => ({
   items: many(purchaseItems),
   payments: many(payments),
   paymentPlans: many(paymentPlans),
+  certificates: many(certificates),
 }))
 
 export const payments = pgTable("payments", {

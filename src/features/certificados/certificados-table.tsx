@@ -33,17 +33,22 @@ import {
   CheckCircle,
   XCircle,
   Receipt,
-  User
+  User,
+  Edit,
+  Download
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { OrganizationSalesGroup, PurchaseStatus, PaymentStatus } from "./types";
+import { OrganizationSalesGroup, PurchaseStatus, PaymentStatus, CertificateStatus } from "./types";
+import Link from "next/link";
 
 interface CertificadosTableProps {
   salesGroups: OrganizationSalesGroup[];
 }
 
 export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
+  console.log(salesGroups);
+  
   const router = useRouter();
   const [expandedOrgs, setExpandedOrgs] = useState<Record<string, boolean>>({});
 
@@ -111,6 +116,22 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
     return <Badge variant="outline">Desconocido</Badge>;
   };
 
+  const getCertificateStatusBadge = (status: CertificateStatus | null) => {
+    if (!status) return <Badge variant="outline">No generado</Badge>;
+    
+    switch (status) {
+      case "GENERATED":
+        return <Badge className="bg-blue-500 hover:bg-blue-600">Generado</Badge>;
+      case "APPROVED":
+        return <Badge className="bg-green-500 hover:bg-green-600">Aprobado</Badge>;
+      case "NEEDS_REVISION":
+        return <Badge className="bg-yellow-500 hover:bg-yellow-600">Necesita revisión</Badge>;
+      case "NOT_GENERATED":
+      default:
+        return <Badge variant="outline">No generado</Badge>;
+    }
+  };
+
   const formatDate = (date: Date | null) => {
     if (!date) return "N/A";
     return new Date(date).toLocaleDateString("es-ES", {
@@ -166,10 +187,12 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                         <TableHead>Fecha</TableHead>
                         <TableHead>Cliente</TableHead>
                         <TableHead>Beneficiario</TableHead>
+                        <TableHead>Grado/Sección</TableHead>
                         <TableHead>Paquete</TableHead>
                         <TableHead>Monto</TableHead>
                         <TableHead>Estado</TableHead>
                         <TableHead>Pago</TableHead>
+                        <TableHead>Certificado</TableHead>
                         <TableHead className="w-[70px]"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -179,7 +202,12 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               <Receipt className="h-4 w-4 text-muted-foreground" />
-                              <span>{sale.id.slice(-8)}</span>
+                              <Link
+                                href={`/sales/${sale.id}`}
+                                className="hover:underline text-blue-600"
+                              >
+                                {sale.id.slice(-8)}
+                              </Link>
                             </div>
                           </TableCell>
                           <TableCell>
@@ -199,6 +227,13 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                             )}
                           </TableCell>
                           <TableCell>
+                            {sale.beneficiarioGrade || sale.beneficiarioSection ? (
+                              `${sale.beneficiarioGrade || ""} ${sale.beneficiarioSection ? `- ${sale.beneficiarioSection}` : ""}`
+                            ) : (
+                              <span className="text-muted-foreground text-sm">N/A</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             {sale.bundleName || (
                               <span className="text-muted-foreground text-sm">Sin paquete</span>
                             )}
@@ -211,6 +246,9 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                           </TableCell>
                           <TableCell>
                             {getPaymentStatusBadge(sale.isPaid, sale.paymentStatus)}
+                          </TableCell>
+                          <TableCell>
+                            {getCertificateStatusBadge(sale.certificateStatus)}
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -235,6 +273,44 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                                 >
                                   <FileText className="h-4 w-4" /> Generar PDF
                                 </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => router.push(`/sales/${sale.id}`)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Receipt className="h-4 w-4" /> Ver venta
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                {sale.certificateStatus === "GENERATED" ? (
+                                  <>
+                                    <DropdownMenuItem
+                                      className="flex items-center gap-2 text-green-600 focus:text-green-600"
+                                      onClick={() => router.push(`/certificados/${sale.id}/approve`)}
+                                    >
+                                      <CheckCircle className="h-4 w-4" /> Aprobar certificado
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      className="flex items-center gap-2 text-yellow-600 focus:text-yellow-600"
+                                      onClick={() => router.push(`/certificados/${sale.id}/revision`)}
+                                    >
+                                      <Edit className="h-4 w-4" /> Solicitar revisión
+                                    </DropdownMenuItem>
+                                  </>
+                                ) : (
+                                  <DropdownMenuItem
+                                    className="flex items-center gap-2"
+                                    onClick={() => router.push(`/certificados/${sale.id}/generate`)}
+                                  >
+                                    <FileText className="h-4 w-4" /> Generar certificado
+                                  </DropdownMenuItem>
+                                )}
+                                {sale.certificateFileUrl && (
+                                  <DropdownMenuItem
+                                    className="flex items-center gap-2"
+                                    onClick={() => window.open(sale.certificateFileUrl || "", "_blank")}
+                                  >
+                                    <Download className="h-4 w-4" /> Descargar certificado
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuSeparator />
                                 {sale.isPaid || sale.paymentStatus === "PAID" ? (
                                   <DropdownMenuItem

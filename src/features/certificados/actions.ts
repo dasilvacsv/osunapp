@@ -8,14 +8,16 @@ import {
   beneficiarios, 
   purchases, 
   purchaseItems,
-  bundles
+  bundles,
+  certificates
 } from "@/db/schema";
 import { 
   CertificadoSale, 
   OrganizationSalesGroup, 
   CertificadoResponse,
   PurchaseStatus,
-  PaymentStatus
+  PaymentStatus,
+  CertificateStatus
 } from "./types";
 
 export async function getCertificadoSales(): Promise<CertificadoResponse> {
@@ -39,6 +41,8 @@ export async function getCertificadoSales(): Promise<CertificadoResponse> {
         beneficiarioId: purchases.beneficiarioId,
         beneficiarioFirstName: beneficiarios.firstName,
         beneficiarioLastName: beneficiarios.lastName,
+        beneficiarioGrade: beneficiarios.grade,
+        beneficiarioSection: beneficiarios.section,
         
         // Bundle info
         bundleId: purchases.bundleId,
@@ -48,6 +52,11 @@ export async function getCertificadoSales(): Promise<CertificadoResponse> {
         organizationId: purchases.organizationId,
         organizationName: organizations.name,
         organizationType: organizations.type,
+        
+        // Certificate info
+        certificateId: certificates.id,
+        certificateStatus: certificates.status,
+        certificateFileUrl: certificates.fileUrl,
       })
       .from(purchases)
       // Join with clients (required)
@@ -58,6 +67,8 @@ export async function getCertificadoSales(): Promise<CertificadoResponse> {
       .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
       // Join with organizations (optional)
       .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      // Join with certificates (optional)
+      .leftJoin(certificates, eq(purchases.id, certificates.purchaseId))
       // Order by most recent first
       .orderBy(desc(purchases.purchaseDate));
     
@@ -127,5 +138,66 @@ export async function getCertificadoSales(): Promise<CertificadoResponse> {
       success: false, 
       error: "Failed to fetch sales data" 
     };
+  }
+}
+
+// Add a new action to update certificate status
+export async function updateCertificateStatus(
+  purchaseId: string,
+  status: CertificateStatus,
+  fileUrl?: string,
+  notes?: string
+) {
+  try {
+    // Check if a certificate record already exists for this purchase
+    const existingCertificate = await db
+      .select()
+      .from(certificates)
+      .where(eq(certificates.purchaseId, purchaseId))
+      .limit(1);
+
+    if (existingCertificate.length > 0) {
+      // Update existing certificate
+      const updatedCertificate = await db
+        .update(certificates)
+        .set({
+          status,
+          fileUrl: fileUrl || existingCertificate[0].fileUrl,
+          notes: notes || existingCertificate[0].notes,
+          ...(status === "GENERATED" ? { generatedAt: new Date() } : {}),
+          ...(status === "APPROVED" ? { approvedAt: new Date() } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(certificates.id, existingCertificate[0].id))
+        .returning();
+
+      return { success: true, data: updatedCertificate[0] };
+    } else {
+      // Get the beneficiario ID from the purchase
+      const purchase = await db
+        .select({ beneficiarioId: purchases.beneficiarioId })
+        .from(purchases)
+        .where(eq(purchases.id, purchaseId))
+        .limit(1);
+
+      // Create a new certificate
+      const newCertificate = await db
+        .insert(certificates)
+        .values({
+          purchaseId,
+          beneficiarioId: purchase.length > 0 ? purchase[0].beneficiarioId : null,
+          status,
+          fileUrl,
+          notes,
+          ...(status === "GENERATED" ? { generatedAt: new Date() } : {}),
+          ...(status === "APPROVED" ? { approvedAt: new Date() } : {}),
+        })
+        .returning();
+
+      return { success: true, data: newCertificate[0] };
+    }
+  } catch (error) {
+    console.error("Error updating certificate status:", error);
+    return { success: false, error: "Failed to update certificate status" };
   }
 } 

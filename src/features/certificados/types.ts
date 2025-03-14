@@ -3,12 +3,14 @@ import {
   organizations, 
   beneficiarios, 
   purchases, 
-  bundles
+  bundles,
+  certificates
 } from "@/db/schema";
 
 // Define the purchase status type from schema
 export type PurchaseStatus = "PENDING" | "APPROVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export type PaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED";
+export type CertificateStatus = "GENERATED" | "NOT_GENERATED" | "NEEDS_REVISION" | "APPROVED";
 
 // Basic types for the certificado feature
 export interface CertificadoSale {
@@ -27,6 +29,8 @@ export interface CertificadoSale {
   beneficiarioId: string | null;
   beneficiarioFirstName: string | null;
   beneficiarioLastName: string | null;
+  beneficiarioGrade: string | null;
+  beneficiarioSection: string | null;
   
   // Bundle info
   bundleId: string | null;
@@ -36,6 +40,11 @@ export interface CertificadoSale {
   organizationId: string | null;
   organizationName: string | null;
   organizationType: string | null;
+  
+  // Certificate info
+  certificateId: string | null;
+  certificateStatus: CertificateStatus | null;
+  certificateFileUrl: string | null;
 }
 
 export interface OrganizationSalesGroup {
@@ -53,6 +62,7 @@ export type Organization = typeof organizations.$inferSelect;
 export type Beneficiario = typeof beneficiarios.$inferSelect;
 export type Purchase = typeof purchases.$inferSelect;
 export type Bundle = typeof bundles.$inferSelect;
+export type Certificate = typeof certificates.$inferSelect;
 
 // Form data types
 export interface CertificadoFormData {
