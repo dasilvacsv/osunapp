@@ -51,7 +51,17 @@ const navItems = [
   {
     title: "Inventario",
     url: "/inventario",
-    icon: Package
+    icon: Package,
+    items: [
+      {
+        title: "Lista de Inventario",
+        url: "/",
+      },
+      {
+        title: "Gestión de Inventario",
+        url: "/inventario/stock",
+      }
+    ],
   },
   {
     title: "Ventas",
