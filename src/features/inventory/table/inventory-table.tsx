@@ -15,7 +15,7 @@ import {
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronDown, ChevronRight, AlertCircle, Package2, Search, MoreHorizontal, Archive, Flag } from "lucide-react"
+import { ChevronDown, ChevronRight, AlertCircle, Package2, Search, MoreHorizontal, Archive, Flag, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TransactionHistory } from "./transaction-history"
 import { getInventoryTransactions } from "./actions"
@@ -45,6 +45,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { updateInventoryItemStatus, updatePreSaleFlag } from "../actions"
 import type { InventoryTableProps } from "../types"
+import { AddProductDialog } from "../add-product-dialog"
 
 export function InventoryTable({ items, onItemDisabled, onItemUpdated }: InventoryTableProps) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
@@ -58,6 +59,7 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
   const [showPreSaleOnly, setShowPreSaleOnly] = useState(false)
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([])
   const [isUpdating, setIsUpdating] = useState(false)
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
 
   const { toast } = useToast()
 
@@ -225,14 +227,20 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar productos..."
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            className="pl-8"
-          />
+        <div className="flex gap-2 flex-1">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar productos..."
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+          <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2 shrink-0">
+            <Package className="w-4 h-4" />
+            Agregar Producto
+          </Button>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -454,6 +462,12 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AddProductDialog 
+        open={isAddDialogOpen} 
+        onOpenChange={setIsAddDialogOpen}
+        onProductAdded={onItemUpdated}
+      />
     </div>
   )
 }

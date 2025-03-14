@@ -14,6 +14,17 @@ import { useToast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+const typeTranslations: Record<string, string> = {
+  PHYSICAL: "Físico",
+  DIGITAL: "Digital",
+  SERVICE: "Servicio",
+}
+
+const statusTranslations: Record<string, string> = {
+  ACTIVE: "Activo",
+  INACTIVE: "Inactivo",
+}
+
 interface AddProductDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -72,8 +83,8 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
 
       if (result.success) {
         toast({
-          title: "Success",
-          description: "Product added successfully",
+          title: "Éxito",
+          description: "Producto agregado exitosamente",
           duration: 3000,
         })
         onProductAdded()
@@ -91,7 +102,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
       console.error("Error creating product:", error)
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: "Ocurrió un error inesperado",
         variant: "destructive",
         duration: 5000,
       })
@@ -106,7 +117,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Package className="w-5 h-5 text-primary" />
-            Add New Product
+            Agregar Nuevo Producto
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -114,11 +125,11 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
             <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="basic" className="flex items-center gap-2">
                 <Package className="h-4 w-4" />
-                Basic Info
+                Información Básica
               </TabsTrigger>
               <TabsTrigger value="inventory" className="flex items-center gap-2">
                 <Warehouse className="h-4 w-4" />
-                Inventory
+                Inventario
               </TabsTrigger>
             </TabsList>
 
@@ -133,7 +144,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                   <div className="space-y-2">
                     <Label htmlFor="name" className="flex items-center gap-2">
                       <Package className="w-4 h-4 text-gray-500" />
-                      Name
+                      Nombre
                     </Label>
                     <Input
                       id="name"
@@ -162,17 +173,19 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                   <div className="space-y-2">
                     <Label htmlFor="type" className="flex items-center gap-2">
                       <Boxes className="w-4 h-4 text-gray-500" />
-                      Type
+                      Tipo
                     </Label>
                     <Select value={type} onValueChange={setType}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue placeholder="Seleccionar tipo">
+                          {type ? typeTranslations[type] : "Seleccionar tipo"}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <AnimatePresence>
                           {inventoryItemTypeEnum.enumValues.map((value) => (
                             <SelectItem key={value} value={value}>
-                              {value}
+                              {typeTranslations[value]}
                             </SelectItem>
                           ))}
                         </AnimatePresence>
@@ -182,7 +195,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                   <div className="space-y-2">
                     <Label htmlFor="basePrice" className="flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-gray-500" />
-                      Base Price
+                      Precio Base
                     </Label>
                     <Input
                       id="basePrice"
@@ -199,30 +212,32 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
 
                 <div className="space-y-2">
                   <Label htmlFor="description" className="flex items-center gap-2">
-                    Description
+                    Descripción
                   </Label>
                   <Input
                     id="description"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full"
-                    placeholder="Product description (optional)"
+                    placeholder="Descripción del producto (opcional)"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="status" className="flex items-center gap-2">
-                    Status
+                    Estado
                   </Label>
                   <Select value={status} onValueChange={setStatus}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
+                      <SelectValue placeholder="Seleccionar estado">
+                        {status ? statusTranslations[status] : "Seleccionar estado"}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <AnimatePresence>
                         {inventoryItemStatusEnum.enumValues.map((value) => (
                           <SelectItem key={value} value={value}>
-                            {value}
+                            {statusTranslations[value]}
                           </SelectItem>
                         ))}
                       </AnimatePresence>
@@ -249,7 +264,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                     htmlFor="hasInitialInventory" 
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    This product already has initial inventory
+                    Este producto ya tiene inventario inicial
                   </Label>
                 </div>
 
@@ -257,7 +272,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                   <div className="space-y-2">
                     <Label htmlFor="currentStock" className="flex items-center gap-2">
                       <Boxes className="w-4 h-4 text-gray-500" />
-                      Current Stock
+                      Stock Actual
                     </Label>
                     <Input
                       id="currentStock"
@@ -266,13 +281,13 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                       value={currentStock}
                       onChange={(e) => setCurrentStock(e.target.value)}
                       className="w-full"
-                      placeholder="Leave empty for 0"
+                      placeholder="Dejar vacío para 0"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reservedStock" className="flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 text-gray-500" />
-                      Reserved
+                      Reservado
                     </Label>
                     <Input
                       id="reservedStock"
@@ -287,7 +302,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                   <div className="space-y-2">
                     <Label htmlFor="minimumStock" className="flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 text-gray-500" />
-                      Min Stock
+                      Stock Mínimo
                     </Label>
                     <Input
                       id="minimumStock"
@@ -310,7 +325,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                   >
                     <Label htmlFor="initialCost" className="flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-gray-500" />
-                      Initial Cost per Unit
+                      Costo Inicial por Unidad
                     </Label>
                     <Input
                       id="initialCost"
@@ -320,11 +335,11 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                       value={initialCost}
                       onChange={(e) => setInitialCost(e.target.value)}
                       className="w-full"
-                      placeholder="Cost per unit for initial inventory"
+                      placeholder="Costo por unidad del inventario inicial"
                       required={hasInitialInventory && currentStock !== "" && Number(currentStock) > 0}
                     />
                     <p className="text-sm text-muted-foreground mt-1">
-                      This will be used to track the cost of your initial inventory.
+                      Esto se utilizará para rastrear el costo de tu inventario inicial.
                     </p>
                   </motion.div>
                 )}
@@ -339,7 +354,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
               onClick={() => onOpenChange(false)}
               disabled={loading}
             >
-              Cancel
+              Cancelar
             </Button>
             <Button
               type="submit"
@@ -357,7 +372,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
               ) : (
                 <span className="flex items-center gap-2">
                   <Package className="w-4 h-4" />
-                  Add Product
+                  Agregar Producto
                 </span>
               )}
             </Button>

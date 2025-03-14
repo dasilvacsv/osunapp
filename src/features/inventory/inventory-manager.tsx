@@ -5,16 +5,10 @@ import { InventoryTable } from "./table/inventory-table"
 import { getInventoryItems } from "./actions"
 import type { InventoryManagerProps } from "./types"
 import { useToast } from "@/hooks/use-toast"
-import { AddProductDialog } from "./add-product-dialog"
-import { Button } from "@/components/ui/button"
-import { Package } from "lucide-react"
 
 export function InventoryManager({ initialData }: InventoryManagerProps) {
-  console.log("initialData", initialData);
-  
   const [items, setItems] = useState(initialData)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const { toast } = useToast()
 
   const refreshData = useCallback(async () => {
@@ -57,21 +51,8 @@ export function InventoryManager({ initialData }: InventoryManagerProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold tracking-tight">Inventory</h2>
-        <Button onClick={() => setIsAddDialogOpen(true)} className="flex items-center gap-2">
-          <Package className="w-4 h-4" />
-          Add Product
-        </Button>
-      </div>
-      
+      <h2 className="text-3xl font-bold tracking-tight">Inventory</h2>
       <InventoryTable items={items} onItemDisabled={refreshData} onItemUpdated={refreshData} />
-      
-      <AddProductDialog 
-        open={isAddDialogOpen} 
-        onOpenChange={setIsAddDialogOpen}
-        onProductAdded={refreshData}
-      />
     </div>
   )
 }
