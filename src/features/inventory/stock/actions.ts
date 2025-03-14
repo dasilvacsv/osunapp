@@ -1,17 +1,10 @@
 "use server"
 
 import { db } from "@/db"
-import {
-  inventoryItems,
-  inventoryTransactions,
-  inventoryPurchases,
-  inventoryPurchaseItems,
-} from "@/db/schema"
-import { eq, desc, sql, and, gte, or, gt } from "drizzle-orm"
+import { inventoryItems, inventoryTransactions, inventoryPurchases, inventoryPurchaseItems } from "@/db/schema"
+import { eq, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
-import type {
-  StockTransactionInput,
-} from "../old/types"
+import type { StockTransactionInput } from "../old/types"
 import { purchaseSchema } from "../old/validation"
 
 export async function searchInventory(query: string) {
@@ -87,28 +80,64 @@ export async function stockOut({ itemId, quantity, notes, reference }: StockTran
       throw new Error("Item no encontrado.")
     }
 
-    // Verificar si hay suficiente stock
-    if (item.currentStock < quantity) {
-      throw new Error("Stock insuficiente.")
+    // Verificar si hay suficiente stock o si está habilitada la pre-venta
+    if (item.currentStock < quantity && !item.allowPreSale) {
+      throw new Error("Stock insuficiente y pre-venta no habilitada.")
     }
 
-    // Actualizar stock
-    await db
-      .update(inventoryItems)
-      .set({
-        currentStock: sql`${inventoryItems.currentStock} - ${quantity}`,
-        updatedAt: new Date(),
-      })
-      .where(eq(inventoryItems.id, itemId))
+    // Si es pre-venta y no hay suficiente stock
+    if (item.currentStock < quantity && item.allowPreSale) {
+      // Calcular cuántas unidades son de pre-venta
+      const regularUnits = item.currentStock
+      const preSaleUnits = quantity - regularUnits
 
-    // Registrar transacción
-    await db.insert(inventoryTransactions).values({
-      itemId,
-      quantity: -quantity,
-      transactionType: "OUT",
-      notes,
-      reference,
-    })
+      // Actualizar stock a cero
+      await db
+        .update(inventoryItems)
+        .set({
+          currentStock: 0,
+          updatedAt: new Date(),
+        })
+        .where(eq(inventoryItems.id, itemId))
+
+      // Registrar transacción de stock regular
+      if (regularUnits > 0) {
+        await db.insert(inventoryTransactions).values({
+          itemId,
+          quantity: -regularUnits,
+          transactionType: "OUT",
+          notes,
+          reference,
+        })
+      }
+
+      // Registrar transacción de pre-venta
+      await db.insert(inventoryTransactions).values({
+        itemId,
+        quantity: -preSaleUnits,
+        transactionType: "RESERVATION",
+        notes: notes ? `${notes} (Pre-venta)` : "Pre-venta",
+        reference: reference ? { ...reference, isPreSale: true } : { isPreSale: true },
+      })
+    } else {
+      // Venta regular con stock suficiente
+      await db
+        .update(inventoryItems)
+        .set({
+          currentStock: sql`${inventoryItems.currentStock} - ${quantity}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(inventoryItems.id, itemId))
+
+      // Registrar transacción
+      await db.insert(inventoryTransactions).values({
+        itemId,
+        quantity: -quantity,
+        transactionType: "OUT",
+        notes,
+        reference,
+      })
+    }
 
     revalidatePath("/inventory")
     return { success: true }
@@ -157,7 +186,7 @@ export async function registerPurchase(input: any) {
       }
 
       // Calculate new average cost and update base price
-      const currentTotalValue = currentItem.currentStock * currentItem.basePrice
+      const currentTotalValue = currentItem.currentStock * Number(currentItem.basePrice)
       const newItemsValue = item.quantity * item.unitCost
       const newTotalQuantity = currentItem.currentStock + item.quantity
       const newAverageCost = (currentTotalValue + newItemsValue) / newTotalQuantity
@@ -197,3 +226,4 @@ export async function registerPurchase(input: any) {
     }
   }
 }
+
