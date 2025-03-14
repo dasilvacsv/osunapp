@@ -11,8 +11,8 @@ import { eq, desc, sql, and, gte, or, gt } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import type {
   StockTransactionInput,
-} from "../view/types"
-import { purchaseSchema } from "../view/validation"
+} from "../old/types"
+import { purchaseSchema } from "../old/validation"
 
 export async function searchInventory(query: string) {
   try {
