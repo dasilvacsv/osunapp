@@ -144,6 +144,20 @@ export function OrganizationSelectForm({
     form.setValue("beneficiaryId", beneficiaryId)
   }
 
+  const handleBeneficiaryCreated = (beneficiary: Beneficiary) => {
+    // Update the selectedClient's beneficiaries list
+    if (selectedClient) {
+      const updatedBeneficiaries = [...(selectedClient.beneficiarios || []), beneficiary]
+      setSelectedClient({
+        ...selectedClient,
+        beneficiarios: updatedBeneficiaries
+      })
+      
+      // Automatically select the new beneficiary
+      handleBeneficiarySelect(beneficiary.id, beneficiary)
+    }
+  }
+
   const handleCartChange = (newCart: CartItem[]) => {
     form.setValue("cart", newCart)
   }
@@ -293,6 +307,7 @@ export function OrganizationSelectForm({
                       <BeneficiarySelect
                         selectedBeneficiaryId={field.value}
                         onBeneficiarySelect={handleBeneficiarySelect}
+                        onBeneficiaryCreated={handleBeneficiaryCreated}
                         clientId={selectedClientId}
                         organizationId={selectedOrganizationId}
                         beneficiaries={selectedClient?.beneficiarios || []}

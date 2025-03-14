@@ -26,7 +26,6 @@ interface Organization {
 
 export interface Beneficiary {
   id: string
-  name: string
   clientId: string
   organizationId: string | null
   grade: string | null
@@ -44,6 +43,7 @@ export interface Beneficiary {
 interface BeneficiarySelectProps {
   selectedBeneficiaryId: string
   onBeneficiarySelect: (beneficiaryId: string, beneficiary: Beneficiary) => void
+  onBeneficiaryCreated: (beneficiary: Beneficiary) => void
   className?: string
   clientId?: string
   organizationId?: string
@@ -53,6 +53,7 @@ interface BeneficiarySelectProps {
 export function BeneficiarySelect({
   selectedBeneficiaryId,
   onBeneficiarySelect,
+  onBeneficiaryCreated,
   className,
   clientId,
   organizationId,
@@ -120,10 +121,33 @@ export function BeneficiarySelect({
     }
 
     try {
-      const result = await createBeneficiary(data)
+      const result = await createBeneficiary({
+        ...data,
+        clientId
+      })
+      
       if (result.success && result.data) {
-        onBeneficiarySelect(result.data.id, result.data)
+        // Create a new beneficiary object with the correct shape
+        const newBeneficiary: Beneficiary = {
+          id: result.data.id,
+          clientId: result.data.clientId,
+          organizationId: result.data.organizationId,
+          grade: result.data.level || null,
+          section: result.data.section || null,
+          status: result.data.status || "ACTIVE",
+          bundleId: result.data.bundleId || null,
+          firstName: result.data.firstName || null,
+          lastName: result.data.lastName || null,
+          school: result.data.school || null,
+          level: result.data.level || null,
+          createdAt: result.data.createdAt || null,
+          updatedAt: result.data.updatedAt || null
+        }
+
+        // Notify parent component about the new beneficiary
+        onBeneficiaryCreated(newBeneficiary)
         setShowCreateDialog(false)
+        
         toast({
           title: "Success",
           description: "Beneficiary created successfully"
@@ -181,8 +205,9 @@ export function BeneficiarySelect({
           <div className="flex-1">
             <PopoverSelect
               options={beneficiaries.map(ben => ({
-                label: `${ben.name}${ben.grade ? ` - ${ben.grade}${ben.section ? ben.section : ''}` : ''}`,
-                value: ben.id
+                label: `${ben.firstName || ''} ${ben.lastName || ''}${ben.level ? ` - ${ben.level}${ben.section ? ben.section : ''}` : ''}`.trim(),
+                value: ben.id,
+                description: ben.id
               }))}
               value={selectedBeneficiaryId}
               onValueChange={handleBeneficiaryChange}

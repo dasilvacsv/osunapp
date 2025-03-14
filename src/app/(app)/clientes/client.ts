@@ -332,25 +332,28 @@ export async function createBeneficiary(data: BeneficiaryFormData) {
     const newBeneficiary = await db
       .insert(beneficiarios)
       .values({
-        name: data.name,
         clientId: data.clientId,
         organizationId: data.organizationId === 'none' ? null : data.organizationId,
-        grade: data.grade,
-        section: data.section,
         firstName: data.firstName,
         lastName: data.lastName,
+        grade: data.grade,
+        section: data.section,
         school: data.school,
         level: data.level,
         bundleId: data.bundleId,
         status: "ACTIVE",
       })
       .returning();
+
+    // Revalidate both clients and sales paths
+    revalidatePath("/clientes")
+    revalidatePath("/sales")
+    revalidatePath("/sales/new")
     
-    revalidatePath("/clientes");
-    return { success: true, data: newBeneficiary[0] };
+    return { success: true, data: newBeneficiary[0] }
   } catch (error) {
-    console.error("Error creating beneficiary:", error);
-    return { success: false, error: "Error al crear el beneficiario" };
+    console.error("Error creating beneficiary:", error)
+    return { success: false, error: "Failed to create beneficiary" }
   }
 }
 

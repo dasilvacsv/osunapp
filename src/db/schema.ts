@@ -142,7 +142,6 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
 // Beneficiarios Table (renamed from children)
 export const beneficiarios = pgTable("beneficiarios", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
-  name: varchar("name", { length: 255 }).notNull(),
   clientId: uuid("client_id")
     .notNull()
     .references(() => clients.id),

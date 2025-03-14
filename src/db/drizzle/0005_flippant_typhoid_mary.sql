@@ -1,0 +1,1 @@
+ALTER TABLE "beneficiarios" DROP COLUMN "name";
