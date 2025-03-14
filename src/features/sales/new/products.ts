@@ -81,7 +81,7 @@ export async function getAllBundlesAndItems() {
  * Create a new sale/purchase
  */
 export async function createSale(data: {
-  organizationId: string
+  organizationId: string | null
   clientId: string
   beneficiaryId: string
   bundleId?: string
@@ -103,6 +103,36 @@ export async function createSale(data: {
   try {
     console.log("Creando venta con datos:", data)
 
+    // Validate required fields
+    if (!data.clientId) {
+      throw new Error("El ID del cliente es requerido")
+    }
+
+    if (!data.beneficiaryId) {
+      throw new Error("El ID del beneficiario es requerido")
+    }
+
+    if (!data.cart.length) {
+      throw new Error("El carrito no puede estar vacío")
+    }
+
+    // Check stock availability and automatically switch to PRESALE if needed
+    let shouldBePresale = data.saleType === "PRESALE"
+    if (data.saleType === "DIRECT") {
+      for (const item of data.cart) {
+        // Get current stock
+        const [inventoryItem] = await db
+          .select({ currentStock: inventoryItems.currentStock })
+          .from(inventoryItems)
+          .where(eq(inventoryItems.id, item.itemId))
+
+        if (!inventoryItem || inventoryItem.currentStock < item.quantity) {
+          shouldBePresale = true
+          break
+        }
+      }
+    }
+
     // Calculate total amount from cart items
     const totalAmount = data.total || data.cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
 
@@ -112,15 +142,19 @@ export async function createSale(data: {
       .values({
         clientId: data.clientId,
         beneficiarioId: data.beneficiaryId,
-        bundleId: data.bundleId,
-        organizationId: data.organizationId === "" ? null : data.organizationId,
-        status: data.saleType === "PRESALE" ? "PENDING" : "COMPLETED",
+        bundleId: data.bundleId || null,
+        organizationId: data.organizationId || null,
+        status: shouldBePresale ? "PENDING" : "COMPLETED",
         totalAmount: totalAmount.toString(),
         paymentMethod: data.paymentMethod,
-        transactionReference: data.transactionReference,
-        paymentStatus: "PAID", // Assuming direct payment for now
-        isPaid: true, // Assuming direct payment for now
-        paymentMetadata: { saleType: data.saleType }, // Store saleType in metadata
+        transactionReference: data.transactionReference || null,
+        paymentStatus: "PAID",
+        isPaid: true,
+        paymentMetadata: { 
+          saleType: shouldBePresale ? "PRESALE" : "DIRECT",
+          originalSaleType: data.saleType,
+          automaticPresale: shouldBePresale && data.saleType === "DIRECT"
+        },
       })
       .returning()
 
@@ -135,14 +169,17 @@ export async function createSale(data: {
       quantity: item.quantity,
       unitPrice: item.unitPrice.toString(),
       totalPrice: (item.unitPrice * item.quantity).toString(),
-      metadata: item.overridePrice ? { overridePrice: item.overridePrice } : null,
+      metadata: {
+        ...(item.overridePrice ? { overridePrice: item.overridePrice } : {}),
+        originalStock: item.stock,
+      },
     }))
 
     await db.insert(purchaseItems).values(purchaseItemsData)
 
     // Update inventory stock for each item
     for (const item of data.cart) {
-      if (data.saleType === "DIRECT") {
+      if (!shouldBePresale) {
         // For direct sales, decrease inventory immediately
         await db
           .update(inventoryItems)
@@ -160,7 +197,7 @@ export async function createSale(data: {
           reference: { purchaseId: purchaseResult.id },
           notes: `Venta #${purchaseResult.id}`,
         })
-      } else if (data.saleType === "PRESALE") {
+      } else {
         // For pre-sales, update reserved stock
         await db
           .update(inventoryItems)
@@ -181,7 +218,7 @@ export async function createSale(data: {
       }
     }
 
-    // If this is a bundle sale, update the bundle's sales statistics
+    // If this is a bundle sale, update the bundle's statistics
     if (data.bundleId) {
       await db
         .update(bundles)
@@ -202,6 +239,7 @@ export async function createSale(data: {
       data: {
         ...purchaseResult,
         items: data.cart,
+        automaticPresale: shouldBePresale && data.saleType === "DIRECT"
       },
     }
   } catch (error) {
@@ -212,4 +250,3 @@ export async function createSale(data: {
     }
   }
 }
-

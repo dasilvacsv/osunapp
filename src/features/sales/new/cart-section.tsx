@@ -3,7 +3,7 @@
 import { useState, memo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Trash, Plus, Minus } from "lucide-react"
+import { Trash, Plus, Minus, AlertCircle } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { ProductSelect } from "./selectors/product-select"
 import { BundleSelect } from "./selectors/bundle-select"
@@ -11,6 +11,7 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/comp
 import type { Control } from "react-hook-form"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SaleTypeSelector } from "./selectors/sale-type-selector"
+import { Alert } from "@/components/ui/alert"
 
 interface InventoryItem {
   id: string
@@ -78,6 +79,8 @@ export const CartSection = memo(function CartSection({
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<InventoryItem[]>([])
   const [bundleResults, setBundleResults] = useState<Bundle[]>([])
+  const [saleType, setSaleType] = useState<"DIRECT" | "PRESALE">("DIRECT")
+  const [hasInsufficientStock, setHasInsufficientStock] = useState(false)
 
   // Get cart value from form
   useEffect(() => {
@@ -96,6 +99,24 @@ export const CartSection = memo(function CartSection({
   useEffect(() => {
     setAvailableBundles(initialBundles)
   }, [initialBundles])
+
+  // Check stock levels and update sale type if needed
+  useEffect(() => {
+    const checkStock = () => {
+      const insufficientStock = cart.some((item) => {
+        return item.stock !== undefined && item.quantity > item.stock
+      })
+
+      setHasInsufficientStock(insufficientStock)
+
+      if (insufficientStock && saleType === "DIRECT") {
+        setSaleType("PRESALE")
+        onSaleTypeChange("PRESALE")
+      }
+    }
+
+    checkStock()
+  }, [cart, saleType])
 
   // Filter products and bundles based on search query
   const filterItems = (query: string) => {
@@ -196,6 +217,9 @@ export const CartSection = memo(function CartSection({
     setAvailableBundles(initialBundles)
     onCartChange([])
     onTotalChange(0)
+    setHasInsufficientStock(false)
+    setSaleType("DIRECT")
+    onSaleTypeChange("DIRECT")
   }
 
   const calculateTotal = (cartItems: CartItem[] = cart) => {
@@ -228,16 +252,32 @@ export const CartSection = memo(function CartSection({
             <FormControl>
               <SaleTypeSelector
                 onTypeChange={(type) => {
+                  setSaleType(type)
                   field.onChange(type)
                   onSaleTypeChange(type)
                 }}
-                defaultValue={field.value || "DIRECT"}
+                defaultValue={saleType}
+                disabled={hasInsufficientStock}
               />
             </FormControl>
             <FormMessage />
           </FormItem>
         )}
       />
+
+      {hasInsufficientStock && (
+        <Alert variant="warning" className="bg-amber-50/50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30">
+          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <div className="ml-2">
+            <p className="text-amber-700 dark:text-amber-300">
+              Stock insuficiente para venta directa
+            </p>
+            <p className="text-sm text-amber-600/90 dark:text-amber-400/90 mt-0.5">
+              La venta se ha configurado automáticamente como preventa
+            </p>
+          </div>
+        </Alert>
+      )}
 
       {/* Selection Tabs */}
       <Tabs defaultValue="products" className="w-full">
@@ -359,7 +399,6 @@ export const CartSection = memo(function CartSection({
                           e.stopPropagation()
                           updateQuantity(item.itemId, item.quantity + 1)
                         }}
-                        disabled={item.stock !== undefined && item.quantity >= item.stock && !item.allowPreSale}
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -400,4 +439,3 @@ export const CartSection = memo(function CartSection({
     </div>
   )
 })
-
