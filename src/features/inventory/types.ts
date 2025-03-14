@@ -8,10 +8,10 @@ export interface InventoryItem {
   currentStock: number
   reservedStock: number
   minimumStock: number
-  maximumStock: number
-  allowPreSale: boolean
+  maximumStock?: number
+  allowPresale: boolean
   status: "ACTIVE" | "INACTIVE"
-  preSaleCount: number
+  preSaleCount?: number
   createdAt: Date | null
   updatedAt: Date | null
   metadata?: Record<string, any>

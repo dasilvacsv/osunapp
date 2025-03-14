@@ -4,6 +4,7 @@ import { db } from "@/db"
 import { inventoryItems, inventoryTransactions } from "@/db/schema"
 import { eq, desc, sql } from "drizzle-orm"
 import type { ActionResponse, InventoryItem, InventoryTransaction } from "./types"
+import { revalidatePath } from "next/cache"
 
 export async function getInventoryItems(): Promise<ActionResponse<InventoryItem[]>> {
   try {
@@ -24,17 +25,10 @@ export async function getInventoryItems(): Promise<ActionResponse<InventoryItem[
     const preSaleCountMap = new Map(preSaleCounts.map(({ itemId, count }) => [itemId, Number(count)]))
 
     // Merge the data
-    const enrichedItems = items.map((item) => {
-      // Ensure allowPreSale is a boolean
-      const allowPreSale =
-        typeof item.allowPreSale === "boolean" ? item.allowPreSale : item.metadata?.allowPreSale === true
-
-      return {
-        ...item,
-        allowPreSale,
-        preSaleCount: preSaleCountMap.get(item.id) || 0,
-      }
-    })
+    const enrichedItems = items.map((item) => ({
+      ...item,
+      preSaleCount: preSaleCountMap.get(item.id) || 0,
+    }))
 
     return { success: true, data: enrichedItems }
   } catch (error) {
@@ -78,6 +72,7 @@ export async function updateInventoryItemStatus(
 ): Promise<ActionResponse<void>> {
   try {
     await db.update(inventoryItems).set({ status, updatedAt: new Date() }).where(eq(inventoryItems.id, id))
+    revalidatePath("/inventory")
     return { success: true }
   } catch (error) {
     console.error("Error updating item status:", error)
@@ -85,16 +80,34 @@ export async function updateInventoryItemStatus(
   }
 }
 
-export async function updatePreSaleFlag(id: string, allowPreSale: boolean): Promise<ActionResponse<void>> {
+// Mejorar la función updatePreSaleFlag para asegurar que solo actualiza el elemento específico
+export async function updatePreSaleFlag(id: string, allowPresale: boolean): Promise<ActionResponse<void>> {
   try {
-    // Update the allowPreSale field directly
-    await db
+    // Verificar que el item existe antes de actualizarlo
+    const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id))
+
+    if (!item) {
+      return { success: false, error: "Item no encontrado" }
+    }
+
+    // Actualizar el campo allowPresale directamente
+    const result = await db
       .update(inventoryItems)
       .set({
-        allowPreSale,
+        allowPresale,
         updatedAt: new Date(),
       })
       .where(eq(inventoryItems.id, id))
+      .returning()
+
+    // Verificar que la actualización fue exitosa
+    if (!result || result.length === 0) {
+      return { success: false, error: "No se pudo actualizar el estado de pre-venta" }
+    }
+
+    // Revalidar la ruta para asegurar que los cambios se reflejen en la UI
+    revalidatePath("/inventory")
+
     return { success: true }
   } catch (error) {
     console.error("Error updating pre-sale flag:", error)
@@ -118,7 +131,7 @@ export async function decreaseInventoryForSale(
       }
 
       // Check if we have enough stock or if pre-sale is allowed
-      if (item.currentStock < quantity && !item.allowPreSale) {
+      if (item.currentStock < quantity && !item.allowPresale) {
         return {
           success: false,
           error: `Insufficient stock for item ${item.name}. Available: ${item.currentStock}, Requested: ${quantity}`,
@@ -126,7 +139,7 @@ export async function decreaseInventoryForSale(
       }
 
       // If it's a pre-sale and we don't have enough stock
-      if (item.currentStock < quantity && item.allowPreSale) {
+      if (item.currentStock < quantity && item.allowPresale) {
         // Calculate how many units are pre-sale
         const regularUnits = item.currentStock
         const preSaleUnits = quantity - regularUnits
@@ -180,6 +193,7 @@ export async function decreaseInventoryForSale(
       }
     }
 
+    revalidatePath("/inventory")
     return { success: true }
   } catch (error) {
     console.error("Error updating inventory for sale:", error)

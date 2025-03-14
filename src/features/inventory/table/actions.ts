@@ -21,13 +21,13 @@ export async function getInventoryTransactions(itemId: string) {
 }
 
 // Funciones para manejar la pre-venta
-export async function updateItemPreSaleFlag(itemId: string, allowPreSale: boolean) {
+export async function updateItemPreSaleFlag(itemId: string, allowPresale: boolean) {
   try {
-    // Actualizar directamente el campo allowPreSale
+    // Actualizar directamente el campo allowPresale
     const [updatedItem] = await db
       .update(inventoryItems)
       .set({
-        allowPreSale,
+        allowPresale,
         updatedAt: new Date(),
       })
       .where(eq(inventoryItems.id, itemId))

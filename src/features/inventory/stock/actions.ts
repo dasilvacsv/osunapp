@@ -81,12 +81,12 @@ export async function stockOut({ itemId, quantity, notes, reference }: StockTran
     }
 
     // Verificar si hay suficiente stock o si está habilitada la pre-venta
-    if (item.currentStock < quantity && !item.allowPreSale) {
+    if (item.currentStock < quantity && !item.allowPresale) {
       throw new Error("Stock insuficiente y pre-venta no habilitada.")
     }
 
     // Si es pre-venta y no hay suficiente stock
-    if (item.currentStock < quantity && item.allowPreSale) {
+    if (item.currentStock < quantity && item.allowPresale) {
       // Calcular cuántas unidades son de pre-venta
       const regularUnits = item.currentStock
       const preSaleUnits = quantity - regularUnits
@@ -162,7 +162,7 @@ export async function registerPurchase(input: any) {
         supplierName: validated.supplierName,
         invoiceNumber: validated.invoiceNumber,
         notes: validated.notes,
-        totalAmount: validated.items.reduce((sum, item) => sum + item.unitCost * item.quantity, 0),
+        totalAmount: String(validated.items.reduce((sum, item) => sum + item.unitCost * item.quantity, 0)),
         purchaseDate: new Date(),
       })
       .returning()
@@ -174,8 +174,8 @@ export async function registerPurchase(input: any) {
         purchaseId: purchase.id,
         itemId: item.itemId,
         quantity: item.quantity,
-        unitCost: item.unitCost,
-        totalCost: item.quantity * item.unitCost,
+        unitCost: String(item.unitCost),
+        totalCost: String(item.quantity * item.unitCost),
       })
 
       // Get current item data for cost averaging
@@ -196,7 +196,7 @@ export async function registerPurchase(input: any) {
         .update(inventoryItems)
         .set({
           currentStock: sql`${inventoryItems.currentStock} + ${item.quantity}`,
-          basePrice: newAverageCost, // Update with new average cost
+          basePrice: String(newAverageCost), // Update with new average cost as string
           updatedAt: new Date(),
         })
         .where(eq(inventoryItems.id, item.itemId))

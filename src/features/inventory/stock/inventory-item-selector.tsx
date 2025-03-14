@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { PopoverSelect } from "@/components/popover-select"
 import { formatCurrency } from "@/lib/utils"
 import { searchInventory } from "./actions"
-import type { InventoryItem } from "@/features/sales/new/types"
+import type { InventoryItem } from "@/features/inventory/types"
 
 interface InventoryItemSelectorProps {
   onSelect: (item: InventoryItem) => void
@@ -18,10 +18,15 @@ const transformItem = (item: any): InventoryItem => ({
   name: item.name,
   basePrice: item.basePrice,
   currentStock: item.currentStock,
-  sku: item.sku || undefined,
+  sku: item.sku || null,
   status: item.status,
-  allowPreSale: item.allowPreSale || false, // Ensure it's a boolean
-  description: item.description || undefined,
+  allowPresale: item.allowPresale || false,
+  description: item.description || null,
+  type: item.type,
+  reservedStock: item.reservedStock || 0,
+  minimumStock: item.minimumStock || 0,
+  createdAt: item.createdAt,
+  updatedAt: item.updatedAt,
   metadata: item.metadata || undefined,
 })
 

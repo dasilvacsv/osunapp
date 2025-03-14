@@ -294,7 +294,7 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                         <ShoppingBag className="w-4 h-4" /> Proveedor
                       </FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Nombre del proveedor" />
+                        <Input {...field} id="supplierName" name="supplierName" placeholder="Nombre del proveedor" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -311,7 +311,7 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                         Número de Factura
                       </FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Opcional" />
+                        <Input {...field} id="invoiceNumber" name="invoiceNumber" placeholder="Opcional" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -326,7 +326,13 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                   <FormItem>
                     <FormLabel>Notas</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Información adicional de la compra" className="resize-none" />
+                      <Textarea
+                        {...field}
+                        id="purchaseNotes"
+                        name="purchaseNotes"
+                        placeholder="Información adicional de la compra"
+                        className="resize-none"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -371,6 +377,8 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                                 <Input
                                   type="number"
                                   min="1"
+                                  id={`quantity-${selectedItem.item.id}`}
+                                  name={`quantity-${selectedItem.item.id}`}
                                   value={selectedItem.quantity}
                                   onChange={(e) => handleQuantityChange(index, Number.parseInt(e.target.value) || 1)}
                                   className="w-20 text-center"
@@ -391,6 +399,8 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                                   type="number"
                                   min="0"
                                   step="0.01"
+                                  id={`unitCost-${selectedItem.item.id}`}
+                                  name={`unitCost-${selectedItem.item.id}`}
                                   value={selectedItem.unitCost}
                                   onChange={(e) => handleCostChange(index, e.target.value)}
                                   className="w-32"
@@ -535,6 +545,8 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                             <Input
                               type="number"
                               {...field}
+                              id="adjustmentQuantity"
+                              name="adjustmentQuantity"
                               onChange={(e) => field.onChange(Number(e.target.value))}
                               className="text-center h-12"
                             />
@@ -584,7 +596,13 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                     <FormItem>
                       <FormLabel className="text-base">Notas</FormLabel>
                       <FormControl>
-                        <Textarea {...field} placeholder="Razón del ajuste de stock" className="resize-none" />
+                        <Textarea
+                          {...field}
+                          id="adjustmentNotes"
+                          name="adjustmentNotes"
+                          placeholder="Razón del ajuste de stock"
+                          className="resize-none"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useCallback } from "react"
+import React, { useState, useCallback, useEffect } from "react"
 
 import {
   useReactTable,
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button"
 import { TransactionHistory } from "./transaction-history"
 import { getInventoryTransactions } from "./actions"
 import { columns } from "./columns"
-import type { InventoryTransaction } from "./types"
+import type { InventoryItem, InventoryTransaction } from "../types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import {
@@ -56,6 +56,8 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
   const [confirmDisableDialogOpen, setConfirmDisableDialogOpen] = useState(false)
   const [itemToDisable, setItemToDisable] = useState<string | null>(null)
   const [showPreSaleOnly, setShowPreSaleOnly] = useState(false)
+  const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([])
+  const [isUpdating, setIsUpdating] = useState(false)
 
   const { toast } = useToast()
 
@@ -111,32 +113,80 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
     setItemToDisable(null)
   }
 
-  const handlePreSaleToggle = async (id: string, currentValue: boolean) => {
-    const result = await updatePreSaleFlag(id, !currentValue)
-    if (result.success) {
-      toast({
-        title: !currentValue ? "Pre-venta habilitada" : "Pre-venta deshabilitada",
-        description: !currentValue
-          ? "Ahora se puede vender este producto sin stock disponible"
-          : "Este producto ahora requiere stock disponible para venderse",
-      })
+  // Safely count pre-sale items
+  const preSaleCount = Array.isArray(items) ? items.filter((item) => item.allowPresale === true).length : 0
+
+  useEffect(() => {
+    const handleInventoryUpdated = () => {
       if (onItemUpdated) {
         onItemUpdated()
       }
-    } else {
+    }
+
+    window.addEventListener("inventory-updated", handleInventoryUpdated)
+
+    return () => {
+      window.removeEventListener("inventory-updated", handleInventoryUpdated)
+    }
+  }, [onItemUpdated])
+
+  // Modificar la función handlePreSaleToggle para que actualice correctamente solo el elemento seleccionado
+  const handlePreSaleToggle = async (id: string, currentValue: boolean) => {
+    if (isUpdating) return
+
+    try {
+      setIsUpdating(true)
+      const result = await updatePreSaleFlag(id, !currentValue)
+
+      if (result.success) {
+        // Actualizar inmediatamente la UI
+        const updatedItems = filteredItems.map((item) =>
+          item.id === id ? { ...item, allowPresale: !currentValue } : item,
+        )
+
+        setFilteredItems(updatedItems)
+
+        toast({
+          title: !currentValue ? "Pre-venta habilitada" : "Pre-venta deshabilitada",
+          description: !currentValue
+            ? "Ahora se puede vender este producto sin stock disponible"
+            : "Este producto ahora requiere stock disponible para venderse",
+        })
+
+        if (onItemUpdated) {
+          onItemUpdated()
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "No se pudo actualizar la configuración de pre-venta",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error toggling pre-sale:", error)
       toast({
         title: "Error",
-        description: result.error || "No se pudo actualizar la configuración de pre-venta",
+        description: "Ocurrió un error al actualizar la configuración de pre-venta",
         variant: "destructive",
       })
+    } finally {
+      setIsUpdating(false)
     }
   }
 
-  // Ensure items is always an array before filtering
-  const safeItems = Array.isArray(items) ? items : []
+  // Filter items when showPreSaleOnly or items change
+  useEffect(() => {
+    // Ensure items is always an array
+    const safeItems = Array.isArray(items) ? items : []
 
-  // Safely filter items for pre-sale
-  const filteredItems = showPreSaleOnly ? safeItems.filter((item) => item.allowPreSale === true) : safeItems
+    if (showPreSaleOnly) {
+      // Filter items with allowPresale set to true
+      setFilteredItems(safeItems.filter((item) => item.allowPresale === true))
+    } else {
+      setFilteredItems(safeItems)
+    }
+  }, [items, showPreSaleOnly])
 
   const table = useReactTable({
     data: filteredItems,
@@ -161,9 +211,6 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
       },
     },
   })
-
-  // Safely count pre-sale items
-  const preSaleCount = safeItems.filter((item) => item.allowPreSale === true).length
 
   return (
     <div className="space-y-4">
@@ -246,7 +293,7 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ duration: 0.2 }}
-                      className={`relative group hover:bg-muted/50 ${row.original.allowPreSale ? "bg-red-50/30 dark:bg-red-900/10" : ""}`}
+                      className={`relative group hover:bg-muted/50 ${row.original.allowPresale ? "bg-red-50/30 dark:bg-red-900/10" : ""}`}
                     >
                       <TableCell>
                         <Button
@@ -281,10 +328,10 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => handlePreSaleToggle(row.original.id, row.original.allowPreSale)}
+                              onClick={() => handlePreSaleToggle(row.original.id, row.original.allowPresale)}
                             >
                               <Flag className="mr-2 h-4 w-4" />
-                              {row.original.allowPreSale ? "Deshabilitar pre-venta" : "Habilitar pre-venta"}
+                              {row.original.allowPresale ? "Deshabilitar pre-venta" : "Habilitar pre-venta"}
                             </DropdownMenuItem>
                             {row.original.status === "ACTIVE" && (
                               <DropdownMenuItem
