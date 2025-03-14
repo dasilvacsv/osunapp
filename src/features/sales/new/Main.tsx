@@ -82,6 +82,7 @@ export function OrganizationSelectForm({
   initialBundles,
   initialItems 
 }: OrganizationSelectFormProps) {
+  
   const { toast } = useToast()
   const router = useRouter()
   
@@ -171,14 +172,8 @@ export function OrganizationSelectForm({
     setSelectedBundleId(bundleId)
     form.setValue("bundleId", bundleId)
     
-    // Check inventory status for all items
-    const status: Record<string, boolean> = {}
-    for (const item of bundle.items) {
-      status[item.item.id] = item.item.currentStock >= item.quantity
-    }
-    
-    // Calculate prices with discounts
-    const cartItems = bundle.items.map(item => ({
+    // Map bundle items to cart items
+    const cartItems = bundle.items.map((item) => ({
       itemId: item.item.id,
       name: item.item.name,
       quantity: item.quantity,

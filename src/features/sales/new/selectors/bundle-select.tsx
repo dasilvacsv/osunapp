@@ -25,6 +25,7 @@ export interface Bundle {
   description: string
   type: "REGULAR"
   basePrice: string
+  bundlePrice: string | null
   status: "ACTIVE" | "INACTIVE"
   items: BundleItem[]
 }
@@ -44,6 +45,8 @@ export function BundleSelect({
 }: BundleSelectProps) {
   const { toast } = useToast()
   const [bundles, setBundles] = useState<Bundle[]>(initialBundles)
+  console.log(initialBundles);
+  
 
   // Update bundles when initialBundles changes
   useEffect(() => {
@@ -62,7 +65,7 @@ export function BundleSelect({
     <div className={className}>
       <PopoverSelect
         options={bundles.map(bundle => ({
-          label: `${bundle.name} - $${bundle.basePrice}`,
+          label: `${bundle.name} - $${bundle.bundlePrice || bundle.basePrice}`,
           value: bundle.id,
           description: bundle.description,
           // Show items count in the description

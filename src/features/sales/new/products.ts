@@ -16,6 +16,7 @@ export async function getAllBundlesAndItems() {
         description: bundles.description,
         type: bundles.type,
         basePrice: bundles.basePrice,
+        bundlePrice: bundles.bundlePrice,
         status: bundles.status,
         items: sql`
             COALESCE(
