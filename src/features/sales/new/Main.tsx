@@ -110,6 +110,9 @@ export function OrganizationSelectForm({
     },
   })
 
+  // Watch the saleType field to conditionally render payment fields
+  const saleType = form.watch("saleType")
+
   const handleOrganizationSelect = (organizationId: string, organization: Organization) => {
     setSelectedOrganizationId(organizationId)
     form.setValue("organizationId", organizationId)
@@ -314,51 +317,55 @@ export function OrganizationSelectForm({
 
               {/* Sale Details */}
               <div className="space-y-4 pt-4">
-                {/* Payment Method */}
-                <FormField
-                  control={form.control}
-                  name="paymentMethod"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4" />
-                        Payment Method
-                      </FormLabel>
-                      <FormControl>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select payment method" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="CASH">Cash</SelectItem>
-                            <SelectItem value="CARD">Card</SelectItem>
-                            <SelectItem value="TRANSFER">Transfer</SelectItem>
-                            <SelectItem value="OTHER">Other</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Payment Method - Only show for DIRECT sales */}
+                {saleType === "DIRECT" && (
+                  <FormField
+                    control={form.control}
+                    name="paymentMethod"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          <CreditCard className="h-4 w-4" />
+                          Payment Method
+                        </FormLabel>
+                        <FormControl>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select payment method" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="CASH">Cash</SelectItem>
+                              <SelectItem value="CARD">Card</SelectItem>
+                              <SelectItem value="TRANSFER">Transfer</SelectItem>
+                              <SelectItem value="OTHER">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
-                {/* Transaction Reference */}
-                <FormField
-                  control={form.control}
-                  name="transactionReference"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Transaction Reference</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="Receipt number, transaction ID, etc." 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Transaction Reference - Only show for DIRECT sales */}
+                {saleType === "DIRECT" && (
+                  <FormField
+                    control={form.control}
+                    name="transactionReference"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Transaction Reference</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Receipt number, transaction ID, etc." 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 
                 <FormField
                   control={form.control}
