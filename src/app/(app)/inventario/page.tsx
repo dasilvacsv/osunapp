@@ -1,5 +1,6 @@
+import { InventoryManager } from "@/features/inventory/table/inventory-manager"
 import { getInventoryItems } from "@/features/inventory/view/actions"
-import { InventoryManager } from "@/features/inventory/view/inventory-manager"
+
 
 export default async function InventoryPage() {
   // Fetch inventory items with error handling

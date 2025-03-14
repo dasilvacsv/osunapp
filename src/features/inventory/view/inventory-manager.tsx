@@ -11,7 +11,7 @@ import type { InventoryItem } from "@/lib/types"
 import type { BundleCategory, StockTransactionInput, Bundle } from "./types"
 import { getInventoryItems, stockIn, stockOut, getBundles, checkStockAlerts } from "./actions"
 
-import { UnifiedInventoryForm } from "./unified-inventory-form"
+import { UnifiedInventoryForm } from "../stock/unified-inventory-form"
 
 import { useToast } from "@/hooks/use-toast"
 import { Badge } from "@/components/ui/badge"
