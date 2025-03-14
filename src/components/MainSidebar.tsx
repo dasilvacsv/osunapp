@@ -35,16 +35,16 @@ const navItems = [
   },
   {
     title: "Clientes",
-    url: "/clients",
+    url: "/clientes",
     icon: Users,
     items: [
       {
         title: "Lista de Clientes",
-        url: "/clients",
+        url: "/clientes",
       },
       {
         title: "Clientes por Organización",
-        url: "/clients/by-organization",
+        url: "/clientes/byOrg",
       }
     ],
   },

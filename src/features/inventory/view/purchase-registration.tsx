@@ -13,9 +13,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
 import { z } from "zod"
-import { InventoryItemSelector } from "./inventory-item-selector"
+
 import type { InventoryItem } from "./types"
 import { registerPurchase } from "./actions"
+import { InventoryItemSelector } from "./inventory-item-selector"
 
 // Define the purchase schema
 const purchaseItemSchema = z.object({

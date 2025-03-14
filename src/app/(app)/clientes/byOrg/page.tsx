@@ -10,4 +10,4 @@ export default async function ClientPage() {
   const clients2 = await getOrganizationsWithClients();
 
   return <OrganizationList initialData={clients2}/>;
-}
+} 

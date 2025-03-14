@@ -1,6 +1,6 @@
 import { BundleCreationForm } from "@/features/bundles/new/comp"
 import { getBundleCategories, getOrganizations, getInventoryItems } from "@/features/bundles/new/actions"
-import { TestComponent } from "@/features/inventory/view/comp"
+import { TestComponent } from "@/components/comp"
 
 export default async function InventoryPage() {
   const {data: categories} = await getBundleCategories() || { data: [] }

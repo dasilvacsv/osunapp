@@ -46,6 +46,13 @@ export async function createInventoryItem(input: CreateInventoryItemInput) {
         transactionType: "INITIAL",
         notes: "Initial inventory stock",
         createdAt: new Date(),
+        // Add reference with cost information if provided
+        reference: validated.initialInventoryCost 
+          ? { 
+              initialCost: validated.initialInventoryCost,
+              totalCost: validated.initialInventoryCost * validated.currentStock
+            } 
+          : undefined,
       })
     }
 

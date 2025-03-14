@@ -39,8 +39,10 @@ export interface InventoryTransaction {
 
 export type CreateInventoryItemInput = Omit<
   InventoryItem,
-  "id" | "createdAt" | "updatedAt" | "currentStock" | "reservedStock"
->;
+  "id" | "createdAt" | "updatedAt"
+> & {
+  initialInventoryCost?: number;
+};
 
 export type UpdateInventoryItemInput = Partial<CreateInventoryItemInput>;
 
