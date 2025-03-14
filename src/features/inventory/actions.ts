@@ -2,7 +2,7 @@
 
 import { db } from "@/db"
 import { inventoryItems, inventoryTransactions } from "@/db/schema"
-import { eq, desc, sql, and } from "drizzle-orm"
+import { eq, desc, sql } from "drizzle-orm"
 import type { ActionResponse, InventoryItem, InventoryTransaction } from "./types"
 
 export async function getInventoryItems(): Promise<ActionResponse<InventoryItem[]>> {
@@ -21,15 +21,20 @@ export async function getInventoryItems(): Promise<ActionResponse<InventoryItem[
       .groupBy(inventoryTransactions.itemId)
 
     // Create a map of itemId to pre-sale count
-    const preSaleCountMap = new Map(
-      preSaleCounts.map(({ itemId, count }) => [itemId, Number(count)])
-    )
+    const preSaleCountMap = new Map(preSaleCounts.map(({ itemId, count }) => [itemId, Number(count)]))
 
     // Merge the data
-    const enrichedItems = items.map(item => ({
-      ...item,
-      preSaleCount: preSaleCountMap.get(item.id) || 0,
-    }))
+    const enrichedItems = items.map((item) => {
+      // Ensure allowPreSale is a boolean
+      const allowPreSale =
+        typeof item.allowPreSale === "boolean" ? item.allowPreSale : item.metadata?.allowPreSale === true
+
+      return {
+        ...item,
+        allowPreSale,
+        preSaleCount: preSaleCountMap.get(item.id) || 0,
+      }
+    })
 
     return { success: true, data: enrichedItems }
   } catch (error) {
@@ -67,12 +72,12 @@ export async function getInventoryItem(id: string): Promise<ActionResponse<Inven
   }
 }
 
-export async function updateInventoryItemStatus(id: string, status: "ACTIVE" | "INACTIVE"): Promise<ActionResponse<void>> {
+export async function updateInventoryItemStatus(
+  id: string,
+  status: "ACTIVE" | "INACTIVE",
+): Promise<ActionResponse<void>> {
   try {
-    await db
-      .update(inventoryItems)
-      .set({ status, updatedAt: new Date() })
-      .where(eq(inventoryItems.id, id))
+    await db.update(inventoryItems).set({ status, updatedAt: new Date() }).where(eq(inventoryItems.id, id))
     return { success: true }
   } catch (error) {
     console.error("Error updating item status:", error)
@@ -82,13 +87,103 @@ export async function updateInventoryItemStatus(id: string, status: "ACTIVE" | "
 
 export async function updatePreSaleFlag(id: string, allowPreSale: boolean): Promise<ActionResponse<void>> {
   try {
+    // Update the allowPreSale field directly
     await db
       .update(inventoryItems)
-      .set({ allowPreSale, updatedAt: new Date() })
+      .set({
+        allowPreSale,
+        updatedAt: new Date(),
+      })
       .where(eq(inventoryItems.id, id))
     return { success: true }
   } catch (error) {
     console.error("Error updating pre-sale flag:", error)
     return { success: false, error: "Failed to update pre-sale setting" }
   }
-} 
+}
+
+// Function to update inventory when a sale is made
+export async function decreaseInventoryForSale(
+  items: Array<{ itemId: string; quantity: number }>,
+  saleId: string,
+): Promise<ActionResponse<void>> {
+  try {
+    // Process each item in the sale
+    for (const { itemId, quantity } of items) {
+      // Get the current item to check stock and pre-sale status
+      const [item] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, itemId))
+
+      if (!item) {
+        return { success: false, error: `Item with ID ${itemId} not found` }
+      }
+
+      // Check if we have enough stock or if pre-sale is allowed
+      if (item.currentStock < quantity && !item.allowPreSale) {
+        return {
+          success: false,
+          error: `Insufficient stock for item ${item.name}. Available: ${item.currentStock}, Requested: ${quantity}`,
+        }
+      }
+
+      // If it's a pre-sale and we don't have enough stock
+      if (item.currentStock < quantity && item.allowPreSale) {
+        // Calculate how many units are pre-sale
+        const regularUnits = item.currentStock
+        const preSaleUnits = quantity - regularUnits
+
+        // Decrease available stock to zero
+        await db
+          .update(inventoryItems)
+          .set({
+            currentStock: 0,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryItems.id, itemId))
+
+        // Record regular stock transaction if any
+        if (regularUnits > 0) {
+          await db.insert(inventoryTransactions).values({
+            itemId,
+            quantity: -regularUnits,
+            transactionType: "OUT",
+            notes: `Venta #${saleId}`,
+            reference: { saleId },
+          })
+        }
+
+        // Record pre-sale transaction
+        await db.insert(inventoryTransactions).values({
+          itemId,
+          quantity: -preSaleUnits,
+          transactionType: "RESERVATION",
+          notes: `Pre-venta #${saleId}`,
+          reference: { saleId, isPreSale: true },
+        })
+      } else {
+        // Regular sale with sufficient stock
+        await db
+          .update(inventoryItems)
+          .set({
+            currentStock: sql`${inventoryItems.currentStock} - ${quantity}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryItems.id, itemId))
+
+        // Record transaction
+        await db.insert(inventoryTransactions).values({
+          itemId,
+          quantity: -quantity,
+          transactionType: "OUT",
+          notes: `Venta #${saleId}`,
+          reference: { saleId },
+        })
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating inventory for sale:", error)
+    return { success: false, error: "Failed to update inventory for sale" }
+  }
+}
+
