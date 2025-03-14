@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Switch } from "@/components/ui/switch"
 import { useState } from "react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { updateItemPreSaleFlag, getPreSaleCount } from "@/features/sales/actions"
+import { updateItemPreSaleFlag } from "@/features/inventory/table/actions"
 import { useToast } from "@/hooks/use-toast"
 
 // Define the motion div component with proper types
@@ -99,16 +99,14 @@ export const columns: ColumnDef<InventoryItem>[] = [
   {
     accessorKey: "type",
     header: "Type",
-    cell: ({ row }) => (
-      <MotionDiv initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-        <Badge
-          variant="outline"
-          className="capitalize hover:bg-primary hover:text-primary-foreground transition-colors"
-        >
-          {row.getValue("type")}
+    cell: ({ row }) => {
+      const type = row.getValue("type") as string
+      return (
+        <Badge variant="outline">
+          {type === "PHYSICAL" ? "Físico" : type === "DIGITAL" ? "Digital" : "Servicio"}
         </Badge>
-      </MotionDiv>
-    ),
+      )
+    },
   },
   {
     accessorKey: "basePrice",
@@ -208,46 +206,21 @@ export const columns: ColumnDef<InventoryItem>[] = [
       </div>
     ),
     cell: ({ row }) => {
-      // Usamos un estado local para almacenar la cantidad de pre-ventas
-      // En una implementación real, esto debería venir de los datos o de una consulta
-      const [preSaleCount, setPreSaleCount] = useState<number | null>(null)
-      const [loading, setLoading] = useState(false)
-      const itemId = row.original.id
-
-      // Cargar el conteo de pre-ventas al renderizar la celda
-      useState(() => {
-        const fetchPreSaleCount = async () => {
-          setLoading(true)
-          try {
-            const result = await getPreSaleCount(itemId)
-            if (result.success) {
-              setPreSaleCount(result.data)
-            }
-          } catch (error) {
-            console.error("Error fetching pre-sale count:", error)
-          } finally {
-            setLoading(false)
-          }
-        }
-
-        fetchPreSaleCount()
-      })
-
+      const count = row.getValue("preSaleCount") as number
+      
       return (
         <div className="flex items-center gap-2">
-          {loading ? (
-            <span className="text-xs text-muted-foreground">Cargando...</span>
-          ) : preSaleCount ? (
+          {count > 0 ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
                   <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
                     <Flag className="h-3 w-3 mr-1 text-red-500" />
-                    {preSaleCount}
+                    {count}
                   </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p className="text-sm">{preSaleCount} unidades en pre-venta</p>
+                  <p className="text-sm">{count} unidades en pre-venta</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

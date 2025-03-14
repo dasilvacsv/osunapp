@@ -18,7 +18,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, ChevronRight, AlertCircle, Package2, Search, MoreHorizontal, Archive, Flag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TransactionHistory } from "./transaction-history"
-import { getInventoryTransactions, disableInventoryItem } from "./actions"
+import { getInventoryTransactions } from "./actions"
 import { columns } from "./columns"
 import type { InventoryItem, InventoryTransaction } from "./types"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -43,13 +43,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { updateInventoryItemStatus, updatePreSaleFlag } from "../actions"
+import type { InventoryTableProps } from "../types"
 
-interface InventoryTableProps {
-  items: InventoryItem[]
-  onItemDisabled?: () => void
-}
-
-export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
+export function InventoryTable({ items, onItemDisabled, onItemUpdated }: InventoryTableProps) {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [expanded, setExpanded] = useState<ExpandedState>({})
   const [transactions, setTransactions] = useState<Record<string, InventoryTransaction[]>>({})
@@ -80,33 +77,44 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
   const confirmDisable = async () => {
     if (!itemToDisable) return
 
-    try {
-      const result = await disableInventoryItem(itemToDisable)
-      if (result.success) {
-        toast({
-          title: "Producto desactivado",
-          description: "El producto ha sido desactivado exitosamente.",
-        })
-        if (onItemDisabled) {
-          onItemDisabled()
-        }
-      } else {
-        toast({
-          title: "Error",
-          description: result.error || "No se pudo desactivar el producto.",
-          variant: "destructive",
-        })
+    const result = await updateInventoryItemStatus(itemToDisable, "INACTIVE")
+    if (result.success) {
+      toast({
+        title: "Producto desactivado",
+        description: "El producto ha sido desactivado exitosamente.",
+      })
+      if (onItemDisabled) {
+        onItemDisabled()
       }
-    } catch (error) {
-      console.error("Error disabling item:", error)
+    } else {
       toast({
         title: "Error",
-        description: "Ocurrió un error al desactivar el producto.",
+        description: result.error || "No se pudo desactivar el producto.",
         variant: "destructive",
       })
-    } finally {
-      setConfirmDisableDialogOpen(false)
-      setItemToDisable(null)
+    }
+    setConfirmDisableDialogOpen(false)
+    setItemToDisable(null)
+  }
+
+  const handlePreSaleToggle = async (id: string, currentValue: boolean) => {
+    const result = await updatePreSaleFlag(id, !currentValue)
+    if (result.success) {
+      toast({
+        title: !currentValue ? "Pre-venta habilitada" : "Pre-venta deshabilitada",
+        description: !currentValue
+          ? "Ahora se puede vender este producto sin stock disponible"
+          : "Este producto ahora requiere stock disponible para venderse",
+      })
+      if (onItemUpdated) {
+        onItemUpdated()
+      }
+    } else {
+      toast({
+        title: "Error",
+        description: result.error || "No se pudo actualizar la configuración de pre-venta",
+        variant: "destructive",
+      })
     }
   }
 
@@ -258,18 +266,7 @@ export function InventoryTable({ items, onItemDisabled }: InventoryTableProps) {
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={() => {
-                                // Toggle pre-sale flag
-                                const newValue = !row.original.allowPreSale
-                                // Aquí deberías llamar a la función que actualiza el flag en el servidor
-                                // Por ahora, solo mostramos un toast
-                                toast({
-                                  title: newValue ? "Pre-venta habilitada" : "Pre-venta deshabilitada",
-                                  description: newValue
-                                    ? "Ahora se puede vender este producto sin stock disponible"
-                                    : "Este producto ahora requiere stock disponible para venderse",
-                                })
-                              }}
+                              onClick={() => handlePreSaleToggle(row.original.id, row.original.allowPreSale)}
                             >
                               <Flag className="mr-2 h-4 w-4" />
                               {row.original.allowPreSale ? "Deshabilitar pre-venta" : "Habilitar pre-venta"}
