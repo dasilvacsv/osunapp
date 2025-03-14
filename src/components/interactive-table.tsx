@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { EditDialog } from "./edit-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 // Define the data type
 type Person = {
@@ -66,7 +67,7 @@ const data: Person[] = [
 export function InteractiveTable() {
   const [tableData, setTableData] = useState<Person[]>(data)
   const [editingPerson, setEditingPerson] = useState<Person | null>(null)
-  const [dialogPosition, setDialogPosition] = useState({ x: 0, y: 0 })
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   // Define columns
   const columns: ColumnDef<Person>[] = [
@@ -110,14 +111,9 @@ export function InteractiveTable() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  onClick={(e) => {
-                    // Calculate position for the dialog
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    setDialogPosition({
-                      x: rect.left,
-                      y: rect.bottom + window.scrollY,
-                    })
+                  onClick={() => {
                     setEditingPerson(person)
+                    setDialogOpen(true)
                   }}
                 >
                   <Edit className="mr-2 h-4 w-4" />
@@ -186,14 +182,38 @@ export function InteractiveTable() {
         </Button>
       </div>
 
-      {/* Edit Dialog - positioned absolutely */}
       {editingPerson && (
-        <EditDialog
-          person={editingPerson}
-          onSave={handleSave}
-          onCancel={() => setEditingPerson(null)}
-          position={dialogPosition}
-        />
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open)
+            if (!open) setEditingPerson(null)
+          }}
+        >
+          <DialogContent
+            className="sm:max-w-[425px]"
+            onPointerDownOutside={(e) => {
+              // Prevent closing when clicking outside
+              e.preventDefault()
+            }}
+            onInteractOutside={(e) => {
+              // Allow interaction with elements outside the dialog
+              e.preventDefault()
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Edit Person</DialogTitle>
+            </DialogHeader>
+            <EditDialog
+              person={editingPerson}
+              onSave={(updatedPerson) => {
+                handleSave(updatedPerson)
+                setDialogOpen(false)
+              }}
+              onCancel={() => setDialogOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

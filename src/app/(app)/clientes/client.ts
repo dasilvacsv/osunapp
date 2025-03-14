@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { unstable_cache } from 'next/cache';
 import { 
   clients, 
   organizations, 
@@ -109,12 +110,18 @@ export async function getClient(id: string) {
 }
 
 export async function getOrganizations() {
-  try {
-    const data = await db.select().from(organizations).where(eq(organizations.status, "ACTIVE"));
-    return { data };
-  } catch (error) {
-    return { error: "Failed to fetch organizations" };
-  }
+  return unstable_cache(
+    async () => {
+      try {
+        const data = await db.select().from(organizations).where(eq(organizations.status, "ACTIVE"));
+        return { data };
+      } catch (error) {
+        return { error: "Failed to fetch organizations" };
+      }
+    },
+    ['organizations-list'],
+    { revalidate: 60 } // Cache for 1 minute
+  )();
 }
 
 export async function createOrganization(data: OrganizationFormData) {
@@ -345,7 +352,7 @@ export async function createBeneficiary(data: BeneficiaryFormData) {
       })
       .returning();
 
-    // Revalidate both clients and sales paths
+    // Revalidate all necessary paths
     revalidatePath("/clientes")
     revalidatePath("/sales")
     revalidatePath("/sales/new")

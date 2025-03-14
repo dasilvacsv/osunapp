@@ -5,10 +5,10 @@ import { PopoverSelect } from "@/components/popover-select"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { OrganizationForm } from "@/features/organizations/organization-form"
-import { createOrganization } from "@/app/(app)/organizations/organization"
 import { PlusIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { getOrganizations } from "@/features/sales/new/actions"
+import { createOrganization } from "@/features/organizations/organization"
 
 export interface Organization {
   id: string

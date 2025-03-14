@@ -3,6 +3,8 @@ import { OrganizationSelectForm } from "@/features/sales/new/Main"
 import { getOrganizations, getClients } from "@/features/sales/new/actions"
 import { getAllBundlesAndItems } from '@/features/sales/new/products'
 
+export const dynamic = "force-dynamic"
+
 
 export default async function NewSalePage() {
   const { data: organizations } = await getOrganizations()

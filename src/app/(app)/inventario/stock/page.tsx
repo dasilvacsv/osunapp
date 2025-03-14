@@ -1,6 +1,8 @@
 import { UnifiedInventoryForm } from "@/features/inventory/stock/unified-inventory-form"
 import { getInventoryItems } from "@/features/inventory/actions"
 
+export const dynamic = "force-dynamic"
+
 export default async function InventoryPage() {
   const result = await getInventoryItems()
   // Ensure we have a valid array of items
