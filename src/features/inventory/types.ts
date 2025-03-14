@@ -1,5 +1,3 @@
-import { type ColumnDef } from "@tanstack/react-table"
-
 export interface InventoryItem {
   id: string
   name: string
@@ -16,6 +14,7 @@ export interface InventoryItem {
   preSaleCount: number
   createdAt: Date | null
   updatedAt: Date | null
+  metadata?: Record<string, any>
 }
 
 export interface InventoryTransaction {
@@ -23,7 +22,7 @@ export interface InventoryTransaction {
   itemId: string
   quantity: number
   transactionType: "INITIAL" | "IN" | "OUT" | "ADJUSTMENT" | "RESERVATION" | "FULFILLMENT"
-  reference: string | null
+  reference: string | null | Record<string, any>
   notes: string | null
   createdAt: Date | null
   updatedAt: Date | null
@@ -44,4 +43,5 @@ export type InventoryTableProps = {
 
 export type InventoryManagerProps = {
   initialData: InventoryItem[]
-} 
+}
+
