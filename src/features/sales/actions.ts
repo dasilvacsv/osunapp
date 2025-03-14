@@ -13,7 +13,6 @@ import {
   organizations,
   payments,
   paymentPlans,
-  saleTypeEnum,
 } from "@/db/schema"
 import { and, eq, sql, or } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
@@ -31,8 +30,8 @@ const formatExportDate = (date: Date | string | null): string => {
     const dateObj = typeof date === "string" ? new Date(date) : date
     return dateObj.toLocaleDateString()
   } catch (error) {
-    console.error("Error formatting date:", error)
-    return "Invalid Date"
+    console.error("Error al formatear fecha:", error)
+    return "Fecha inválida"
   }
 }
 
@@ -78,10 +77,7 @@ export async function exportSaleToExcel(id: string, download = false) {
     let paymentsInfo = null
     try {
       // Get all payments using Drizzle syntax
-      const paymentsData = await db
-        .select()
-        .from(payments)
-        .where(eq(payments.purchaseId, id))
+      const paymentsData = await db.select().from(payments).where(eq(payments.purchaseId, id))
 
       if (paymentsData.length > 0) {
         const pendingPayments = paymentsData.filter(
@@ -92,20 +88,15 @@ export async function exportSaleToExcel(id: string, download = false) {
         // Get next payment due date
         let nextPaymentDue = null
         if (pendingPayments.length > 0) {
-          nextPaymentDue = pendingPayments.sort(
-            (a, b) => {
-              const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
-              const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
-              return dateA - dateB;
-            },
-          )[0]
+          nextPaymentDue = pendingPayments.sort((a, b) => {
+            const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY
+            const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY
+            return dateA - dateB
+          })[0]
         }
 
         // Get payment plan
-        const paymentPlansData = await db
-          .select()
-          .from(paymentPlans)
-          .where(eq(paymentPlans.purchaseId, id))
+        const paymentPlansData = await db.select().from(paymentPlans).where(eq(paymentPlans.purchaseId, id))
 
         const paymentPlan = paymentPlansData.length > 0 ? paymentPlansData[0] : null
 
@@ -124,13 +115,14 @@ export async function exportSaleToExcel(id: string, download = false) {
         paymentsInfo = {
           paymentsCount: paymentsData.length,
           pendingPayments: pendingPayments.length,
-          nextPaymentDueDate: nextPaymentDue && nextPaymentDue.dueDate ? formatExportDate(nextPaymentDue.dueDate) : null,
+          nextPaymentDueDate:
+            nextPaymentDue && nextPaymentDue.dueDate ? formatExportDate(nextPaymentDue.dueDate) : null,
           pendingAmount: pendingAmount > 0 ? formatCurrency(pendingAmount) : null,
           installmentPlan: installmentPlanText,
         }
       }
     } catch (error) {
-      console.error("Error fetching payments:", error)
+      console.error("Error al obtener pagos:", error)
       // Continue without payments data
     }
 
@@ -144,8 +136,8 @@ export async function exportSaleToExcel(id: string, download = false) {
     }))
 
     // Get client contact info for email
-    const clientContactInfo = client?.contactInfo as { email?: string } || {}
-    
+    const clientContactInfo = (client?.contactInfo as { email?: string }) || {}
+
     // Format data for export
     const exportData = {
       id: purchase.id,
@@ -255,7 +247,7 @@ export async function exportSaleToExcel(id: string, download = false) {
 
     return { success: true, data: exportData }
   } catch (error) {
-    console.error("Error exporting sale:", error)
+    console.error("Error al exportar venta:", error)
     return { success: false, error: "Error al exportar la venta" }
   }
 }
@@ -300,61 +292,63 @@ export async function getPurchaseDetails(id: string) {
         beneficiary: result[0].beneficiary,
         bundle: result[0].bundle,
         items: result[0].items,
+        // Add saleType from paymentMetadata or default to "DIRECT"
+        saleType: (result[0].purchase.paymentMetadata as any)?.saleType || "DIRECT",
       },
     }
   } catch (error) {
-    console.error("Error fetching purchase details:", error)
+    console.error("Error al obtener detalles de la compra:", error)
     return { success: false, error: "Error al obtener detalles de la venta" }
   }
 }
 
 export async function createPurchase(data: {
-  clientId: string;
+  clientId: string
   items: Array<{
-    itemId: string;
-    quantity: number;
-    overridePrice?: number;
-  }>;
-  bundleId?: string;
-  beneficiaryId?: string;
+    itemId: string
+    quantity: number
+    overridePrice?: number
+  }>
+  bundleId?: string
+  beneficiaryId?: string
   beneficiary?: {
-    firstName: string;
-    lastName: string;
-    school: string;
-    level: string;
-    section: string;
-  };
-  paymentMethod: string;
-  saleType: "DIRECT" | "PRESALE";
-  transactionReference?: string;
-  organizationId?: string | null;
+    firstName: string
+    lastName: string
+    school: string
+    level: string
+    section: string
+  }
+  paymentMethod: string
+  saleType: "DIRECT" | "PRESALE"
+  transactionReference?: string
+  organizationId?: string | null
 }) {
   try {
-    // Start a transaction to ensure atomicity
-    return await db.transaction(async (tx) => {
-      // Calculate the total price based on items
-      let totalAmount = 0;
+    // Calculate the total price based on items
+    let totalAmount = 0
 
-      // Calculate total from items
-      for (const item of data.items) {
-        const inventoryItem = await tx
-          .select({ basePrice: inventoryItems.basePrice })
-          .from(inventoryItems)
-          .where(eq(inventoryItems.id, item.itemId))
-          .limit(1);
+    // Calculate total from items
+    for (const item of data.items) {
+      const inventoryItem = await db
+        .select({ basePrice: inventoryItems.basePrice })
+        .from(inventoryItems)
+        .where(eq(inventoryItems.id, item.itemId))
+        .limit(1)
 
-        if (!inventoryItem.length) {
-          throw new Error(`Item not found: ${item.itemId}`);
-        }
-
-        const price = item.overridePrice || Number(inventoryItem[0].basePrice);
-        totalAmount += price * item.quantity;
+      if (!inventoryItem.length) {
+        throw new Error(`Producto no encontrado: ${item.itemId}`)
       }
 
-      // Insert the purchase
-      const [purchase] = await tx.insert(purchases).values({
+      const price = item.overridePrice || Number(inventoryItem[0].basePrice)
+      totalAmount += price * item.quantity
+    }
+
+    // Insert the purchase
+    const [purchase] = await db
+      .insert(purchases)
+      .values({
         clientId: data.clientId,
-        beneficiarioId: data.beneficiaryId,
+        beneficiarioId: data.beneficiarioId,
         bundleId: data.bundleId,
         status: "COMPLETED",
         totalAmount: totalAmount.toString(),
@@ -364,74 +358,82 @@ export async function createPurchase(data: {
         organizationId: data.organizationId === "none" ? null : data.organizationId,
         transactionReference: data.transactionReference,
         bookingMethod: data.saleType,
-      }).returning();
+        // Store saleType in paymentMetadata
+        paymentMetadata: { saleType: data.saleType },
+      })
+      .returning()
 
-      // Insert purchase items
-      for (const item of data.items) {
-        const inventoryItem = await tx
-          .select()
-          .from(inventoryItems)
-          .where(eq(inventoryItems.id, item.itemId))
-          .limit(1);
+    if (!purchase) {
+      throw new Error("Error al crear el registro de compra")
+    }
 
-        if (!inventoryItem.length) {
-          throw new Error(`Item not found: ${item.itemId}`);
-        }
+    // Process each item individually
+    for (const item of data.items) {
+      const inventoryItem = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId)).limit(1)
 
-        const price = item.overridePrice || Number(inventoryItem[0].basePrice);
-        
-        await tx.insert(purchaseItems).values({
-          purchaseId: purchase.id,
-          itemId: item.itemId,
-          quantity: item.quantity,
-          unitPrice: price.toString(),
-          totalPrice: (price * item.quantity).toString(),
-        });
-
-        // If not a presale, update inventory immediately
-        if (data.saleType !== "PRESALE") {
-          // Decrease stock
-          await tx
-            .update(inventoryItems)
-            .set({ 
-              currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(inventoryItems.id, item.itemId));
-          
-          // Record transaction
-          await tx.insert(inventoryTransactions).values({
-            itemId: item.itemId,
-            quantity: item.quantity,
-            transactionType: "OUT",
-            reference: { purchaseId: purchase.id },
-          });
-        } else {
-          // For presales, reserve the stock
-          await tx
-            .update(inventoryItems)
-            .set({ 
-              reservedStock: sql`${inventoryItems.reservedStock} + ${item.quantity}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(inventoryItems.id, item.itemId));
-          
-          // Record reservation transaction
-          await tx.insert(inventoryTransactions).values({
-            itemId: item.itemId,
-            quantity: item.quantity,
-            transactionType: "RESERVATION",
-            reference: { purchaseId: purchase.id },
-          });
-        }
+      if (!inventoryItem.length) {
+        throw new Error(`Producto no encontrado: ${item.itemId}`)
       }
 
-      // If this sale is for a bundle and doesn't have a beneficiaryId but has beneficiary details, create a beneficiary
-      if (data.bundleId && !data.beneficiaryId && data.beneficiary) {
-        const fullName = `${data.beneficiary.firstName} ${data.beneficiary.lastName}`;
-        
-        // Create a new beneficiary
-        const [newBeneficiary] = await tx.insert(beneficiarios).values({
+      const price = item.overridePrice || Number(inventoryItem[0].basePrice)
+
+      // Insert purchase item
+      await db.insert(purchaseItems).values({
+        purchaseId: purchase.id,
+        itemId: item.itemId,
+        quantity: item.quantity,
+        unitPrice: price.toString(),
+        totalPrice: (price * item.quantity).toString(),
+      })
+
+      // If not a presale, update inventory immediately
+      if (data.saleType !== "PRESALE") {
+        // Decrease stock
+        await db
+          .update(inventoryItems)
+          .set({
+            currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryItems.id, item.itemId))
+
+        // Record transaction
+        await db.insert(inventoryTransactions).values({
+          itemId: item.itemId,
+          quantity: -item.quantity,
+          transactionType: "OUT",
+          reference: { purchaseId: purchase.id },
+          notes: `Venta #${purchase.id}`,
+        })
+      } else {
+        // For presales, reserve the stock
+        await db
+          .update(inventoryItems)
+          .set({
+            reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${item.quantity}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryItems.id, item.itemId))
+
+        // Record reservation transaction
+        await db.insert(inventoryTransactions).values({
+          itemId: item.itemId,
+          quantity: -item.quantity,
+          transactionType: "RESERVATION",
+          reference: { purchaseId: purchase.id },
+          notes: `Pre-venta #${purchase.id}`,
+        })
+      }
+    }
+
+    // If this sale is for a bundle and doesn't have a beneficiaryId but has beneficiary details, create a beneficiary
+    if (data.bundleId && !data.beneficiaryId && data.beneficiary) {
+      const fullName = `${data.beneficiary.firstName} ${data.beneficiary.lastName}`
+
+      // Create a new beneficiary
+      const [newBeneficiary] = await db
+        .insert(beneficiarios)
+        .values({
           name: fullName,
           clientId: data.clientId,
           firstName: data.beneficiary.firstName,
@@ -442,69 +444,73 @@ export async function createPurchase(data: {
           bundleId: data.bundleId,
           organizationId: data.organizationId === "none" ? null : data.organizationId,
           status: "ACTIVE",
-        }).returning();
-        
+        })
+        .returning()
+
+      if (newBeneficiary) {
         // Update the purchase with the beneficiary ID
-        await tx
-          .update(purchases)
-          .set({ beneficiarioId: newBeneficiary.id })
-          .where(eq(purchases.id, purchase.id));
+        await db.update(purchases).set({ beneficiarioId: newBeneficiary.id }).where(eq(purchases.id, purchase.id))
       }
+    }
 
-      // Update bundle stats if this is a bundle purchase
-      if (data.bundleId) {
-        await tx
-          .update(bundles)
-          .set({ 
-            totalSales: sql`${bundles.totalSales} + 1`,
-            lastSaleDate: new Date(),
-            totalRevenue: sql`${bundles.totalRevenue} + ${totalAmount}`,
-          })
-          .where(eq(bundles.id, data.bundleId));
-      }
-
-      // Get the full purchase details with relations for the response
-      const purchaseDetails = await tx
-        .select({
-          purchase: purchases,
-          client: clients,
-          beneficiary: beneficiarios,
-          organization: organizations,
-          bundle: bundles,
+    // Update bundle stats if this is a bundle purchase
+    if (data.bundleId) {
+      await db
+        .update(bundles)
+        .set({
+          totalSales: sql`COALESCE(${bundles.totalSales}, 0) + 1`,
+          lastSaleDate: new Date(),
+          totalRevenue: sql`COALESCE(${bundles.totalRevenue}, 0) + ${totalAmount}`,
         })
-        .from(purchases)
-        .leftJoin(clients, eq(purchases.clientId, clients.id))
-        .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
-        .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
-        .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
-        .where(eq(purchases.id, purchase.id))
-        .limit(1);
+        .where(eq(bundles.id, data.bundleId))
+    }
 
-      if (!purchaseDetails.length) {
-        throw new Error("Failed to retrieve purchase details");
-      }
+    // Get the full purchase details with relations for the response
+    const purchaseDetails = await db
+      .select({
+        purchase: purchases,
+        client: clients,
+        beneficiary: beneficiarios,
+        organization: organizations,
+        bundle: bundles,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+      .where(eq(purchases.id, purchase.id))
+      .limit(1)
 
-      // Get purchase items
-      const items = await tx
-        .select({
-          item: purchaseItems,
-          inventoryItem: inventoryItems,
-        })
-        .from(purchaseItems)
-        .leftJoin(inventoryItems, eq(purchaseItems.itemId, inventoryItems.id))
-        .where(eq(purchaseItems.purchaseId, purchase.id));
+    if (!purchaseDetails.length) {
+      throw new Error("Error al recuperar detalles de la compra")
+    }
 
-      return {
-        success: true,
-        data: {
-          ...purchaseDetails[0],
-          items,
-        },
-      };
-    });
+    // Get purchase items
+    const items = await db
+      .select({
+        item: purchaseItems,
+        inventoryItem: inventoryItems,
+      })
+      .from(purchaseItems)
+      .leftJoin(inventoryItems, eq(purchaseItems.itemId, inventoryItems.id))
+      .where(eq(purchaseItems.purchaseId, purchase.id))
+
+    // Revalidate paths
+    revalidatePath("/sales")
+    revalidatePath("/inventory")
+
+    return {
+      success: true,
+      data: {
+        ...purchaseDetails[0],
+        items,
+        saleType: data.saleType,
+      },
+    }
   } catch (error) {
-    console.error("Error creating purchase:", error);
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    console.error("Error al crear compra:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Error desconocido" }
   }
 }
 
@@ -538,8 +544,8 @@ export async function getSalesData() {
       data: sales,
     }
   } catch (error) {
-    console.error("Error fetching sales data:", error)
-    return { success: false, error: "Failed to fetch sales data" }
+    console.error("Error al obtener datos de ventas:", error)
+    return { success: false, error: "Error al obtener datos de ventas" }
   }
 }
 
@@ -572,7 +578,7 @@ export async function updatePurchaseStatus(id: string, newStatus: string) {
       data: updatedPurchase,
     }
   } catch (error) {
-    console.error("Error updating status:", error)
+    console.error("Error al actualizar estado:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Error al actualizar el estado",
@@ -610,6 +616,7 @@ export async function searchBundles(query: string) {
               basePrice: inventoryItems.basePrice,
               // Obtener metadata donde allowPreSale podría estar almacenado
               metadata: inventoryItems.metadata,
+              allowPresale: inventoryItems.allowPresale,
             },
           })
           .from(bundleItems)
@@ -617,16 +624,15 @@ export async function searchBundles(query: string) {
           .where(eq(bundleItems.bundleId, bundle.id))
 
         // Procesar los resultados para extraer allowPreSale de metadata
-        const processedItems = bundleItemsResult.map(item => {
-          const metadata = item.item.metadata as { allowPreSale?: boolean } || {};
+        const processedItems = bundleItemsResult.map((item) => {
           return {
             ...item,
             item: {
               ...item.item,
-              allowPreSale: metadata.allowPreSale || false,
-            }
-          };
-        });
+              allowPreSale: item.item.allowPresale || false,
+            },
+          }
+        })
 
         return {
           ...bundle,
@@ -637,8 +643,8 @@ export async function searchBundles(query: string) {
 
     return { success: true, data: bundlesWithItems }
   } catch (error) {
-    console.error("Error searching bundles:", error)
-    return { success: false, error: "Error buscando paquetes" }
+    console.error("Error al buscar paquetes:", error)
+    return { success: false, error: "Error al buscar paquetes" }
   }
 }
 
@@ -660,8 +666,8 @@ export async function searchInventoryItems(query: string) {
 
     return { success: true, data }
   } catch (error) {
-    console.error("Error searching inventory items:", error)
-    return { success: false, error: "Error buscando productos" }
+    console.error("Error al buscar productos:", error)
+    return { success: false, error: "Error al buscar productos" }
   }
 }
 
@@ -689,8 +695,8 @@ export async function searchClients(query: string) {
 
     return { success: true, data }
   } catch (error) {
-    console.error("Error searching clients:", error)
-    return { success: false, error: "Error buscando clientes" }
+    console.error("Error al buscar clientes:", error)
+    return { success: false, error: "Error al buscar clientes" }
   }
 }
 
@@ -727,14 +733,13 @@ export async function deleteBundle(bundleId: string) {
 
     return { success: true, data: deletedBundle }
   } catch (error) {
-    console.error("Error deleting bundle:", error)
+    console.error("Error al eliminar paquete:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Error al eliminar el paquete",
     }
   }
 }
-
 
 export async function getPreSaleCount(itemId: string) {
   try {
@@ -746,17 +751,57 @@ export async function getPreSaleCount(itemId: string) {
       .from(purchaseItems)
       .innerJoin(purchases, eq(purchaseItems.purchaseId, purchases.id))
       .where(
-        and(
-          eq(purchaseItems.itemId, itemId),
-          eq(sql`(${purchases.paymentMetadata}->>'saleType')::text`, 'PRESALE')
-        )
+        and(eq(purchaseItems.itemId, itemId), eq(sql`(${purchases.paymentMetadata}->>'saleType')::text`, "PRESALE")),
       )
-    
+
     return { success: true, data: presales[0].count }
   } catch (error) {
-    console.error("Error fetching pre-sale count:", error)
+    console.error("Error al obtener conteo de pre-ventas:", error)
     return { success: false, error: "Error al obtener el conteo de pre-ventas" }
   }
 }
 
+// Función para actualizar el flag de preventa en la tabla de ventas
+export async function updateSalePreSaleFlag(saleId: string, allowPresale: boolean) {
+  try {
+    // Obtener la venta actual
+    const [sale] = await db.select().from(purchases).where(eq(purchases.id, saleId)).limit(1)
+
+    if (!sale) {
+      return { success: false, error: "Venta no encontrada" }
+    }
+
+    // Actualizar el metadata de la venta para incluir el nuevo valor de saleType
+    const currentMetadata = sale.paymentMetadata || {}
+    const updatedMetadata = {
+      ...currentMetadata,
+      saleType: allowPresale ? "PRESALE" : "DIRECT",
+    }
+
+    // Actualizar la venta
+    const [updatedSale] = await db
+      .update(purchases)
+      .set({
+        paymentMetadata: updatedMetadata,
+        updatedAt: new Date(),
+      })
+      .where(eq(purchases.id, saleId))
+      .returning()
+
+    if (!updatedSale) {
+      return { success: false, error: "Error al actualizar la venta" }
+    }
+
+    // Revalidar rutas
+    revalidatePath("/sales")
+
+    return { success: true, data: updatedSale }
+  } catch (error) {
+    console.error("Error al actualizar flag de preventa:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error al actualizar el estado de preventa",
+    }
+  }
+}
 

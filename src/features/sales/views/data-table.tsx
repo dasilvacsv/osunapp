@@ -73,13 +73,27 @@ export function DataTable<TData>({
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({})
   const [showPreSalesOnly, setShowPreSalesOnly] = useState<boolean>(false)
 
+  // Escuchar eventos de actualización de ventas
+  useEffect(() => {
+    const handleSalesUpdated = (event: Event) => {
+      // Forzar actualización de la tabla cuando se actualiza una venta
+      const customEvent = event as CustomEvent
+      console.log("Venta actualizada:", customEvent.detail)
+    }
+
+    window.addEventListener("sales-updated", handleSalesUpdated)
+    return () => {
+      window.removeEventListener("sales-updated", handleSalesUpdated)
+    }
+  }, [])
+
   // Filtrar por pre-ventas si es necesario
   useEffect(() => {
     if (filterPreSales && showPreSalesOnly) {
-      // Asumimos que hay una columna 'allowPreSale' o 'saleType' que podemos filtrar
-      const filterColumn = table.getColumn("allowPreSale") || table.getColumn("saleType")
+      // Asumimos que hay una columna 'saleType' que podemos filtrar
+      const filterColumn = table.getColumn("saleType")
       if (filterColumn) {
-        filterColumn.setFilterValue(showPreSalesOnly ? true : undefined)
+        filterColumn.setFilterValue(showPreSalesOnly ? "PRESALE" : undefined)
       }
     }
   }, [showPreSalesOnly, filterPreSales])
@@ -287,7 +301,6 @@ export function DataTable<TData>({
                       className={cn(
                         "group transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
                         // Highlight pre-sale rows if needed
-                        (row.original as any)?.allowPreSale && "bg-red-50/30 dark:bg-red-900/10",
                         (row.original as any)?.saleType === "PRESALE" && "bg-red-50/30 dark:bg-red-900/10",
                       )}
                     >

@@ -24,7 +24,7 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [activeTab, setActiveTab] = useState("sales")
-  
+
   const router = useRouter()
   const { toast } = useToast()
 
@@ -41,20 +41,20 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
           // Include beneficiario information
           beneficiario: sale.beneficiario,
           // Include bundle name
-          bundleName: sale.bundle?.name || 'N/A',
+          bundleName: sale.bundle?.name || "N/A",
           // Ensure organization is properly structured
           organization: sale.organization,
           // Format totalAmount as number if it's a string
-          totalAmount: typeof sale.totalAmount === 'string' ? parseFloat(sale.totalAmount) : sale.totalAmount,
+          totalAmount: typeof sale.totalAmount === "string" ? Number.parseFloat(sale.totalAmount) : sale.totalAmount,
           // Ensure purchaseDate is a Date object
           purchaseDate: sale.purchaseDate ? new Date(sale.purchaseDate) : null,
           // Include payment information
           payments: sale.payments || [],
           paymentPlans: sale.paymentPlans || [],
           // Include items information
-          items: sale.items || []
+          items: sale.items || [],
         }))
-        
+
         setSales(formattedSales)
         toast({
           title: "Datos actualizados",
@@ -113,7 +113,7 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
           </Button>
-          <Button onClick={() => setShowDialog(true)} className="group">
+          <Button onClick={() => router.push("/sales/new")} className="group">
             <PlusIcon className="mr-2 h-4 w-4 transition-transform group-hover:scale-125" />
             Nueva Venta
           </Button>
@@ -134,31 +134,24 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
 
         <TabsContent value="sales" className="space-y-6">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <DataTable 
-              columns={columns} 
-              data={sales} 
-              searchKey="client.name" 
-              onSaleSelect={handleSaleSelect}
-            />
+            <DataTable columns={columns} data={sales} searchKey="client.name" onSaleSelect={handleSaleSelect} />
           </motion.div>
         </TabsContent>
 
         <TabsContent value="payments" className="space-y-6">
           {selectedSale ? (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <PaymentTable 
-                purchaseId={selectedSale.id} 
+              <PaymentTable
+                purchaseId={selectedSale.id}
                 refreshTrigger={refreshTrigger}
                 onPaymentUpdated={() => {
-                  setRefreshTrigger(prev => prev + 1)
+                  setRefreshTrigger((prev) => prev + 1)
                   refreshSales()
                 }}
               />
             </motion.div>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              Selecciona una venta para ver sus pagos
-            </div>
+            <div className="text-center py-12 text-muted-foreground">Selecciona una venta para ver sus pagos</div>
           )}
         </TabsContent>
       </Tabs>
@@ -185,3 +178,4 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
     </motion.div>
   )
 }
+

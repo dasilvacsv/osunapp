@@ -3,15 +3,13 @@
 import { useState, memo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Trash, Plus, Package, Search, Loader2 } from "lucide-react"
+import { Trash, Plus, Minus } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { ProductSelect } from "./selectors/product-select"
 import { BundleSelect } from "./selectors/bundle-select"
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
-import { Control } from "react-hook-form"
+import type { Control } from "react-hook-form"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { motion, AnimatePresence } from "framer-motion"
 import { SaleTypeSelector } from "./selectors/sale-type-selector"
 
 interface InventoryItem {
@@ -63,7 +61,7 @@ interface CartSectionProps {
   onBundleSelect?: (bundleId: string, bundle: Bundle) => void
 }
 
-export const CartSection = memo(function CartSection({ 
+export const CartSection = memo(function CartSection({
   control,
   initialItems,
   initialBundles,
@@ -71,7 +69,7 @@ export const CartSection = memo(function CartSection({
   onTotalChange,
   onSaleTypeChange,
   selectedBundleId,
-  onBundleSelect
+  onBundleSelect,
 }: CartSectionProps) {
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([])
@@ -83,31 +81,32 @@ export const CartSection = memo(function CartSection({
 
   // Get cart value from form
   useEffect(() => {
-    const cartValue = control._formValues?.cart;
+    const cartValue = control._formValues?.cart
     if (cartValue && Array.isArray(cartValue) && cartValue.length > 0) {
-      setCart(cartValue);
+      setCart(cartValue)
     }
-  }, [control._formValues?.cart]);
+  }, [control._formValues?.cart])
 
   // Reset available items when initialItems changes
   useEffect(() => {
-    setAvailableItems(initialItems);
-  }, [initialItems]);
+    setAvailableItems(initialItems)
+  }, [initialItems])
 
   // Reset available bundles when initialBundles changes
   useEffect(() => {
-    setAvailableBundles(initialBundles);
-  }, [initialBundles]);
+    setAvailableBundles(initialBundles)
+  }, [initialBundles])
 
   // Filter products and bundles based on search query
   const filterItems = (query: string) => {
     if (query.length >= 2) {
-      const filteredItems = availableItems.filter(item => 
-        item.name.toLowerCase().includes(query.toLowerCase()) ||
-        item.sku?.toLowerCase().includes(query.toLowerCase())
+      const filteredItems = availableItems.filter(
+        (item) =>
+          item.name.toLowerCase().includes(query.toLowerCase()) ||
+          item.sku?.toLowerCase().includes(query.toLowerCase()),
       )
-      const filteredBundles = availableBundles.filter(bundle =>
-        bundle.name.toLowerCase().includes(query.toLowerCase())
+      const filteredBundles = availableBundles.filter((bundle) =>
+        bundle.name.toLowerCase().includes(query.toLowerCase()),
       )
       setSearchResults(filteredItems)
       setBundleResults(filteredBundles)
@@ -121,11 +120,9 @@ export const CartSection = memo(function CartSection({
   const addToCart = (item: InventoryItem) => {
     const existingItem = cart.find((cartItem) => cartItem.itemId === item.id)
 
-    const newCart = existingItem 
+    const newCart = existingItem
       ? cart.map((cartItem) =>
-          cartItem.itemId === item.id 
-            ? { ...cartItem, quantity: cartItem.quantity + 1 } 
-            : cartItem
+          cartItem.itemId === item.id ? { ...cartItem, quantity: cartItem.quantity + 1 } : cartItem,
         )
       : [
           ...cart,
@@ -157,25 +154,23 @@ export const CartSection = memo(function CartSection({
       return
     }
 
-    const newCart = cart.map((item) => 
-      item.itemId === itemId ? { ...item, quantity } : item
-    )
-    
+    const newCart = cart.map((item) => (item.itemId === itemId ? { ...item, quantity } : item))
+
     setCart(newCart)
     onCartChange(newCart)
     onTotalChange(calculateTotal(newCart))
   }
 
   const addBundleToCart = (bundle: Bundle) => {
-    const bundleItems = bundle.items.map(item => {
+    const bundleItems = bundle.items.map((item) => {
       // Get the correct price - use override price if available, otherwise use base price
-      const unitPrice = item.overridePrice 
-        ? typeof item.overridePrice === 'string' 
-          ? Number.parseFloat(item.overridePrice) 
+      const unitPrice = item.overridePrice
+        ? typeof item.overridePrice === "string"
+          ? Number.parseFloat(item.overridePrice)
           : Number(item.overridePrice)
-        : typeof item.item.basePrice === 'string' 
-          ? Number.parseFloat(item.item.basePrice) 
-          : Number(item.item.basePrice);
+        : typeof item.item.basePrice === "string"
+          ? Number.parseFloat(item.item.basePrice)
+          : Number(item.item.basePrice)
 
       return {
         itemId: item.item.id,
@@ -185,14 +180,14 @@ export const CartSection = memo(function CartSection({
         stock: item.item.currentStock,
         allowPreSale: item.item.status === "ACTIVE",
         isFromBundle: true,
-        bundleId: bundle.id
-      };
-    });
+        bundleId: bundle.id,
+      }
+    })
 
-    const newCart = [...cart, ...bundleItems];
-    setCart(newCart);
-    onCartChange(newCart);
-    onTotalChange(calculateTotal(newCart));
+    const newCart = [...cart, ...bundleItems]
+    setCart(newCart)
+    onCartChange(newCart)
+    onTotalChange(calculateTotal(newCart))
   }
 
   const clearCart = () => {
@@ -211,7 +206,7 @@ export const CartSection = memo(function CartSection({
     // If parent provided a bundle select handler, use it
     if (onBundleSelect) {
       onBundleSelect(bundleId, bundle)
-      
+
       // The parent will update the form values, which will trigger our useEffect
       // to update the cart state
     } else {
@@ -229,7 +224,7 @@ export const CartSection = memo(function CartSection({
         name="saleType"
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Sale Type</FormLabel>
+            <FormLabel>Tipo de Venta</FormLabel>
             <FormControl>
               <SaleTypeSelector
                 onTypeChange={(type) => {
@@ -247,8 +242,8 @@ export const CartSection = memo(function CartSection({
       {/* Selection Tabs */}
       <Tabs defaultValue="products" className="w-full">
         <TabsList className="grid grid-cols-2 w-full">
-          <TabsTrigger value="products">Products</TabsTrigger>
-          <TabsTrigger value="bundles">Bundles</TabsTrigger>
+          <TabsTrigger value="products">Productos</TabsTrigger>
+          <TabsTrigger value="bundles">Paquetes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="pt-4">
@@ -257,7 +252,7 @@ export const CartSection = memo(function CartSection({
             name="productId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Product</FormLabel>
+                <FormLabel>Producto</FormLabel>
                 <FormControl>
                   <ProductSelect
                     selectedProductId={field.value || ""}
@@ -279,7 +274,7 @@ export const CartSection = memo(function CartSection({
             name="bundleId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Bundle</FormLabel>
+                <FormLabel>Paquete</FormLabel>
                 <FormControl>
                   <BundleSelect
                     selectedBundleId={selectedBundleId || field.value || ""}
@@ -298,7 +293,7 @@ export const CartSection = memo(function CartSection({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold flex items-center gap-2">
-            Cart <span className="text-destructive">*</span>
+            Carrito <span className="text-destructive">*</span>
           </h3>
           {cart.length > 0 && (
             <Button
@@ -312,23 +307,20 @@ export const CartSection = memo(function CartSection({
               type="button"
               className="text-destructive hover:text-destructive"
             >
-              Clear Cart
+              Limpiar Carrito
             </Button>
           )}
         </div>
 
         {cart.length === 0 ? (
           <div className="text-center py-8 border rounded-md bg-muted/30">
-            <p className="text-muted-foreground">Cart is empty</p>
+            <p className="text-muted-foreground">El carrito está vacío</p>
           </div>
         ) : (
           <div className="space-y-2">
             <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
               {cart.map((item) => (
-                <div
-                  key={item.itemId}
-                  className="flex justify-between items-center p-3 border rounded-md"
-                >
+                <div key={item.itemId} className="flex justify-between items-center p-3 border rounded-md">
                   <div>
                     <p className="font-medium">{item.name}</p>
                     <div className="flex items-center gap-2 mt-1">
@@ -343,7 +335,7 @@ export const CartSection = memo(function CartSection({
                           updateQuantity(item.itemId, item.quantity - 1)
                         }}
                       >
-                        -
+                        <Minus className="h-4 w-4" />
                       </Button>
                       <Input
                         type="number"
@@ -369,7 +361,7 @@ export const CartSection = memo(function CartSection({
                         }}
                         disabled={item.stock !== undefined && item.quantity >= item.stock && !item.allowPreSale}
                       >
-                        +
+                        <Plus className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -407,4 +399,5 @@ export const CartSection = memo(function CartSection({
       </div>
     </div>
   )
-}) 
+})
+

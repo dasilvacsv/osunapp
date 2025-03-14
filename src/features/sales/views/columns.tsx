@@ -37,6 +37,7 @@ import {
 import { useState } from "react"
 import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { Switch } from "@/components/ui/switch"
+import { updateSalePreSaleFlag } from "@/features/sales/actions"
 
 export type Sale = {
   id: string
@@ -196,10 +197,18 @@ export const columns: ColumnDef<Sale>[] = [
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs space-y-1">
-              <p><strong>Nombre:</strong> {beneficiario.firstName || '-'}</p>
-              <p><strong>Apellido:</strong> {beneficiario.lastName || '-'}</p>
-              <p><strong>Escuela:</strong> {beneficiario.school || '-'}</p>
-              <p><strong>Nivel:</strong> {beneficiario.level || '-'}</p>
+              <p>
+                <strong>Nombre:</strong> {beneficiario.firstName || "-"}
+              </p>
+              <p>
+                <strong>Apellido:</strong> {beneficiario.lastName || "-"}
+              </p>
+              <p>
+                <strong>Escuela:</strong> {beneficiario.school || "-"}
+              </p>
+              <p>
+                <strong>Nivel:</strong> {beneficiario.level || "-"}
+              </p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -439,26 +448,45 @@ export const columns: ColumnDef<Sale>[] = [
     },
   },
   {
-    accessorKey: "allowPreSale",
+    accessorKey: "saleType",
     header: () => (
       <div className="flex items-center justify-center gap-1 text-xs">
         <ShoppingBag className="h-3.5 w-3.5" />
         <span>Pre-Venta</span>
       </div>
     ),
+    id: "preSaleToggle",
     cell: ({ row }) => {
-      const allowPreSale = row.original?.allowPreSale || false
-      const [isEnabled, setIsEnabled] = useState(allowPreSale)
+      const saleType = row.getValue("saleType") as string
+      const [isEnabled, setIsEnabled] = useState(saleType === "PRESALE")
+      const [isUpdating, setIsUpdating] = useState(false)
 
       const handleToggle = async (checked: boolean) => {
-        setIsEnabled(checked)
+        if (isUpdating) return
+
+        setIsUpdating(true)
         try {
           if (row.original?.id) {
-            await updateItemPreSaleFlag(row.original.id, checked)
+            const result = await updateSalePreSaleFlag(row.original.id, checked)
+
+            if (result.success) {
+              setIsEnabled(checked)
+              // Disparar evento para actualizar la tabla
+              window.dispatchEvent(
+                new CustomEvent("sales-updated", {
+                  detail: { saleId: row.original.id, saleType: checked ? "PRESALE" : "DIRECT" },
+                }),
+              )
+            } else {
+              throw new Error(result.error || "Error al actualizar el estado de preventa")
+            }
           }
         } catch (error) {
-          console.error("Error updating pre-sale flag:", error)
+          console.error("Error al actualizar flag de preventa:", error)
+          // Revertir el estado visual si hay error
           setIsEnabled(!checked)
+        } finally {
+          setIsUpdating(false)
         }
       }
 
@@ -471,6 +499,7 @@ export const columns: ColumnDef<Sale>[] = [
                   <Switch
                     checked={isEnabled}
                     onCheckedChange={handleToggle}
+                    disabled={isUpdating}
                     className={cn("data-[state=checked]:bg-red-500", isEnabled && "ring-1 ring-red-300")}
                   />
                   {isEnabled && (
@@ -527,7 +556,7 @@ export const columns: ColumnDef<Sale>[] = [
               {sale.paymentPlan && (
                 <DropdownMenuItem
                   onClick={() => {
-                    console.log("View payments for sale", sale.id)
+                    console.log("Ver pagos para venta", sale.id)
                   }}
                   className="cursor-pointer text-xs"
                 >
