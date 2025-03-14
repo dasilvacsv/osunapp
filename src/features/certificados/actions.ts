@@ -425,7 +425,7 @@ export async function sendFichaWhatsApp(purchaseId: string): Promise<{ success: 
     console.log('Sending WhatsApp to number:', cleanNumber); // Debug log
 
     // Send the message using the WhatsApp service
-    const response = await fetch(`${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE}`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE}`, {
       method: 'POST',
       headers: {
         'apikey': process.env.EVOLUTION_API_KEY!,
