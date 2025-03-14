@@ -292,40 +292,6 @@ export const columns: ColumnDef<InventoryItem>[] = [
     ),
   },
   {
-    accessorKey: "preSaleCount",
-    header: () => (
-      <div className="flex items-center gap-1">
-        <Flag className="w-4 h-4 text-red-500" />
-        <span>Pre-Venta</span>
-      </div>
-    ),
-    cell: ({ row }) => {
-      const count = row.getValue("preSaleCount") as number
-
-      return (
-        <div className="flex items-center gap-2">
-          {count > 0 ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                    <Flag className="h-3 w-3 mr-1 text-red-500" />
-                    {count}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-sm">{count} unidades en pre-venta</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : (
-            <span className="text-xs text-muted-foreground">0</span>
-          )}
-        </div>
-      )
-    },
-  },
-  {
     accessorKey: "minimumStock",
     header: "Stock Mín",
     cell: ({ row }) => (

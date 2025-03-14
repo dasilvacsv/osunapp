@@ -55,7 +55,7 @@ const navItems = [
     items: [
       {
         title: "Lista de Inventario",
-        url: "/",
+        url: "/inventario",
       },
       {
         title: "Gestión de Inventario",

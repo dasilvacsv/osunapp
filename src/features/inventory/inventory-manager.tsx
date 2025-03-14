@@ -7,6 +7,8 @@ import type { InventoryManagerProps } from "./types"
 import { useToast } from "@/hooks/use-toast"
 
 export function InventoryManager({ initialData }: InventoryManagerProps) {
+  console.log("initialData", initialData);
+  
   const [items, setItems] = useState(initialData)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const { toast } = useToast()

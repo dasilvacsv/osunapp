@@ -5,9 +5,13 @@ import { inventoryItems, inventoryTransactions } from "@/db/schema"
 import { eq, desc, sql } from "drizzle-orm"
 import type { ActionResponse, InventoryItem, InventoryTransaction } from "./types"
 import { revalidatePath } from "next/cache"
+import { unstable_noStore as noStore } from 'next/cache';
+
 
 export async function getInventoryItems(): Promise<ActionResponse<InventoryItem[]>> {
   try {
+    noStore()
+    
     // First get all inventory items
     const items = await db.select().from(inventoryItems)
 
