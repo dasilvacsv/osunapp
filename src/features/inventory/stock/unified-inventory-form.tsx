@@ -1,47 +1,35 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { motion, AnimatePresence } from "framer-motion"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { 
-  Package2, 
-  Plus, 
-  Minus, 
-  Save, 
-  RefreshCw, 
-  ShoppingBag, 
-  DollarSign, 
+import {
+  Package2,
+  Plus,
+  Minus,
+  Save,
+  RefreshCw,
+  ShoppingBag,
+  DollarSign,
   Trash2,
   ArrowDown,
-  ArrowUp
+  ArrowUp,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { InventoryItemSelector } from "./inventory-item-selector"
-import type { InventoryItem } from "@/lib/types"
+import type { InventoryItem } from "@/features/inventory/types"
 import { registerPurchase, stockIn, stockOut } from "./actions"
+import { getInventoryItems } from "../actions"
 
 // Schema for stock adjustment
 const stockAdjustmentSchema = z.object({
@@ -68,10 +56,9 @@ type PurchaseFormValues = z.infer<typeof purchaseSchema>
 
 interface UnifiedInventoryFormProps {
   items: InventoryItem[]
-  onInventoryUpdated: () => void
 }
 
-export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInventoryFormProps) {
+export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
   const [activeTab, setActiveTab] = useState<"purchase" | "adjustment">("purchase")
   const [selectedItems, setSelectedItems] = useState<
     Array<{
@@ -81,7 +68,20 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
     }>
   >([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(items || [])
   const { toast } = useToast()
+
+  // Refresh inventory items
+  const refreshInventory = async () => {
+    try {
+      const result = await getInventoryItems()
+      if (result.success && result.data) {
+        setInventoryItems(result.data)
+      }
+    } catch (error) {
+      console.error("Error refreshing inventory:", error)
+    }
+  }
 
   // Form for stock adjustments
   const stockForm = useForm<StockAdjustmentFormValues>({
@@ -104,8 +104,8 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
   })
 
   // Selected item for stock adjustment
-  const selectedAdjustmentItem = items.find(item => item.id === stockForm.watch('itemId'))
-  
+  const selectedAdjustmentItem = inventoryItems.find((item) => item.id === stockForm.watch("itemId"))
+
   // Handle item selection for purchase
   const handleItemSelect = (item: InventoryItem) => {
     // Check if item is already in the list
@@ -139,7 +139,7 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
 
   // Handle cost change for purchase items
   const handleCostChange = (index: number, newCost: string) => {
-    const numericValue = parseFloat(newCost) || 0
+    const numericValue = Number.parseFloat(newCost) || 0
     const newItems = [...selectedItems]
     newItems[index].unitCost = numericValue
     setSelectedItems(newItems)
@@ -154,19 +154,20 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
   const handleStockAdjustment = async (data: StockAdjustmentFormValues) => {
     try {
       setIsSubmitting(true)
-      
+
       // Determine if it's a stock in or stock out based on quantity
-      const result = data.quantity > 0 
-        ? await stockIn({ 
-            itemId: data.itemId, 
-            quantity: data.quantity, 
-            notes: data.notes 
-          })
-        : await stockOut({ 
-            itemId: data.itemId, 
-            quantity: Math.abs(data.quantity), 
-            notes: data.notes 
-          })
+      const result =
+        data.quantity > 0
+          ? await stockIn({
+              itemId: data.itemId,
+              quantity: data.quantity,
+              notes: data.notes,
+            })
+          : await stockOut({
+              itemId: data.itemId,
+              quantity: Math.abs(data.quantity),
+              notes: data.notes,
+            })
 
       if (result.success) {
         toast({
@@ -174,7 +175,7 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
           description: "El stock se ha actualizado correctamente.",
         })
         stockForm.reset()
-        onInventoryUpdated()
+        refreshInventory()
       } else {
         toast({
           title: "Error",
@@ -232,7 +233,7 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
         })
         purchaseForm.reset()
         setSelectedItems([])
-        onInventoryUpdated()
+        refreshInventory()
       } else {
         toast({
           title: "Error",
@@ -254,11 +255,18 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
 
   const totalPurchaseCost = selectedItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0)
 
+  // Load inventory items on mount
+  useEffect(() => {
+    if (!items || items.length === 0) {
+      refreshInventory()
+    }
+  }, [items])
+
   return (
     <div className="space-y-6">
-      <Tabs 
-        defaultValue="purchase" 
-        value={activeTab} 
+      <Tabs
+        defaultValue="purchase"
+        value={activeTab}
         onValueChange={(value) => setActiveTab(value as "purchase" | "adjustment")}
         className="w-full"
       >
@@ -364,7 +372,7 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
                                   type="number"
                                   min="1"
                                   value={selectedItem.quantity}
-                                  onChange={(e) => handleQuantityChange(index, parseInt(e.target.value) || 1)}
+                                  onChange={(e) => handleQuantityChange(index, Number.parseInt(e.target.value) || 1)}
                                   className="w-20 text-center"
                                 />
                                 <Button
@@ -449,11 +457,7 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
         <TabsContent value="adjustment" className="space-y-6 pt-4">
           <Form {...stockForm}>
             <form onSubmit={stockForm.handleSubmit(handleStockAdjustment)} className="space-y-6">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="grid gap-6"
-              >
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid gap-6">
                 <FormField
                   control={stockForm.control}
                   name="itemId"
@@ -467,13 +471,9 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Array.isArray(items) && items.length > 0 ? (
-                            items.map((item) => (
-                              <SelectItem
-                                key={item.id}
-                                value={item.id}
-                                className="flex items-center gap-2 py-3"
-                              >
+                          {Array.isArray(inventoryItems) && inventoryItems.length > 0 ? (
+                            inventoryItems.map((item) => (
+                              <SelectItem key={item.id} value={item.id} className="flex items-center gap-2 py-3">
                                 <Package2 className="h-4 w-4" />
                                 <div className="flex flex-col">
                                   <span>{item.name}</span>
@@ -484,7 +484,9 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
                               </SelectItem>
                             ))
                           ) : (
-                            <SelectItem value="" disabled>No hay productos disponibles</SelectItem>
+                            <SelectItem value="" disabled>
+                              No hay productos disponibles
+                            </SelectItem>
                           )}
                         </SelectContent>
                       </Select>
@@ -582,11 +584,7 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
                     <FormItem>
                       <FormLabel className="text-base">Notas</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          {...field} 
-                          placeholder="Razón del ajuste de stock" 
-                          className="resize-none"
-                        />
+                        <Textarea {...field} placeholder="Razón del ajuste de stock" className="resize-none" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -605,10 +603,10 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
                   <RefreshCw className="h-4 w-4" />
                   Limpiar
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   className="flex items-center gap-2"
-                  disabled={isSubmitting || !stockForm.watch('itemId') || stockForm.watch('quantity') === 0}
+                  disabled={isSubmitting || !stockForm.watch("itemId") || stockForm.watch("quantity") === 0}
                 >
                   {isSubmitting ? (
                     <>
@@ -618,7 +616,7 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
                   ) : (
                     <>
                       <Save className="h-4 w-4" />
-                      {stockForm.watch('quantity') > 0 ? "Registrar Entrada" : "Registrar Salida"}
+                      {stockForm.watch("quantity") > 0 ? "Registrar Entrada" : "Registrar Salida"}
                     </>
                   )}
                 </Button>
@@ -629,4 +627,5 @@ export function UnifiedInventoryForm({ items, onInventoryUpdated }: UnifiedInven
       </Tabs>
     </div>
   )
-} 
+}
+
