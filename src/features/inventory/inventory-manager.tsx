@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { InventoryTable } from "./table/inventory-table"
 import { getInventoryItems } from "./actions"
 import type { InventoryManagerProps } from "./types"
@@ -10,7 +10,7 @@ export function InventoryManager({ initialData }: InventoryManagerProps) {
   const [items, setItems] = useState(initialData)
   const { toast } = useToast()
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     try {
       const result = await getInventoryItems()
       if (result.success && result.data) {
@@ -28,15 +28,12 @@ export function InventoryManager({ initialData }: InventoryManagerProps) {
         variant: "destructive",
       })
     }
-  }
+  }, [toast])
 
   return (
     <div className="space-y-4">
-      <InventoryTable 
-        items={items} 
-        onItemDisabled={refreshData}
-        onItemUpdated={refreshData}
-      />
+      <InventoryTable items={items} onItemDisabled={refreshData} onItemUpdated={refreshData} />
     </div>
   )
-} 
+}
+
