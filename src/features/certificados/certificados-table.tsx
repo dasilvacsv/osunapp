@@ -36,13 +36,16 @@ import {
   User,
   Edit,
   Download,
-  FileDigit
+  FileDigit,
+  MessageCircle
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { OrganizationSalesGroup, PurchaseStatus, PaymentStatus, CertificateStatus } from "./types";
 import Link from "next/link";
 import { FichaTrigger } from "./ficha-pdf";
+import { sendFichaWhatsApp } from "./actions";
+import { toast } from "sonner";
 
 interface CertificadosTableProps {
   salesGroups: OrganizationSalesGroup[];
@@ -142,6 +145,19 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
       day: "numeric"
     });
   };
+
+  const handleSendWhatsApp = async (purchaseId: string) => {
+    try {
+      const result = await sendFichaWhatsApp(purchaseId)
+      if (result.success) {
+        toast.success('Ficha enviada por WhatsApp')
+      } else {
+        toast.error(result.error || 'Error al enviar la ficha')
+      }
+    } catch (error) {
+      toast.error('Error al enviar la ficha')
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -333,6 +349,15 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                                     <CheckCircle className="h-4 w-4" /> Marcar como pagado
                                   </DropdownMenuItem>
                                 )}
+                                <DropdownMenuItem
+                                  className="flex items-center gap-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleSendWhatsApp(sale.id)
+                                  }}
+                                >
+                                  <MessageCircle className="h-4 w-4" /> Enviar por WhatsApp
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>

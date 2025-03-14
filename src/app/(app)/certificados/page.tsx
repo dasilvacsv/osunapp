@@ -1,7 +1,7 @@
 import { getCertificadoSales } from "@/features/certificados/actions";
 import { CertificadosTable } from "@/features/certificados/certificados-table";
 import { Button } from "@/components/ui/button";
-import { Plus, Download } from "lucide-react";
+import { Plus, Download, MessageCircle } from "lucide-react";
 import Link from "next/link";
 
 export default async function CertificadosPage() {

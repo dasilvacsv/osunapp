@@ -345,4 +345,110 @@ export async function getFichaData(purchaseId: string): Promise<{ success: boole
     console.error("Error fetching ficha data:", error);
     return { success: false, error: "Failed to fetch data for the ficha" };
   }
+}
+
+// Helper function to format currency
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('es-VE', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(amount);
+}
+
+// Helper function to format the ficha message
+function formatFichaMessage(fichaData: FichaData): string {
+  // Helper to safely format dates
+  const formatDate = (date: Date | null) => {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleDateString('es-VE');
+  };
+
+  return `Osuna Fotografías📸 
+Paquetes de Grado👨🏻‍🎓
+
+\`\`\`DATOS DEL REPRESENTANTE\`\`\`
+*Nombre y Apellido:* ${fichaData.clientName}
+*C.I:* ${fichaData.clientDocument}
+*Celular ó Tlf:* ${fichaData.clientPhone}
+*Correo Electrónico:* ${fichaData.clientEmail}
+
+\`\`\`DATOS DEL ALUMNO 👨‍🎓\`\`\`
+*Apellidos del alumno:* ${fichaData.beneficiarioLastName}
+*Nombres del alumno:* ${fichaData.beneficiarioFirstName}
+*Nombre del Colegio:* ${fichaData.beneficiarioSchool}
+*Nivel:* ${fichaData.beneficiarioGrade}
+*Sección:* ${fichaData.beneficiarioSection}
+
+\`\`\`INFORMACIÓN DE PAGO 🧾\`\`\`
+*Costo del Paquete:* ${formatCurrency(fichaData.totalAmount)}
+*Cargo adicionales:* ${formatCurrency(0)} 
+
+*Abono de:* ${formatCurrency(fichaData.totalPaid)}
+*Resta:* ${formatCurrency(fichaData.remaining)}
+
+${fichaData.payments.length > 0 ? `*Último Pago:* ${formatCurrency(fichaData.payments[0].amount)}
+*De fecha:* ${formatDate(fichaData.payments[0].date)}
+*Método:* ${fichaData.payments[0].method}` : ''}
+
+Estimado Representante
+Por favor.
+Verifique los datos de la ficha y envíela para poder registrar el detalle en su pedido y Paquete de Grado.
+*Nota: Ya está Participando en nuestra Rifa Estudiantil✅*
+
+Muchas Gracias 🤝`;
+}
+
+// New action to send ficha via WhatsApp
+export async function sendFichaWhatsApp(purchaseId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Get ficha data
+    const fichaResult = await getFichaData(purchaseId);
+    if (!fichaResult.success || !fichaResult.data) {
+      throw new Error(fichaResult.error || 'Failed to get ficha data');
+    }
+
+    // Format the message
+    const message = formatFichaMessage(fichaResult.data);
+
+    // Get the client's WhatsApp number
+    const whatsappNumber = fichaResult.data.clientWhatsapp;
+    if (!whatsappNumber) {
+      throw new Error('No WhatsApp number found for client');
+    }
+
+    // Clean the WhatsApp number - remove any non-digits and the + symbol
+    const cleanNumber = whatsappNumber.replace(/[^\d]/g, '');
+    console.log('Sending WhatsApp to number:', cleanNumber); // Debug log
+
+    // Send the message using the WhatsApp service
+    const response = await fetch(`${process.env.EVOLUTION_API_URL}/message/sendText/${process.env.EVOLUTION_INSTANCE}`, {
+      method: 'POST',
+      headers: {
+        'apikey': process.env.EVOLUTION_API_KEY!,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        number: cleanNumber,
+        text: message,
+        delay: 1000,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Evolution API Error:', error); // Debug log
+      throw new Error(error.message || 'Failed to send WhatsApp message');
+    }
+
+    const data = await response.json();
+    console.log('Evolution API Response:', data); // Debug log
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending ficha via WhatsApp:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to send ficha via WhatsApp'
+    };
+  }
 } 
