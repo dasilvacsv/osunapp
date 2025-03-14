@@ -1,0 +1,1 @@
+ALTER TABLE "inventory_items" ADD COLUMN "allow_presale" boolean DEFAULT false NOT NULL;

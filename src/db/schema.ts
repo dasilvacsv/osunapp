@@ -193,6 +193,7 @@ export const inventoryItems = pgTable("inventory_items", {
   margin: decimal("margin", { precision: 5, scale: 2 }).default("0.30"), // Default 30% margin
   projectedStock: integer("projected_stock"), // For inventory projections
   averageDailySales: decimal("average_daily_sales", { precision: 10, scale: 2 }), // For sales analytics
+  allowPresale: boolean("allow_presale").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 })

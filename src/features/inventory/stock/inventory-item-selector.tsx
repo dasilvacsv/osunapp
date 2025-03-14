@@ -1,63 +1,70 @@
 // components/inventory-item-selector.tsx
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { Input } from '@/components/ui/input'
-import { searchInventory } from './actions'
+import { useState, useEffect } from "react"
+import { PopoverSelect } from "@/components/popover-select"
+import { formatCurrency } from "@/lib/utils"
+import { searchInventory } from "./actions"
+import type { InventoryItem } from "@/features/sales/new/types"
 
-export function InventoryItemSelector({ onSelect }: { onSelect: (item: any) => void }) {
-  const [query, setQuery] = useState('')
-  const [results, setResults] = useState<any[]>([])
-  const [isSearching, setIsSearching] = useState(false)
+interface InventoryItemSelectorProps {
+  onSelect: (item: InventoryItem) => void
+  className?: string
+}
 
+// Transform database item to component item type
+const transformItem = (item: any): InventoryItem => ({
+  id: item.id,
+  name: item.name,
+  basePrice: item.basePrice,
+  currentStock: item.currentStock,
+  sku: item.sku || undefined,
+  status: item.status,
+  allowPreSale: item.allowPresale,
+  description: item.description || undefined,
+  metadata: item.metadata || undefined,
+})
+
+export function InventoryItemSelector({ onSelect, className }: InventoryItemSelectorProps) {
+  const [selectedId, setSelectedId] = useState<string>("")
+  const [items, setItems] = useState<InventoryItem[]>([])
+  const [loading, setLoading] = useState(false)
+
+  // Load initial items
   useEffect(() => {
-    const search = setTimeout(async () => {
-      if (query.length > 2) {
-        setIsSearching(true)
-        const result = await searchInventory(query)
-        if (result.success) setResults(result.data)
-        setIsSearching(false)
+    const loadItems = async () => {
+      setLoading(true)
+      const result = await searchInventory("")
+      if (result.success && result.data) {
+        setItems(result.data.map(transformItem))
       }
-    }, 300)
+      setLoading(false)
+    }
+    loadItems()
+  }, [])
 
-    return () => clearTimeout(search)
-  }, [query])
+  // Handle item selection
+  const handleItemChange = (value: string) => {
+    const selectedItem = items.find(item => item.id === value)
+    if (selectedItem) {
+      setSelectedId(value)
+      onSelect(selectedItem)
+    }
+  }
 
   return (
-    <div className="relative">
-      <Input
-        placeholder="Buscar productos..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
-      
-      {query.length > 2 && (
-        <div className="absolute top-full left-0 right-0 bg-white border shadow-lg z-10">
-          {isSearching ? (
-            <div className="p-2 text-sm">Buscando...</div>
-          ) : results.length > 0 ? (
-            results.map(item => (
-              <div
-                key={item.id}
-                className="p-2 hover:bg-gray-100 cursor-pointer"
-                onClick={() => {
-                  onSelect(item)
-                  setQuery('')
-                  setResults([])
-                }}
-              >
-                <div className="flex justify-between">
-                  <span>{item.name}</span>
-                  <span>Stock: {item.currentStock}</span>
-                </div>
-                <div className="text-sm text-gray-500">{item.sku}</div>
-              </div>
-            ))
-          ) : (
-            <div className="p-2 text-sm">No se encontraron productos</div>
-          )}
-        </div>
-      )}
-    </div>
+    <PopoverSelect
+      options={items.map(item => ({
+        label: `${item.name} - Stock: ${item.currentStock} - ${formatCurrency(Number(item.basePrice))}`,
+        value: item.id,
+        data: item
+      }))}
+      value={selectedId}
+      onValueChange={handleItemChange}
+      placeholder={loading ? "Cargando productos..." : "Seleccionar producto"}
+      disabled={loading}
+      emptyMessage="No se encontraron productos"
+      className={className}
+    />
   )
 }
