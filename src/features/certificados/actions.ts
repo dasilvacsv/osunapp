@@ -23,6 +23,10 @@ import {
   CertificateStatus,
   FichaData
 } from "./types";
+import * as XLSX from "xlsx";
+import { join } from "path";
+import { mkdir, writeFile } from "fs/promises";
+import { existsSync } from "fs";
 
 export async function getCertificadoSales(): Promise<CertificadoResponse> {
   try {
@@ -449,6 +453,88 @@ export async function sendFichaWhatsApp(purchaseId: string): Promise<{ success: 
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to send ficha via WhatsApp'
+    };
+  }
+}
+
+// Export certificados to Excel
+export async function exportCertificadosToExcel() {
+  try {
+    // Get all certificados data
+    const result = await getCertificadoSales();
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Failed to fetch certificados data');
+    }
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Process each organization group
+    result.data.forEach((group) => {
+      // Format sales data for Excel
+      const salesData = group.sales.map((sale) => ({
+        "ID": sale.id,
+        "Fecha": sale.purchaseDate ? new Date(sale.purchaseDate).toLocaleDateString('es-VE') : 'N/A',
+        "Cliente": sale.clientName || 'N/A',
+        "Beneficiario": sale.beneficiarioFirstName && sale.beneficiarioLastName 
+          ? `${sale.beneficiarioFirstName} ${sale.beneficiarioLastName}`
+          : 'N/A',
+        "Grado": sale.beneficiarioGrade || 'N/A',
+        "Sección": sale.beneficiarioSection || 'N/A',
+        "Paquete": sale.bundleName || 'N/A',
+        "Monto": sale.totalAmount ? formatCurrency(Number(sale.totalAmount)) : 'N/A',
+        "Estado": sale.status,
+        "Estado de Pago": sale.isPaid ? 'Pagado' : (sale.paymentStatus || 'N/A'),
+        "Estado de Certificado": sale.certificateStatus || 'No generado',
+        "URL de Certificado": sale.certificateFileUrl || 'N/A',
+      }));
+
+      // Create worksheet for this group
+      const worksheet = XLSX.utils.json_to_sheet(salesData);
+
+      // Add summary rows
+      XLSX.utils.sheet_add_json(worksheet, [
+        {
+          "ID": 'Total Ventas:',
+          "Fecha": group.totalSales,
+          "Cliente": 'Monto Total:',
+          "Beneficiario": formatCurrency(group.totalAmount),
+        }
+      ], {
+        skipHeader: true,
+        origin: -1
+      });
+
+      // Add the worksheet to the workbook
+      const sheetName = (group.name || 'Ventas Generales').slice(0, 31); // Excel has a 31 char limit
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    });
+
+    // Generate a unique filename
+    const filename = `certificados_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const filepath = join(process.cwd(), "public", "exports", filename);
+
+    // Ensure exports directory exists
+    const exportsDir = join(process.cwd(), "public", "exports");
+    if (!existsSync(exportsDir)) {
+      await mkdir(exportsDir, { recursive: true });
+    }
+
+    // Save the file
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "buffer" });
+    await writeFile(filepath, excelBuffer);
+
+    return {
+      success: true,
+      downloadUrl: `/exports/${filename}`,
+      filename: filename,
+      message: "Archivo Excel generado correctamente",
+    };
+  } catch (error) {
+    console.error("Error exporting certificados:", error);
+    return { 
+      success: false, 
+      error: "Error al exportar los certificados" 
     };
   }
 } 

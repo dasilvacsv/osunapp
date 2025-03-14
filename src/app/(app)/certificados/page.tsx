@@ -3,6 +3,8 @@ import { CertificadosTable } from "@/features/certificados/certificados-table";
 import { Button } from "@/components/ui/button";
 import { Plus, Download, MessageCircle } from "lucide-react";
 import Link from "next/link";
+import { ExportButton } from "@/features/certificados/export-button";
+
 
 export default async function CertificadosPage() {
   const result = await getCertificadoSales();
@@ -17,12 +19,7 @@ export default async function CertificadosPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/certificados/export">
-            <Button variant="outline" className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Exportar
-            </Button>
-          </Link>
+          <ExportButton />
           <Link href="/certificados/new">
             <Button className="flex items-center gap-2">
               <Plus className="h-4 w-4" />

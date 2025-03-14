@@ -5,7 +5,7 @@ import {
   purchases,
   organizations,
   clients,
-  children,
+  beneficiarios,
   inventoryItems,
   purchaseItems,
   payments
@@ -42,14 +42,14 @@ export async function getDashboardData(): Promise<DashboardData> {
   // Get total revenue with comparison
   const revenueResult = await db
     .select({ 
-      total: sum(purchases.totalAmount).as('total_revenue'),
+      total: sql<number>`COALESCE(SUM(${purchases.totalAmount})::float, 0)`.as('total_revenue'),
       previousTotal: sql<number>`
-        SUM(CASE 
+        COALESCE(SUM(CASE 
           WHEN ${purchases.purchaseDate} < NOW() - INTERVAL '30 days'
           AND ${purchases.purchaseDate} >= NOW() - INTERVAL '60 days'
-          THEN ${purchases.totalAmount}
+          THEN ${purchases.totalAmount}::float
           ELSE 0
-        END)
+        END), 0)
       `.as('previous_revenue')
     })
     .from(purchases)
@@ -59,14 +59,14 @@ export async function getDashboardData(): Promise<DashboardData> {
   const [organizationsCount, clientsCount, childrenCount] = await Promise.all([
     db.select({ count: count() }).from(organizations).where(eq(organizations.status, 'ACTIVE')),
     db.select({ count: count() }).from(clients).where(eq(clients.status, 'ACTIVE')),
-    db.select({ count: count() }).from(children).where(eq(children.status, 'ACTIVE'))
+    db.select({ count: count() }).from(beneficiarios).where(eq(beneficiarios.status, 'ACTIVE'))
   ])
 
   // Get recent purchases with more details
   const recentPurchases = await db
     .select({
       id: purchases.id,
-      totalAmount: purchases.totalAmount,
+      totalAmount: sql<number>`${purchases.totalAmount}::float`,
       status: purchases.status,
       purchaseDate: purchases.purchaseDate,
       clientName: clients.name,
@@ -95,9 +95,9 @@ export async function getDashboardData(): Promise<DashboardData> {
     .select({
       itemId: purchaseItems.itemId,
       itemName: inventoryItems.name,
-      totalQuantity: sql<number>`sum(${purchaseItems.quantity})::int`,
-      totalRevenue: sql<number>`sum(${purchaseItems.totalPrice})::float`,
-      averagePrice: sql<number>`avg(${purchaseItems.unitPrice})::float`,
+      totalQuantity: sql<number>`COALESCE(sum(${purchaseItems.quantity}), 0)::int`,
+      totalRevenue: sql<number>`COALESCE(sum(${purchaseItems.totalPrice}), 0)::float`,
+      averagePrice: sql<number>`COALESCE(avg(${purchaseItems.unitPrice}), 0)::float`,
       currentStock: inventoryItems.currentStock
     })
     .from(purchaseItems)
@@ -120,7 +120,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       organizationName: organizations.name,
       type: organizations.type,
       totalPurchases: count(purchases.id).as('total_purchases'),
-      totalRevenue: sum(purchases.totalAmount).as('total_revenue'),
+      totalRevenue: sql<number>`COALESCE(sum(${purchases.totalAmount}), 0)::float`.as('total_revenue'),
       activeClients: count(clients.id).as('active_clients')
     })
     .from(organizations)
@@ -128,14 +128,14 @@ export async function getDashboardData(): Promise<DashboardData> {
     .leftJoin(clients, eq(organizations.id, clients.organizationId))
     .where(eq(organizations.status, 'ACTIVE'))
     .groupBy(organizations.id, organizations.name, organizations.type)
-    .orderBy(desc(sum(purchases.totalAmount)))
+    .orderBy(desc(sql`COALESCE(sum(${purchases.totalAmount}), 0)`))
     .limit(5)
 
   // Get revenue over time (daily for last 30 days)
   const revenueOverTime = await db
     .select({
       date: sql<string>`DATE(${purchases.purchaseDate})::text`,
-      revenue: sum(purchases.totalAmount).as('daily_revenue')
+      revenue: sql<number>`COALESCE(sum(${purchases.totalAmount}), 0)::float`.as('daily_revenue')
     })
     .from(purchases)
     .where(
@@ -152,7 +152,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     // Get total paid amount
     db
       .select({
-        total: sum(payments.amount).as('total_paid')
+        total: sql<number>`COALESCE(sum(${payments.amount}), 0)::float`.as('total_paid')
       })
       .from(payments)
       .where(eq(payments.status, 'PAID')),
@@ -160,7 +160,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     // Get total pending amount
     db
       .select({
-        total: sum(payments.amount).as('total_pending')
+        total: sql<number>`COALESCE(sum(${payments.amount}), 0)::float`.as('total_pending')
       })
       .from(payments)
       .where(eq(payments.status, 'PENDING')),
@@ -191,7 +191,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         sql`${inventoryItems.currentStock} < ${inventoryItems.minimumStock}`
       )
     )
-    .orderBy(sql`${inventoryItems.currentStock} / ${inventoryItems.minimumStock}::float`)
+    .orderBy(sql`${inventoryItems.currentStock}::float / NULLIF(${inventoryItems.minimumStock}::float, 0)`)
 
   // Get sales trends
   const [dailyTrends, monthlyTrends] = await Promise.all([
@@ -199,7 +199,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     db
       .select({
         date: sql<string>`DATE(${purchases.purchaseDate})::text`,
-        revenue: sum(purchases.totalAmount).as('revenue')
+        revenue: sql<number>`COALESCE(sum(${purchases.totalAmount}), 0)::float`.as('revenue')
       })
       .from(purchases)
       .where(
@@ -215,7 +215,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     db
       .select({
         month: sql<string>`TO_CHAR(${purchases.purchaseDate}, 'YYYY-MM')`,
-        revenue: sum(purchases.totalAmount).as('revenue')
+        revenue: sql<number>`COALESCE(sum(${purchases.totalAmount}), 0)::float`.as('revenue')
       })
       .from(purchases)
       .where(

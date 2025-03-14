@@ -76,7 +76,17 @@ const navItems = [
   {
     title: "Paquetes",
     url: "/bundles",
-    icon: Package2
+    icon: Package2,
+    items: [
+      {
+        title: "Lista de Paquetes",
+        url: "/bundles",
+      },
+      {
+        title: "Resumen de Paquetes",
+        url: "/certificados",
+      }
+    ],
   },
 ];
 
