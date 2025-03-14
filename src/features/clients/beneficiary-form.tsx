@@ -8,10 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { DialogFooter } from "@/components/ui/dialog"
 import { Loader2 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { BeneficiaryFormData, createBeneficiary, updateBeneficiary } from "@/app/(app)/clientes/client"
 import { Organization } from "@/lib/types"
+import { getOrganizationSections } from "@/features/organizations/actions"
+
+interface OrganizationSection {
+  id: string
+  name: string
+  level: string
+}
 
 interface BeneficiaryFormProps {
   clientId: string;
@@ -30,6 +37,8 @@ export function BeneficiaryForm({
 }: BeneficiaryFormProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [sections, setSections] = useState<OrganizationSection[]>([])
+  const [isLoadingSections, setIsLoadingSections] = useState(false)
 
   const form = useForm<BeneficiaryFormData>({
     defaultValues: {
@@ -44,6 +53,46 @@ export function BeneficiaryForm({
       level: initialData?.level || "",
     },
   })
+
+  const selectedOrganizationId = form.watch("organizationId")
+
+  // Watch for organization changes to update school name and fetch sections
+  useEffect(() => {
+    if (selectedOrganizationId && selectedOrganizationId !== "none") {
+      const selectedOrg = organizations.find(org => org.id === selectedOrganizationId)
+      if (selectedOrg) {
+        // Auto-populate school name if organization is a school
+        if (selectedOrg.type === "SCHOOL") {
+          form.setValue("school", selectedOrg.name)
+        }
+      }
+
+      // Fetch organization sections
+      const fetchSections = async () => {
+        setIsLoadingSections(true)
+        try {
+          const result = await getOrganizationSections(selectedOrganizationId)
+          if (result.data) {
+            setSections(result.data)
+          }
+        } catch (error) {
+          console.error("Error fetching sections:", error)
+        } finally {
+          setIsLoadingSections(false)
+        }
+      }
+
+      fetchSections()
+    } else {
+      // Reset sections when no organization is selected
+      setSections([])
+      // Only reset school if it was previously auto-populated
+      const selectedOrg = organizations.find(org => org.id === initialData?.organizationId)
+      if (selectedOrg?.type === "SCHOOL") {
+        form.setValue("school", "")
+      }
+    }
+  }, [selectedOrganizationId, organizations, form])
 
   async function handleSubmit(data: BeneficiaryFormData) {
     if (isSubmitting) return
@@ -179,6 +228,7 @@ export function BeneficiaryForm({
                     placeholder="Nombre de la escuela"
                     {...field}
                     className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                    disabled={selectedOrganizationId !== "none" && organizations.find(org => org.id === selectedOrganizationId)?.type === "SCHOOL"}
                   />
                 </FormControl>
                 <FormMessage />
@@ -193,13 +243,30 @@ export function BeneficiaryForm({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nivel</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Ej: Primaria"
-                      {...field}
-                      className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                    />
-                  </FormControl>
+                  {sections.length > 0 ? (
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="transition-all duration-200 focus:ring-2 focus:ring-primary/20">
+                          <SelectValue placeholder={isLoadingSections ? "Cargando niveles..." : "Seleccionar nivel"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {sections.map((section) => (
+                          <SelectItem key={section.id} value={section.level}>
+                            {section.level}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <FormControl>
+                      <Input
+                        placeholder="Ej: Primaria"
+                        {...field}
+                        className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                      />
+                    </FormControl>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

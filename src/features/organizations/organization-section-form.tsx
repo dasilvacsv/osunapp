@@ -10,14 +10,8 @@ import { DialogFooter } from "@/components/ui/dialog"
 import { Loader2 } from "lucide-react"
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { createOrganizationSection, updateOrganizationSection } from "@/app/(app)/organizations/organization"
-
-interface OrganizationSectionFormData {
-  name: string
-  level: string
-  templateLink?: string
-  templateStatus: "COMPLETE" | "INCOMPLETE" | "PENDING"
-}
+import { createOrganizationSection, updateOrganizationSection } from "./actions"
+import { SectionFormData } from "@/lib/types"
 
 interface OrganizationSectionFormProps {
   organizationId: string
@@ -35,7 +29,7 @@ export function OrganizationSectionForm({
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const form = useForm<OrganizationSectionFormData>({
+  const form = useForm<SectionFormData>({
     defaultValues: {
       name: initialData?.name || "",
       level: initialData?.level || "",
@@ -44,19 +38,25 @@ export function OrganizationSectionForm({
     },
   })
 
-  async function handleSubmit(data: OrganizationSectionFormData) {
+  async function handleSubmit(data: SectionFormData) {
     if (isSubmitting) return
+
+    // Convert empty templateLink to null for database
+    const formattedData = {
+      ...data,
+      templateLink: data.templateLink || null,
+    }
 
     setIsSubmitting(true)
     try {
       if (mode === "create") {
-        await createOrganizationSection(organizationId, data)
+        await createOrganizationSection(organizationId, formattedData)
         toast({
           title: "¡Éxito!",
           description: "Sección creada correctamente",
         })
       } else {
-        await updateOrganizationSection(initialData.id, data)
+        await updateOrganizationSection(initialData.id, formattedData)
         toast({
           title: "¡Éxito!",
           description: "Sección actualizada correctamente",
@@ -131,6 +131,7 @@ export function OrganizationSectionForm({
                   <Input
                     placeholder="URL de la plantilla"
                     {...field}
+                    value={field.value || ""}
                     className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
                   />
                 </FormControl>

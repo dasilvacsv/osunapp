@@ -17,12 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getOrganizations } from "@/app/(app)/organizations/organization";
 
 import { useToast } from "@/hooks/use-toast"
 import { DialogFooter } from "@/components/ui/dialog"
 import { Client } from "@/lib/types"
-import { ClientFormData, createClient, updateClient } from "@/app/(app)/clientes/client"
+import { ClientFormData, createClient, getOrganizations, updateClient } from "@/app/(app)/clientes/client"
 import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 

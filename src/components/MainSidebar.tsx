@@ -84,7 +84,7 @@ export default function MainSidebar({ ...props }: React.ComponentProps<typeof Si
   const user = {
     name: "Fotógrafo Admin",
     email: "admin@fotografia.com",
-    avatar: "/avatars/user.jpg",
+    avatar: "",
   };
 
   return (

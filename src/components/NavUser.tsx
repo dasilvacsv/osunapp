@@ -38,13 +38,6 @@ export function NavUser({ user }: NavUserProps) {
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton tooltip="Perfil">
                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted/50">
-                  <Image
-                    src={user.avatar}
-                    alt={user.name}
-                    width={24}
-                    height={24}
-                    className="rounded-full object-cover"
-                  />
                 </div>
                 <span>{user.name}</span>
               </SidebarMenuButton>

@@ -1,85 +1,61 @@
 'use client'
 
-import React from "react"
+import React, { useState } from "react"
 import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
   flexRender,
-  VisibilityState,
-  SortingState,
   ColumnFiltersState,
+  SortingState,
+  VisibilityState,
+  getPaginationRowModel,
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { organizationColumns } from "./columns"
 import { Input } from "@/components/ui/input"
 import { motion } from "framer-motion"
+import { BarChart } from "lucide-react"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 interface OrganizationTableProps {
-  organizations: any[]
-  isLoading: boolean
-  onUpdateOrganization: (id: string, data: any) => void
-  onDeleteOrganization: (id: string) => void
-  selectedOrganizations: string[]
-  setSelectedOrganizations: React.Dispatch<React.SetStateAction<string[]>>
-  onSelectOrganization: (org: any) => void
-  selectedOrganization: any
+  data: any[]
+  onUpdate: (id: string, data: any) => Promise<void>
+  onDelete: (id: string) => Promise<void>
 }
 
 export function OrganizationTable({
-  organizations,
-  isLoading,
-  onUpdateOrganization,
-  onDeleteOrganization,
-  selectedOrganizations,
-  setSelectedOrganizations,
-  onSelectOrganization,
-  selectedOrganization,
+  data,
+  onUpdate,
+  onDelete,
 }: OrganizationTableProps) {
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [globalFilter, setGlobalFilter] = React.useState("")
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
+  const [rowSelection, setRowSelection] = useState({})
+
+  const columns = organizationColumns(onUpdate, onDelete)
 
   const table = useReactTable({
-    data: organizations,
-    columns: organizationColumns(onUpdateOrganization, onDeleteOrganization),
-    state: {
-      sorting,
-      columnVisibility,
-      rowSelection: Object.fromEntries(selectedOrganizations.map(id => [id, true])),
-      columnFilters,
-      globalFilter,
-    },
-    enableRowSelection: true,
-    onRowSelectionChange: (updater) => {
-      if (typeof updater === 'function') {
-        setSelectedOrganizations(current => {
-          const newSelection = updater(Object.fromEntries(current.map(id => [id, true])))
-          return Object.entries(newSelection)
-            .filter(([, selected]) => selected)
-            .map(([id]) => id)
-        })
-      }
-    },
-    getRowId: (row) => row.id,
+    data,
+    columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
-    onGlobalFilterChange: setGlobalFilter,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
   })
-
-  if (isLoading && organizations.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
 
   return (
     <motion.div 
@@ -89,12 +65,15 @@ export function OrganizationTable({
     >
       <div className="flex items-center py-4">
         <Input
-          placeholder="Search organizations..."
-          value={globalFilter ?? ""}
-          onChange={(event) => setGlobalFilter(event.target.value)}
-          className="max-w-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+          placeholder="Filter organizations..."
+          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("name")?.setFilterValue(event.target.value)
+          }
+          className="max-w-sm"
         />
       </div>
+
       <div className="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
@@ -110,6 +89,7 @@ export function OrganizationTable({
                         )}
                   </TableHead>
                 ))}
+                <TableHead>Actions</TableHead>
               </TableRow>
             ))}
           </TableHeader>
@@ -118,24 +98,29 @@ export function OrganizationTable({
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
+                  className="transition-colors hover:bg-muted/50 group"
                   data-state={row.getIsSelected() && "selected"}
-                  className={`
-                    transition-colors hover:bg-muted/50 group cursor-pointer
-                    ${row.original.id === selectedOrganization?.id ? 'bg-muted' : ''}
-                  `}
-                  onClick={() => onSelectOrganization(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="group-hover:text-foreground">
+                    <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/organizations/${row.original.id}/metrics`}>
+                        <Button variant="ghost" size="icon">
+                          <BarChart className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
                 <TableCell 
-                  colSpan={table.getAllColumns().length} 
+                  colSpan={table.getAllColumns().length + 1} 
                   className="h-24 text-center text-muted-foreground"
                 >
                   No organizations found.

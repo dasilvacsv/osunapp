@@ -96,3 +96,17 @@ export interface Beneficiary {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface Section {
+  id: string
+  name: string
+  level: string
+  templateLink: string | null
+  templateStatus: "COMPLETE" | "INCOMPLETE" | "PENDING"
+  status: "ACTIVE" | "INACTIVE"
+  organizationId: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type SectionFormData = Pick<Section, "name" | "level" | "templateLink" | "templateStatus">

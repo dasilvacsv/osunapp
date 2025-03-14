@@ -8,62 +8,23 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Pencil, Trash, Plus, FileText, ExternalLink, AlertCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { OrganizationSectionForm } from "./organization-section-form"
-import { getOrganizationSections, deleteOrganizationSection } from "@/app/(app)/organizations/organization"
-
-interface OrganizationSection {
-  id: string
-  name: string
-  level: string
-  templateLink: string | null
-  templateStatus: "COMPLETE" | "INCOMPLETE" | "PENDING"
-  status: "ACTIVE" | "INACTIVE"
-  createdAt: string
-  updatedAt: string
-}
+import { deleteOrganizationSection } from "./actions"
+import { Section } from "@/lib/types"
 
 interface OrganizationSectionsListProps {
   organizationId: string
-  onClose: () => void
+  initialSections: Section[]
 }
 
-export function OrganizationSectionsList({ organizationId, onClose }: OrganizationSectionsListProps) {
+export function OrganizationSectionsList({ organizationId, initialSections }: OrganizationSectionsListProps) {
   const { toast } = useToast()
-  const [sections, setSections] = useState<OrganizationSection[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [sections, setSections] = useState<Section[]>(initialSections)
+  const [isLoading, setIsLoading] = useState(false)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [selectedSection, setSelectedSection] = useState<OrganizationSection | null>(null)
+  const [selectedSection, setSelectedSection] = useState<Section | null>(null)
 
-  useEffect(() => {
-    fetchSections()
-  }, [organizationId])
-
-  const fetchSections = async () => {
-    setIsLoading(true)
-    try {
-      const result = await getOrganizationSections(organizationId)
-      if (result.data) {
-        setSections(result.data)
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar las secciones",
-        })
-      }
-    } catch (error) {
-      console.error("Error fetching sections:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Ocurrió un error al cargar las secciones",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleEdit = (section: OrganizationSection) => {
+  const handleEdit = (section: Section) => {
     setSelectedSection(section)
     setShowEditDialog(true)
   }
@@ -204,12 +165,6 @@ export function OrganizationSectionsList({ organizationId, onClose }: Organizati
         </div>
       )}
 
-      <div className="flex justify-end mt-4">
-        <Button variant="outline" onClick={onClose}>
-          Cerrar
-        </Button>
-      </div>
-
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -220,7 +175,7 @@ export function OrganizationSectionsList({ organizationId, onClose }: Organizati
             mode="create"
             closeDialog={() => {
               setShowAddDialog(false)
-              fetchSections()
+              setSections([...sections]) // Trigger re-render
             }}
           />
         </DialogContent>
@@ -238,7 +193,7 @@ export function OrganizationSectionsList({ organizationId, onClose }: Organizati
             closeDialog={() => {
               setShowEditDialog(false)
               setSelectedSection(null)
-              fetchSections()
+              setSections([...sections]) // Trigger re-render
             }}
           />
         </DialogContent>

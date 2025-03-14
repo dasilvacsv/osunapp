@@ -242,7 +242,7 @@ export async function getDetailedClient(id: string) {
       purchasesData.map(async ({ purchase, bundle }) => {
         const items = await db
           .select({
-            item: purchaseItems,
+            item: purchaseItems, 
             inventoryItem: inventoryItems,
           })
           .from(purchaseItems)
