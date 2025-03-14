@@ -20,7 +20,7 @@ const transformItem = (item: any): InventoryItem => ({
   currentStock: item.currentStock,
   sku: item.sku || undefined,
   status: item.status,
-  allowPreSale: item.allowPresale,
+  allowPreSale: item.allowPreSale || false, // Ensure it's a boolean
   description: item.description || undefined,
   metadata: item.metadata || undefined,
 })
@@ -34,18 +34,23 @@ export function InventoryItemSelector({ onSelect, className }: InventoryItemSele
   useEffect(() => {
     const loadItems = async () => {
       setLoading(true)
-      const result = await searchInventory("")
-      if (result.success && result.data) {
-        setItems(result.data.map(transformItem))
+      try {
+        const result = await searchInventory("")
+        if (result.success && result.data) {
+          setItems(result.data.map(transformItem))
+        }
+      } catch (error) {
+        console.error("Error loading items:", error)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     loadItems()
   }, [])
 
   // Handle item selection
   const handleItemChange = (value: string) => {
-    const selectedItem = items.find(item => item.id === value)
+    const selectedItem = items.find((item) => item.id === value)
     if (selectedItem) {
       setSelectedId(value)
       onSelect(selectedItem)
@@ -54,10 +59,10 @@ export function InventoryItemSelector({ onSelect, className }: InventoryItemSele
 
   return (
     <PopoverSelect
-      options={items.map(item => ({
+      options={items.map((item) => ({
         label: `${item.name} - Stock: ${item.currentStock} - ${formatCurrency(Number(item.basePrice))}`,
         value: item.id,
-        data: item
+        data: item,
       }))}
       value={selectedId}
       onValueChange={handleItemChange}
@@ -68,3 +73,4 @@ export function InventoryItemSelector({ onSelect, className }: InventoryItemSele
     />
   )
 }
+
