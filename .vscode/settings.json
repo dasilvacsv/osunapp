@@ -14,8 +14,7 @@
         ".gitignore": true,
         "src/utils/supabase": true,
         "src/utils": true,
-        "src/app/favicon.ico": true,
-        "src/app/(auth)": true
+        "src/app/favicon.ico": true
     },
     "hide-files.files": [
         "postcss.config.js",
@@ -26,7 +25,6 @@
         ".gitignore",
         "src/utils/supabase",
         "src/utils",
-        "src/app/favicon.ico",
-        "src/app/(auth)"
+        "src/app/favicon.ico"
     ]
 }

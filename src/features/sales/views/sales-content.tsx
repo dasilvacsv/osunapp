@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 
 export default function SalesPageContent({ initialSales }: { initialSales: any[] }) {
+  console.log(initialSales);
+  
   const [sales, setSales] = useState<any[]>(initialSales)
   const [showDialog, setShowDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -103,34 +105,34 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
           <ShoppingCart className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold tracking-tight">Registro de Ventas</h1>
         </motion.div>
-        <div className="flex gap-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={refreshSales}
-            disabled={isRefreshing}
-            className={`transition-all duration-700 ${isRefreshing ? "rotate-180" : ""}`}
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-          </Button>
-          <Button onClick={() => router.push("/sales/new")} className="group">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={refreshSales}
+          disabled={isRefreshing}
+          className={`transition-all duration-700 ${isRefreshing ? "rotate-180" : ""}`}
+        >
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
+        <div className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="sales" className="flex items-center gap-2 px-6 py-2">
+              <ShoppingCart className="h-4 w-4" />
+              Ventas
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="flex items-center gap-2 px-6 py-2">
+              <CreditCard className="h-4 w-4" />
+              Pagos
+            </TabsTrigger>
+          </TabsList>
+          <Button onClick={() => router.push("/sales/new")} className="group pl-4">
             <PlusIcon className="mr-2 h-4 w-4 transition-transform group-hover:scale-125" />
             Nueva Venta
           </Button>
         </div>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-        <TabsList className="mb-6">
-          <TabsTrigger value="sales" className="flex items-center gap-2 px-6 py-2">
-            <ShoppingCart className="h-4 w-4" />
-            Ventas
-          </TabsTrigger>
-          <TabsTrigger value="payments" className="flex items-center gap-2 px-6 py-2">
-            <CreditCard className="h-4 w-4" />
-            Pagos
-          </TabsTrigger>
-        </TabsList>
 
         <TabsContent value="sales" className="space-y-6">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>

@@ -30,6 +30,89 @@ import { existsSync } from "fs";
 
 export async function getCertificadoSales(): Promise<CertificadoResponse> {
   try {
+    console.log("Starting getCertificadoSales...");
+    
+    // Debug: First try a simple query to see if we can access purchases at all
+    const debugQuery = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        totalAmount: purchases.totalAmount,
+      })
+      .from(purchases);
+    
+    console.log("Debug query results:", JSON.stringify(debugQuery, null, 2));
+    
+    // Debug: Try with just the clients join
+    const withClientsJoin = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        clientName: clients.name,
+        totalAmount: purchases.totalAmount,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id));
+    
+    console.log("With clients join:", JSON.stringify(withClientsJoin, null, 2));
+    
+    // Debug: Try with clients and beneficiarios
+    const withBeneficiariosJoin = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        clientName: clients.name,
+        beneficiarioId: purchases.beneficiarioId,
+        beneficiarioName: beneficiarios.firstName,
+        totalAmount: purchases.totalAmount,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id));
+    
+    console.log("With beneficiarios join:", JSON.stringify(withBeneficiariosJoin, null, 2));
+    
+    // Debug: Try with clients, beneficiarios, and organizations
+    const withOrgsJoin = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        clientName: clients.name,
+        beneficiarioId: purchases.beneficiarioId,
+        beneficiarioName: beneficiarios.firstName,
+        organizationId: purchases.organizationId,
+        organizationName: organizations.name,
+        totalAmount: purchases.totalAmount,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id));
+    
+    console.log("With organizations join:", JSON.stringify(withOrgsJoin, null, 2));
+
+    // Debug: Try with bundles join
+    const withBundlesJoin = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        clientName: clients.name,
+        beneficiarioId: purchases.beneficiarioId,
+        beneficiarioName: beneficiarios.firstName,
+        organizationId: purchases.organizationId,
+        organizationName: organizations.name,
+        bundleId: purchases.bundleId,
+        bundleName: bundles.name,
+        totalAmount: purchases.totalAmount,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id));
+    
+    console.log("With bundles join:", JSON.stringify(withBundlesJoin, null, 2));
+
     // First, get all purchases with necessary related data
     const salesData = await db
       .select({
@@ -56,7 +139,7 @@ export async function getCertificadoSales(): Promise<CertificadoResponse> {
         bundleId: purchases.bundleId,
         bundleName: bundles.name,
         
-        // Organization info
+        // Organization info (from purchase's organization)
         organizationId: purchases.organizationId,
         organizationName: organizations.name,
         organizationType: organizations.type,
@@ -67,27 +150,16 @@ export async function getCertificadoSales(): Promise<CertificadoResponse> {
         certificateFileUrl: certificates.fileUrl,
       })
       .from(purchases)
-      // Join with clients (required)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
-      // Join with beneficiarios (optional)
       .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
-      // Join with bundles (optional)
       .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
-      // Join with organizations (optional)
       .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
-      // Join with certificates (optional)
       .leftJoin(certificates, eq(purchases.id, certificates.purchaseId))
-      // Order by most recent first
       .orderBy(desc(purchases.purchaseDate));
+
+    console.log("Raw salesData:", JSON.stringify(salesData, null, 2));
     
-    // Get all unique organization IDs for additional org data if needed
-    const organizationIds = [...new Set(
-      salesData
-        .filter(sale => sale.organizationId !== null)
-        .map(sale => sale.organizationId)
-    )] as string[];
-    
-    // Group sales by organization (similar to the bundles approach)
+    // Group sales by organization
     const organizedSales: Record<string, OrganizationSalesGroup> = {};
     const noOrgGroup: OrganizationSalesGroup = {
       id: null,
@@ -111,7 +183,7 @@ export async function getCertificadoSales(): Promise<CertificadoResponse> {
       if (!organizedSales[orgId]) {
         organizedSales[orgId] = {
           id: orgId,
-          name: sale.organizationName,
+          name: sale.organizationName || 'Organización sin nombre',
           type: sale.organizationType,
           sales: [],
           totalSales: 0,
@@ -124,6 +196,9 @@ export async function getCertificadoSales(): Promise<CertificadoResponse> {
       organizedSales[orgId].totalAmount += Number(sale.totalAmount || 0);
     });
     
+    console.log("Organized sales:", JSON.stringify(organizedSales, null, 2));
+    console.log("No org group:", JSON.stringify(noOrgGroup, null, 2));
+    
     // Convert to array and sort by organization name
     const sortedGroups = Object.values(organizedSales).sort((a, b) => {
       if (!a.name) return 1;
@@ -135,6 +210,8 @@ export async function getCertificadoSales(): Promise<CertificadoResponse> {
     if (noOrgGroup.sales.length > 0) {
       sortedGroups.push(noOrgGroup);
     }
+    
+    console.log("Final sorted groups:", JSON.stringify(sortedGroups, null, 2));
     
     return { 
       success: true, 

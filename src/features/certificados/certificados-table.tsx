@@ -280,18 +280,6 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                                 <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
-                                  onClick={() => router.push(`/certificados/${sale.id}`)}
-                                  className="flex items-center gap-2"
-                                >
-                                  <FileText className="h-4 w-4" /> Ver detalles
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => router.push(`/certificados/${sale.id}/pdf`)}
-                                  className="flex items-center gap-2"
-                                >
-                                  <FileText className="h-4 w-4" /> Generar PDF
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
                                   onClick={() => router.push(`/certificados/${sale.id}/ficha`)}
                                   className="flex items-center gap-2"
                                 >
