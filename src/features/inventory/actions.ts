@@ -205,3 +205,53 @@ export async function decreaseInventoryForSale(
   }
 }
 
+export type CreateInventoryItemInput = {
+  name: string
+  sku: string
+  type: string
+  basePrice: number
+  currentStock: number
+  reservedStock?: number
+  minimumStock?: number
+  status?: string
+  description?: string
+  initialInventoryCost?: number
+}
+
+export async function createInventoryItem(input: CreateInventoryItemInput) {
+  try {
+    // Crear el item de inventario
+    const [item] = await db
+      .insert(inventoryItems)
+      .values({
+        ...input,
+        status: input.status || "ACTIVE",
+      })
+      .returning()
+
+    // Crear transacción de inventario inicial si el stock es mayor a 0
+    if (input.currentStock > 0) {
+      await db.insert(inventoryTransactions).values({
+        itemId: item.id,
+        quantity: input.currentStock,
+        transactionType: "INITIAL",
+        notes: "Initial inventory stock",
+        createdAt: new Date(),
+        // Add reference with cost information if provided
+        reference: input.initialInventoryCost 
+          ? { 
+              initialCost: input.initialInventoryCost,
+              totalCost: input.initialInventoryCost * input.currentStock
+            } 
+          : undefined,
+      })
+    }
+
+    revalidatePath("/inventory")
+    return { success: true, data: item }
+  } catch (error) {
+    console.error("Error creating inventory item:", error)
+    return { success: false, error: "Error al crear el artículo de inventario" }
+  }
+}
+

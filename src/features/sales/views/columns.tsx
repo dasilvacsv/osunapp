@@ -371,7 +371,7 @@ export const columns: ColumnDef<Sale>[] = [
       const labels = {
         COMPLETED: "Completado",
         IN_PROGRESS: "En Proceso",
-        APPROVED: "Aprobado",
+        APPROVED: "Entregado",
         PENDING: "Pendiente",
         CANCELLED: "Cancelado",
       }
@@ -388,134 +388,6 @@ export const columns: ColumnDef<Sale>[] = [
             {labels[status as keyof typeof labels] || status.toLowerCase()}
           </Badge>
         </motion.div>
-      )
-    },
-  },
-  {
-    accessorKey: "isPaid",
-    header: () => (
-      <div className="flex items-center gap-1">
-        <CreditCard className="h-3.5 w-3.5" />
-        <span className="text-xs">Pago</span>
-      </div>
-    ),
-    cell: ({ row }) => {
-      const isPaid = row.getValue("isPaid") as boolean
-
-      return (
-        <Badge
-          variant={isPaid ? "success" : "outline"}
-          className={cn(
-            "text-xs py-0 h-5",
-            isPaid ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : "",
-          )}
-        >
-          {isPaid ? "Pagado" : "Pendiente"}
-        </Badge>
-      )
-    },
-  },
-  {
-    accessorKey: "paymentMethod",
-    header: () => <span className="text-xs">Método</span>,
-    cell: ({ row }) => {
-      if (!row.original?.paymentMethod) {
-        return <div className="text-muted-foreground text-xs">-</div>
-      }
-
-      const method = row.original.paymentMethod
-      const labels = {
-        CASH: "Efectivo",
-        CARD: "Tarjeta",
-        TRANSFER: "Transf.",
-        CREDIT: "Crédito",
-        DEBIT: "Débito",
-      }
-      const icons = {
-        CASH: "💵",
-        CARD: "💳",
-        TRANSFER: "🏦",
-        CREDIT: "📈",
-        DEBIT: "📉",
-      }
-
-      return (
-        <Badge variant="outline" className="capitalize text-xs py-0 h-5 flex items-center gap-1">
-          <span>{icons[method as keyof typeof icons] || "💸"}</span>
-          {labels[method as keyof typeof labels] || method.toLowerCase()}
-        </Badge>
-      )
-    },
-  },
-  {
-    accessorKey: "saleType",
-    header: () => (
-      <div className="flex items-center justify-center gap-1 text-xs">
-        <ShoppingBag className="h-3.5 w-3.5" />
-        <span>Pre-Venta</span>
-      </div>
-    ),
-    id: "preSaleToggle",
-    cell: ({ row }) => {
-      const saleType = row.getValue("saleType") as string
-      const [isEnabled, setIsEnabled] = useState(saleType === "PRESALE")
-      const [isUpdating, setIsUpdating] = useState(false)
-
-      const handleToggle = async (checked: boolean) => {
-        if (isUpdating) return
-
-        setIsUpdating(true)
-        try {
-          if (row.original?.id) {
-            const result = await updateSalePreSaleFlag(row.original.id, checked)
-
-            if (result.success) {
-              setIsEnabled(checked)
-              // Disparar evento para actualizar la tabla
-              window.dispatchEvent(
-                new CustomEvent("sales-updated", {
-                  detail: { saleId: row.original.id, saleType: checked ? "PRESALE" : "DIRECT" },
-                }),
-              )
-            } else {
-              throw new Error(result.error || "Error al actualizar el estado de preventa")
-            }
-          }
-        } catch (error) {
-          console.error("Error al actualizar flag de preventa:", error)
-          // Revertir el estado visual si hay error
-          setIsEnabled(!checked)
-        } finally {
-          setIsUpdating(false)
-        }
-      }
-
-      return (
-        <div className="flex items-center justify-center">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center gap-1.5">
-                  <Switch
-                    checked={isEnabled}
-                    onCheckedChange={handleToggle}
-                    disabled={isUpdating}
-                    className={cn("data-[state=checked]:bg-red-500", isEnabled && "ring-1 ring-red-300")}
-                  />
-                  {isEnabled && (
-                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 text-xs py-0 h-5">
-                      <AlertTriangle className="h-3 w-3 mr-1" />
-                      Pre-venta
-                    </Badge>
-                  )}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">
-                <p>{isEnabled ? "Permitir venta sin stock disponible" : "Requiere stock disponible para vender"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
       )
     },
   },

@@ -40,7 +40,7 @@ import { ExportSaleButton } from "@/features/sales/views/export/export-sale-butt
 
 const statusLabels = {
   PENDING: "Pendiente",
-  APPROVED: "Aprobado",
+  APPROVED: "Entregado",
   IN_PROGRESS: "En Proceso",
   COMPLETED: "Completado",
   CANCELLED: "Cancelado",

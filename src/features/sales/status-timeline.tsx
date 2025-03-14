@@ -14,7 +14,7 @@ const statusConfig = {
     lineColor: 'bg-amber-200 dark:bg-amber-700/30'
   },
   APPROVED: {
-    label: 'Aprobado',
+    label: 'Entregado',
     icon: Check,
     color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
     lineColor: 'bg-blue-200 dark:bg-blue-700/30'

@@ -3,9 +3,11 @@ import { db } from "@/db"
 import { eq, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { purchases, purchaseItems, bundleItems, bundles, inventoryItems, inventoryTransactions } from "@/db/schema"
+import { unstable_noStore as noStore } from 'next/cache';
 
 export async function getAllBundlesAndItems() {
   try {
+    noStore()
     // Get all bundles with their items
     const bundlesResult = await db
       .select({

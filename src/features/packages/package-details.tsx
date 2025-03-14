@@ -88,7 +88,7 @@ const paymentMethodLabels: Record<PaymentMethod, string> = {
 const statusLabels: Record<PurchaseStatus, string> = {
   COMPLETED: "Completado",
   PENDING: "Pendiente",
-  APPROVED: "Aprobado",
+  APPROVED: "Entregado",
   IN_PROGRESS: "En Proceso",
   CANCELLED: "Cancelado",
 }

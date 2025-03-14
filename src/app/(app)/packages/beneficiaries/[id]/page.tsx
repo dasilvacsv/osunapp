@@ -53,7 +53,7 @@ const statusLabels: Record<PurchaseStatus, string> = {
   COMPLETED: "Completado",
   PENDING: "Pendiente",
   CANCELLED: "Cancelado",
-  APPROVED: "Aprobado",
+  APPROVED: "Entregado",
   IN_PROGRESS: "En Proceso",
 }
 
