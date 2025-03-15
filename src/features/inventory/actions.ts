@@ -1,17 +1,22 @@
 "use server"
 
 import { db } from "@/db"
-import { inventoryItems, inventoryTransactions } from "@/db/schema"
-import { eq, desc, sql } from "drizzle-orm"
-import type { ActionResponse, InventoryItem, InventoryTransaction } from "./types"
+import {
+  inventoryItems,
+  inventoryTransactions,
+  inventoryPurchases,
+  inventoryPurchaseItems,
+  inventoryPurchasePayments,
+} from "@/db/schema"
+import { eq, desc, sql, and, or } from "drizzle-orm"
+import type { ActionResponse, InventoryItem, InventoryTransaction, Purchase, PurchasePayment } from "./types"
 import { revalidatePath } from "next/cache"
-import { unstable_noStore as noStore } from 'next/cache';
-
+import { unstable_noStore as noStore } from "next/cache"
 
 export async function getInventoryItems(): Promise<ActionResponse<InventoryItem[]>> {
   try {
     noStore()
-    
+
     // First get all inventory items
     const items = await db.select().from(inventoryItems)
 
@@ -210,6 +215,7 @@ export type CreateInventoryItemInput = {
   sku: string
   type: string
   basePrice: number
+  costPrice?: number // Nuevo campo para precio de costo
   currentStock: number
   reservedStock?: number
   minimumStock?: number
@@ -225,6 +231,8 @@ export async function createInventoryItem(input: CreateInventoryItemInput) {
       .insert(inventoryItems)
       .values({
         ...input,
+        costPrice: input.costPrice ? String(input.costPrice) : undefined, // Convertir a string si existe
+        basePrice: String(input.basePrice),
         status: input.status || "ACTIVE",
       })
       .returning()
@@ -238,11 +246,11 @@ export async function createInventoryItem(input: CreateInventoryItemInput) {
         notes: "Initial inventory stock",
         createdAt: new Date(),
         // Add reference with cost information if provided
-        reference: input.initialInventoryCost 
-          ? { 
+        reference: input.initialInventoryCost
+          ? {
               initialCost: input.initialInventoryCost,
-              totalCost: input.initialInventoryCost * input.currentStock
-            } 
+              totalCost: input.initialInventoryCost * input.currentStock,
+            }
           : undefined,
       })
     }
@@ -252,6 +260,124 @@ export async function createInventoryItem(input: CreateInventoryItemInput) {
   } catch (error) {
     console.error("Error creating inventory item:", error)
     return { success: false, error: "Error al crear el artículo de inventario" }
+  }
+}
+
+// Nuevas funciones para gestión de compras a crédito
+export async function getPendingPurchases(): Promise<ActionResponse<Purchase[]>> {
+  try {
+    const purchases = await db
+      .select()
+      .from(inventoryPurchases)
+      .where(
+        and(
+          eq(inventoryPurchases.isCredit, true),
+          or(eq(inventoryPurchases.status, "PENDING"), eq(inventoryPurchases.status, "PARTIAL")),
+        ),
+      )
+      .orderBy(desc(inventoryPurchases.purchaseDate))
+
+    return { success: true, data: purchases }
+  } catch (error) {
+    console.error("Error fetching pending purchases:", error)
+    return { success: false, error: "Error al obtener las compras pendientes" }
+  }
+}
+
+export async function getPurchaseDetails(purchaseId: string): Promise<ActionResponse<any>> {
+  try {
+    // Obtener la compra
+    const [purchase] = await db.select().from(inventoryPurchases).where(eq(inventoryPurchases.id, purchaseId))
+
+    if (!purchase) {
+      return { success: false, error: "Compra no encontrada" }
+    }
+
+    // Obtener los items de la compra
+    const purchaseItems = await db
+      .select({
+        purchaseItem: inventoryPurchaseItems,
+        item: inventoryItems,
+      })
+      .from(inventoryPurchaseItems)
+      .leftJoin(inventoryItems, eq(inventoryPurchaseItems.itemId, inventoryItems.id))
+      .where(eq(inventoryPurchaseItems.purchaseId, purchaseId))
+
+    // Obtener los pagos de la compra
+    const payments = await db
+      .select()
+      .from(inventoryPurchasePayments)
+      .where(eq(inventoryPurchasePayments.purchaseId, purchaseId))
+      .orderBy(desc(inventoryPurchasePayments.paymentDate))
+
+    return {
+      success: true,
+      data: {
+        purchase,
+        items: purchaseItems,
+        payments,
+      },
+    }
+  } catch (error) {
+    console.error("Error fetching purchase details:", error)
+    return { success: false, error: "Error al obtener los detalles de la compra" }
+  }
+}
+
+export async function registerPurchasePayment(
+  purchaseId: string,
+  amount: number,
+  paymentMethod: string,
+  reference?: string,
+  notes?: string,
+): Promise<ActionResponse<PurchasePayment>> {
+  try {
+    // Verificar que la compra existe
+    const [purchase] = await db.select().from(inventoryPurchases).where(eq(inventoryPurchases.id, purchaseId))
+
+    if (!purchase) {
+      return { success: false, error: "Compra no encontrada" }
+    }
+
+    // Calcular el nuevo monto pagado
+    const newPaidAmount = Number(purchase.paidAmount) + amount
+
+    // Determinar el nuevo estado de la compra
+    let newStatus: "PAID" | "PARTIAL" | "PENDING" = "PENDING"
+    if (newPaidAmount >= Number(purchase.totalAmount)) {
+      newStatus = "PAID"
+    } else if (newPaidAmount > 0) {
+      newStatus = "PARTIAL"
+    }
+
+    // Registrar el pago
+    const [payment] = await db
+      .insert(inventoryPurchasePayments)
+      .values({
+        purchaseId,
+        amount: String(amount),
+        paymentDate: new Date(),
+        paymentMethod: paymentMethod as "CASH" | "TRANSFER" | "CHECK" | "OTHER",
+        reference,
+        notes,
+      })
+      .returning()
+
+    // Actualizar el estado de la compra
+    await db
+      .update(inventoryPurchases)
+      .set({
+        paidAmount: String(newPaidAmount),
+        status: newStatus,
+        updatedAt: new Date(),
+      })
+      .where(eq(inventoryPurchases.id, purchaseId))
+
+    revalidatePath("/inventory/purchases")
+    return { success: true, data: payment }
+  } catch (error) {
+    console.error("Error registering purchase payment:", error)
+    return { success: false, error: "Error al registrar el pago de la compra" }
   }
 }
 
