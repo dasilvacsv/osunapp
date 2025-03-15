@@ -11,7 +11,7 @@
   - Improve structure to handle payments and partial payments
   - Track pending payments
 
-  (Solo queda resolver lo del pago completo, para que puedas pagar exacto.)
+  (Solo queda resolver lo del pago completo, para que puedas pagar exacto, colocar en la ruta de bundles, para que se pueda asignar una organizacion a un bundle en especifico y tambien, poder crear una categoria.)
 
 ## Sales & Payment Management
 - Implement draft sales system:
