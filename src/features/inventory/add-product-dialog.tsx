@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -9,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createInventoryItem } from "./actions"
 import { inventoryItemTypeEnum, inventoryItemStatusEnum } from "@/db/schema"
 import { motion, AnimatePresence } from "framer-motion"
-import { Package, DollarSign, Archive, Boxes, AlertCircle, Warehouse } from "lucide-react"
+import { Package, DollarSign, Archive, Boxes, AlertCircle, Warehouse, Calculator } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -36,6 +38,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
   const [sku, setSku] = useState("")
   const [type, setType] = useState(inventoryItemTypeEnum.enumValues[0])
   const [basePrice, setBasePrice] = useState("")
+  const [costPrice, setCostPrice] = useState("") // Nuevo campo para precio de costo
   const [currentStock, setCurrentStock] = useState("")
   const [reservedStock, setReservedStock] = useState("")
   const [minimumStock, setMinimumStock] = useState("")
@@ -46,11 +49,16 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
   const [description, setDescription] = useState("")
   const { toast } = useToast()
 
+  // Calcular margen de ganancia
+  const profitMargin =
+    basePrice && costPrice ? (((Number(basePrice) - Number(costPrice)) / Number(basePrice)) * 100).toFixed(2) : ""
+
   const resetForm = () => {
     setName("")
     setSku("")
     setType(inventoryItemTypeEnum.enumValues[0])
     setBasePrice("")
+    setCostPrice("")
     setCurrentStock("")
     setReservedStock("")
     setMinimumStock("")
@@ -63,15 +71,16 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-  
+
     try {
       const stockValue = currentStock === "" ? 0 : Number.parseInt(currentStock)
-      
+
       const result = await createInventoryItem({
         name,
         sku,
         type,
         basePrice: Number.parseFloat(basePrice),
+        costPrice: costPrice ? Number.parseFloat(costPrice) : undefined, // Incluir precio de costo
         currentStock: stockValue,
         reservedStock: Number.parseInt(reservedStock) || 0,
         minimumStock: Number.parseInt(minimumStock) || 0,
@@ -134,7 +143,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
             </TabsList>
 
             <TabsContent value="basic" className="space-y-4">
-              <motion.div 
+              <motion.div
                 className="grid gap-6 py-4"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -159,13 +168,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                       <Archive className="w-4 h-4 text-gray-500" />
                       SKU
                     </Label>
-                    <Input
-                      id="sku"
-                      value={sku}
-                      onChange={(e) => setSku(e.target.value)}
-                      className="w-full"
-                      required
-                    />
+                    <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} className="w-full" required />
                   </div>
                 </div>
 
@@ -195,7 +198,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                   <div className="space-y-2">
                     <Label htmlFor="basePrice" className="flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-gray-500" />
-                      Precio Base
+                      Precio Base (Venta)
                     </Label>
                     <Input
                       id="basePrice"
@@ -207,6 +210,35 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                       className="w-full"
                       required
                     />
+                  </div>
+                </div>
+
+                {/* Nuevo campo para precio de costo */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="costPrice" className="flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-gray-500" />
+                      Precio de Costo
+                    </Label>
+                    <Input
+                      id="costPrice"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={costPrice}
+                      onChange={(e) => setCostPrice(e.target.value)}
+                      className="w-full"
+                      placeholder="Costo de adquisición"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="profitMargin" className="flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-gray-500" />
+                      Margen de Ganancia
+                    </Label>
+                    <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted/50 text-muted-foreground">
+                      {profitMargin ? `${profitMargin}%` : "Ingrese precio base y costo"}
+                    </div>
                   </div>
                 </div>
 
@@ -248,20 +280,20 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
             </TabsContent>
 
             <TabsContent value="inventory" className="space-y-4">
-              <motion.div 
+              <motion.div
                 className="grid gap-6 py-4"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3 }}
               >
                 <div className="flex items-center space-x-2 mb-2">
-                  <Checkbox 
-                    id="hasInitialInventory" 
+                  <Checkbox
+                    id="hasInitialInventory"
                     checked={hasInitialInventory}
                     onCheckedChange={(checked) => setHasInitialInventory(checked as boolean)}
                   />
-                  <Label 
-                    htmlFor="hasInitialInventory" 
+                  <Label
+                    htmlFor="hasInitialInventory"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
                     Este producto ya tiene inventario inicial
@@ -317,7 +349,7 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                 </div>
 
                 {hasInitialInventory && currentStock !== "" && Number(currentStock) > 0 && (
-                  <motion.div 
+                  <motion.div
                     className="space-y-2"
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: "auto" }}
@@ -348,19 +380,10 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
           </Tabs>
 
           <DialogFooter className="mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={loading}
-              className="relative"
-            >
+            <Button type="submit" disabled={loading} className="relative">
               {loading ? (
                 <motion.div
                   className="absolute inset-0 flex items-center justify-center"
@@ -381,4 +404,5 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
       </DialogContent>
     </Dialog>
   )
-} 
+}
+
