@@ -24,12 +24,18 @@ import {
   Trash2,
   ArrowDown,
   ArrowUp,
+  Calendar,
+  Upload,
+  CreditCard,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { InventoryItemSelector } from "./inventory-item-selector"
 import type { InventoryItem } from "@/features/inventory/types"
 import { registerPurchase, stockIn, stockOut } from "./actions"
 import { getInventoryItems } from "../actions"
+import { Checkbox } from "@/components/ui/checkbox"
+import { DatePicker } from "@/components/ui/date-picker"
+import { FileUploader } from "@/components/file-uploader"
 
 // Schema for stock adjustment
 const stockAdjustmentSchema = z.object({
@@ -49,6 +55,8 @@ const purchaseSchema = z.object({
   supplierName: z.string().min(1, "El nombre del proveedor es requerido"),
   notes: z.string().optional(),
   invoiceNumber: z.string().optional(),
+  isCredit: z.boolean().default(false),
+  dueDate: z.date().optional().nullable(),
 })
 
 type StockAdjustmentFormValues = z.infer<typeof stockAdjustmentSchema>
@@ -69,6 +77,8 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
   >([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(items || [])
+  const [isCredit, setIsCredit] = useState(false)
+  const [attachments, setAttachments] = useState<File[]>([])
   const { toast } = useToast()
 
   // Refresh inventory items
@@ -100,6 +110,8 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
       supplierName: "",
       notes: "",
       invoiceNumber: "",
+      isCredit: false,
+      dueDate: null,
     },
   })
 
@@ -118,12 +130,15 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
       return
     }
 
+    // Use costPrice if available, otherwise use basePrice
+    const initialCost = item.costPrice ? Number(item.costPrice) : Number(item.basePrice) || 0
+
     setSelectedItems([
       ...selectedItems,
       {
         item,
         quantity: 1,
-        unitCost: Number(item.basePrice) || 0,
+        unitCost: initialCost,
       },
     ])
   }
@@ -216,11 +231,22 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
         unitCost: item.unitCost,
       }))
 
+      // Prepare attachments if any
+      let attachmentUrls: string[] = []
+      if (attachments.length > 0) {
+        // Aquí iría la lógica para subir los archivos a un servicio de almacenamiento
+        // y obtener las URLs. Por ahora, solo simulamos esto.
+        attachmentUrls = attachments.map((file, index) => `attachment-${index}-${file.name}`)
+      }
+
       const purchaseData = {
         supplierName: values.supplierName,
         notes: values.notes || "",
         invoiceNumber: values.invoiceNumber || "",
+        isCredit: values.isCredit,
+        dueDate: values.dueDate,
         items: itemsData,
+        attachments: attachmentUrls,
       }
 
       // Call the server action
@@ -233,6 +259,8 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
         })
         purchaseForm.reset()
         setSelectedItems([])
+        setIsCredit(false)
+        setAttachments([])
         refreshInventory()
       } else {
         toast({
@@ -261,6 +289,11 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
       refreshInventory()
     }
   }, [items])
+
+  // Update form when isCredit changes
+  useEffect(() => {
+    purchaseForm.setValue("isCredit", isCredit)
+  }, [isCredit, purchaseForm])
 
   return (
     <div className="space-y-6">
@@ -319,6 +352,56 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                 />
               </div>
 
+              <div className="flex flex-col md:flex-row gap-4 items-start">
+                <div className="w-full md:w-1/2">
+                  <FormField
+                    control={purchaseForm.control}
+                    name="isCredit"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
+                        <FormControl>
+                          <Checkbox
+                            checked={isCredit}
+                            onCheckedChange={(checked) => {
+                              setIsCredit(!!checked)
+                              field.onChange(!!checked)
+                            }}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel className="flex items-center gap-2">
+                            <CreditCard className="w-4 h-4" />
+                            Compra a Crédito
+                          </FormLabel>
+                          <p className="text-sm text-muted-foreground">
+                            Marcar si esta compra se pagará posteriormente
+                          </p>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {isCredit && (
+                  <div className="w-full md:w-1/2">
+                    <FormField
+                      control={purchaseForm.control}
+                      name="dueDate"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            Fecha de Vencimiento
+                          </FormLabel>
+                          <DatePicker date={field.value || undefined} setDate={(date) => field.onChange(date)} />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+
               <FormField
                 control={purchaseForm.control}
                 name="notes"
@@ -338,6 +421,29 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                   </FormItem>
                 )}
               />
+
+              {isCredit && (
+                <div className="space-y-2">
+                  <FormLabel className="flex items-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    Adjuntar Documentos
+                  </FormLabel>
+                  <FileUploader
+                    value={attachments}
+                    onChange={setAttachments}
+                    maxFiles={5}
+                    maxSize={5 * 1024 * 1024} // 5MB
+                    accept={{
+                      "application/pdf": [".pdf"],
+                      "image/jpeg": [".jpg", ".jpeg"],
+                      "image/png": [".png"],
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Adjunte facturas, comprobantes u otros documentos relacionados con esta compra a crédito.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Artículos</h3>
@@ -363,6 +469,11 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                               <div className="flex-1">
                                 <h4 className="font-medium">{selectedItem.item.name}</h4>
                                 <p className="text-sm text-muted-foreground">SKU: {selectedItem.item.sku}</p>
+                                {selectedItem.item.costPrice && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Último costo: {formatCurrency(Number(selectedItem.item.costPrice))}
+                                  </p>
+                                )}
                               </div>
 
                               <div className="flex items-center gap-2">
@@ -456,7 +567,7 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    Registrar Compra
+                    {isCredit ? "Registrar Compra a Crédito" : "Registrar Compra"}
                   </>
                 )}
               </Button>
@@ -521,6 +632,14 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                         <span className="text-muted-foreground">Stock Mínimo:</span>
                         <span className="ml-2 font-medium">{selectedAdjustmentItem.minimumStock}</span>
                       </div>
+                      {selectedAdjustmentItem.costPrice && (
+                        <div>
+                          <span className="text-muted-foreground">Precio de Costo:</span>
+                          <span className="ml-2 font-medium">
+                            {formatCurrency(Number(selectedAdjustmentItem.costPrice))}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
