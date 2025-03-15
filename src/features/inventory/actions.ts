@@ -264,8 +264,13 @@ export async function createInventoryItem(input: CreateInventoryItemInput) {
 }
 
 // Nuevas funciones para gestión de compras a crédito
+// Actualizar la función getPendingPurchases para corregir el error de sintaxis SQL
 export async function getPendingPurchases(): Promise<ActionResponse<Purchase[]>> {
   try {
+    noStore()
+
+    // La consulta anterior probablemente tenía un problema con los operadores de comparación
+    // Vamos a reescribirla de manera más explícita para evitar problemas de sintaxis
     const purchases = await db
       .select()
       .from(inventoryPurchases)

@@ -16,7 +16,9 @@ import { formatCurrency } from "@/lib/utils"
 import { InventoryItemSelector } from "../stock/inventory-item-selector"
 import type { InventoryItem, BundleItem } from "../types"
 import { getInventoryItems } from "../actions"
+import { createBundle } from "./actions"
 import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
 
 // Schema for bundle
 const bundleSchema = z.object({
@@ -38,6 +40,7 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const { toast } = useToast()
+  const router = useRouter()
 
   // Calculations
   const totalBasePrice = selectedItems.reduce(
@@ -156,20 +159,30 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
         savingsPercentage: values.savingsPercentage,
       }
 
-      // Here you would call your API to create the bundle
-      // For now, we'll just simulate a successful creation
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Llamar a la acción del servidor para crear el bundle
+      const result = await createBundle(bundleData)
 
-      toast({
-        title: "Bundle creado",
-        description: "El bundle ha sido creado exitosamente.",
-      })
+      if (result.success) {
+        toast({
+          title: "Bundle creado",
+          description: "El bundle ha sido creado exitosamente.",
+        })
 
-      form.reset()
-      setSelectedItems([])
+        form.reset()
+        setSelectedItems([])
 
-      if (onBundleCreated) {
-        onBundleCreated()
+        // Refrescar la página para mostrar el nuevo bundle
+        router.refresh()
+
+        if (onBundleCreated) {
+          onBundleCreated()
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "No se pudo crear el bundle.",
+          variant: "destructive",
+        })
       }
     } catch (error) {
       console.error("Error creating bundle:", error)

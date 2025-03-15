@@ -10,8 +10,6 @@ import {
   timestamp,
   decimal,
   jsonb,
-  uniqueIndex,
-  index,
 } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm"
 
@@ -48,7 +46,16 @@ export const transactionTypeEnum = pgEnum("transaction_type", [
   "RESERVATION",
   "FULFILLMENT",
 ])
-export const certificateStatusEnum = pgEnum("certificate_status", ["GENERATED", "NOT_GENERATED", "NEEDS_REVISION", "APPROVED"])
+export const certificateStatusEnum = pgEnum("certificate_status", [
+  "GENERATED",
+  "NOT_GENERATED",
+  "NEEDS_REVISION",
+  "APPROVED",
+])
+// Nuevo enum para estado de compras de inventario
+export const inventoryPurchaseStatusEnum = pgEnum("inventory_purchase_status", ["PENDING", "PARTIAL", "PAID"])
+// Nuevo enum para métodos de pago
+export const paymentMethodEnum = pgEnum("payment_method", ["CASH", "TRANSFER", "CHECK", "OTHER"])
 
 // Cities table for organization locations
 export const cities = pgTable("cities", {
@@ -180,7 +187,9 @@ export const beneficiariosRelations = relations(beneficiarios, ({ one, many }) =
 // Certificates Table for tracking certificate generation and approval status
 export const certificates = pgTable("certificates", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
-  purchaseId: uuid("purchase_id").notNull().references(() => purchases.id),
+  purchaseId: uuid("purchase_id")
+    .notNull()
+    .references(() => purchases.id),
   beneficiarioId: uuid("beneficiario_id").references(() => beneficiarios.id),
   status: certificateStatusEnum("status").default("NOT_GENERATED"),
   fileUrl: varchar("file_url", { length: 512 }),
@@ -210,6 +219,8 @@ export const inventoryItems = pgTable("inventory_items", {
   description: text("description"),
   type: itemTypeEnum("type").notNull(),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
+  // Nuevo campo para precio de costo
+  costPrice: decimal("cost_price", { precision: 10, scale: 2 }),
   currentStock: integer("current_stock").notNull().default(0),
   reservedStock: integer("reserved_stock").notNull().default(0),
   minimumStock: integer("minimum_stock").notNull().default(0),
@@ -285,6 +296,8 @@ export const bundles = pgTable("bundles", {
   type: bundleTypeEnum("type").notNull(),
   organizationId: uuid("organization_id").references(() => organizations.id),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),
+  // Nuevo campo para precio de costo del bundle
+  costPrice: decimal("cost_price", { precision: 10, scale: 2 }),
   bundlePrice: decimal("bundle_price", { precision: 10, scale: 2 }),
   discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }),
   status: statusEnum("status").default("ACTIVE"),
@@ -511,7 +524,14 @@ export const inventoryPurchases = pgTable("inventory_purchases", {
   supplierName: varchar("supplier_name", { length: 255 }).notNull(),
   invoiceNumber: varchar("invoice_number", { length: 100 }),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  // Nuevos campos para compras a crédito
+  paidAmount: decimal("paid_amount", { precision: 10, scale: 2 }).notNull().default("0"),
+  status: inventoryPurchaseStatusEnum("status").default("PENDING"),
+  isCredit: boolean("is_credit").notNull().default(false),
+  dueDate: timestamp("due_date", { withTimezone: true }),
   notes: text("notes"),
+  // Campo para almacenar URLs de archivos adjuntos
+  attachments: jsonb("attachments"),
   purchaseDate: timestamp("purchase_date", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
@@ -519,6 +539,7 @@ export const inventoryPurchases = pgTable("inventory_purchases", {
 
 export const inventoryPurchasesRelations = relations(inventoryPurchases, ({ many }) => ({
   items: many(inventoryPurchaseItems),
+  payments: many(inventoryPurchasePayments),
 }))
 
 // Purchase items table - details of each purchase
@@ -544,6 +565,28 @@ export const inventoryPurchaseItemsRelations = relations(inventoryPurchaseItems,
   item: one(inventoryItems, {
     fields: [inventoryPurchaseItems.itemId],
     references: [inventoryItems.id],
+  }),
+}))
+
+// Nueva tabla para pagos de compras de inventario
+export const inventoryPurchasePayments = pgTable("inventory_purchase_payments", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  purchaseId: uuid("purchase_id")
+    .notNull()
+    .references(() => inventoryPurchases.id),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  paymentDate: timestamp("payment_date", { withTimezone: true }).notNull().defaultNow(),
+  paymentMethod: paymentMethodEnum("payment_method").notNull(),
+  reference: varchar("reference", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+export const inventoryPurchasePaymentsRelations = relations(inventoryPurchasePayments, ({ one }) => ({
+  purchase: one(inventoryPurchases, {
+    fields: [inventoryPurchasePayments.purchaseId],
+    references: [inventoryPurchases.id],
   }),
 }))
 
@@ -573,6 +616,8 @@ export const saleItems = pgTable("sale_items", {
   quantity: integer("quantity").notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+  // Nuevo campo para rastrear el costo en el momento de la venta
+  unitCost: decimal("unit_cost", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 })
 
@@ -586,3 +631,4 @@ export const saleItemsRelations = relations(saleItems, ({ one }) => ({
     references: [inventoryItems.id],
   }),
 }))
+
