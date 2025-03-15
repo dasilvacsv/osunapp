@@ -3,8 +3,8 @@
 import { useState, useCallback } from "react"
 import { useDropzone } from "react-dropzone"
 import { Button } from "@/components/ui/button"
-import { X, Upload, File, AlertCircle } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
+import { X, Upload, File, ImageIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface FileUploaderProps {
   value: File[]
@@ -12,6 +12,8 @@ interface FileUploaderProps {
   maxFiles?: number
   maxSize?: number
   accept?: Record<string, string[]>
+  showPreview?: boolean
+  className?: string
 }
 
 export function FileUploader({
@@ -19,11 +21,9 @@ export function FileUploader({
   onChange,
   maxFiles = 5,
   maxSize = 5 * 1024 * 1024, // 5MB
-  accept = {
-    "application/pdf": [".pdf"],
-    "image/jpeg": [".jpg", ".jpeg"],
-    "image/png": [".png"],
-  },
+  accept,
+  showPreview = true,
+  className,
 }: FileUploaderProps) {
   const [error, setError] = useState<string | null>(null)
 
@@ -64,74 +64,60 @@ export function FileUploader({
     onChange(newFiles)
   }
 
+  const getFileIcon = (file: File) => {
+    if (file.type.startsWith("image/")) {
+      return <ImageIcon className="h-4 w-4" />
+    }
+    return <File className="h-4 w-4" />
+  }
+
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", className)}>
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-          isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"
-        }`}
+        className={cn(
+          "border-2 border-dashed rounded-md p-6 cursor-pointer transition-colors",
+          isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-primary/50",
+        )}
       >
         <input {...getInputProps()} />
-        <div className="flex flex-col items-center justify-center gap-2">
-          <Upload className="h-8 w-8 text-muted-foreground" />
-          {isDragActive ? (
-            <p className="text-sm font-medium">Suelta los archivos aquí</p>
-          ) : (
-            <>
-              <p className="text-sm font-medium">Arrastra archivos aquí o haz clic para seleccionar</p>
-              <p className="text-xs text-muted-foreground">
-                Máximo {maxFiles} archivos, {maxSize / (1024 * 1024)}MB por archivo
-              </p>
-            </>
-          )}
+        <div className="flex flex-col items-center justify-center text-center">
+          <Upload className="h-10 w-10 text-muted-foreground mb-2" />
+          <p className="text-sm font-medium">
+            {isDragActive ? "Suelta los archivos aquí" : "Arrastra archivos aquí o haz clic para seleccionar"}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Máximo {maxFiles} archivos, {maxSize / (1024 * 1024)}MB por archivo
+          </p>
         </div>
       </div>
 
-      {error && (
-        <div className="flex items-center gap-2 text-destructive text-sm">
-          <AlertCircle className="h-4 w-4" />
-          {error}
-        </div>
-      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <AnimatePresence>
-        {value.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-2"
-          >
+      {showPreview && value.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Archivos seleccionados ({value.length})</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {value.map((file, index) => (
-              <motion.div
-                key={`${file.name}-${index}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="flex items-center justify-between p-3 border rounded-md bg-muted/30"
-              >
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <File className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  <div className="truncate">
-                    <p className="text-sm font-medium truncate">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
-                  </div>
+              <div key={index} className="flex items-center justify-between p-2 border rounded-md bg-muted/30">
+                <div className="flex items-center gap-2 truncate">
+                  {getFileIcon(file)}
+                  <span className="text-sm truncate">{file.name}</span>
                 </div>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
                   onClick={() => removeFile(index)}
-                  className="h-8 w-8 text-destructive"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
                 >
                   <X className="h-4 w-4" />
                 </Button>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

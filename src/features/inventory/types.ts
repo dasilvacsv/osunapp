@@ -5,7 +5,6 @@ export interface InventoryItem {
   description: string | null
   type: "PHYSICAL" | "DIGITAL" | "SERVICE"
   basePrice: string
-  costPrice?: string // Nuevo campo para precio de costo
   currentStock: number
   reservedStock: number
   minimumStock: number
@@ -16,6 +15,8 @@ export interface InventoryItem {
   createdAt: Date | null
   updatedAt: Date | null
   metadata?: Record<string, any>
+  margin?: string
+  costPrice?: string // Add cost price field
 }
 
 export interface InventoryTransaction {
@@ -46,33 +47,20 @@ export type InventoryManagerProps = {
   initialData: InventoryItem[]
 }
 
-// Nuevas interfaces para compras a crédito
-export interface PurchasePayment {
-  id: string
-  purchaseId: string
-  amount: string
-  paymentDate: Date
-  paymentMethod: "CASH" | "TRANSFER" | "CHECK" | "OTHER"
-  reference?: string
-  notes?: string
-  createdAt: Date
-  updatedAt: Date
-}
-
 export interface Purchase {
   id: string
   supplierName: string
   invoiceNumber?: string
   totalAmount: string
-  paidAmount: string
-  status: "PAID" | "PARTIAL" | "PENDING"
   purchaseDate: Date
-  dueDate?: Date
-  isCredit: boolean
   notes?: string
-  attachments?: string[]
   createdAt: Date
   updatedAt: Date
+  isPaid?: boolean
+  paidAmount?: string
+  status?: string
+  dueDate?: Date
+  metadata?: Record<string, any>
 }
 
 export interface PurchaseItem {
@@ -84,24 +72,35 @@ export interface PurchaseItem {
   totalCost: string
 }
 
-// Interfaces para bundles con costos
+export interface PurchasePayment {
+  id: string
+  purchaseId: string
+  amount: string
+  paymentMethod: string
+  paymentDate: Date
+  reference?: string
+  notes?: string
+  createdAt: Date
+}
+
+// Interfaces para bundles
 export interface BundleItem {
   itemId: string
   item: InventoryItem
   quantity: number
   overridePrice?: number
-  costPrice?: number // Nuevo campo para mostrar el costo
+  costPrice?: number // Add cost price field
 }
 
 export interface BundleWithItems extends Bundle {
   items: BundleItem[]
   totalBasePrice: number
-  totalCostPrice: number // Nuevo campo para el costo total
   totalDiscountedPrice: number
   savings: number
   savingsPercentage: number
-  profit: number // Nuevo campo para el margen de ganancia
-  profitPercentage: number // Nuevo campo para el porcentaje de ganancia
+  totalEstimatedCost: number
+  profit: number
+  profitPercentage: number
 }
 
 export interface Bundle {
@@ -112,7 +111,6 @@ export interface Bundle {
   categoryId: string
   type: "SCHOOL_PACKAGE" | "ORGANIZATION_PACKAGE" | "REGULAR"
   basePrice: number
-  costPrice?: number // Nuevo campo para el costo del bundle
   discountPercentage?: number
   status: "ACTIVE" | "INACTIVE"
   createdAt: Date
@@ -129,7 +127,7 @@ export type CreateBundleInput = {
     overridePrice?: number
   }[]
   totalBasePrice: number
-  totalCostPrice: number // Nuevo campo para el costo total
   savingsPercentage: number
+  totalCostPrice?: number // Add total cost price field
 }
 

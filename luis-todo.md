@@ -1,7 +1,7 @@
 
 # OsunApp New Features TODO
 
-## Inventory Management
+## Inventory Management (DONE)
 - Manage cost prices and display when assembling bundles:
   - Show cost price and base price (sale price) during bundle creation
   - Enhance bundle assembly interface for easier use
@@ -10,6 +10,8 @@
   - Generate accounts payable (cuentas por pagar)
   - Improve structure to handle payments and partial payments
   - Track pending payments
+
+  (Solo queda resolver lo del pago completo, para que puedas pagar exacto.)
 
 ## Sales & Payment Management
 - Implement draft sales system:

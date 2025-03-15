@@ -1,14 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { getPendingPurchases, getPurchaseDetails } from "../actions"
+import { getPendingPurchases, getPurchaseDetails } from "../stock/actions"
 import { useToast } from "@/hooks/use-toast"
-import { motion, AnimatePresence } from "framer-motion"
 import {
   DollarSign,
   FileText,
@@ -18,9 +17,12 @@ import {
   ShoppingBag,
   AlertCircle,
   Package,
+  Loader2,
+  Eye,
 } from "lucide-react"
 import { PurchasePaymentDialog } from "./purchase-payment-dialog"
 import type { Purchase, PurchasePayment } from "../types"
+import Link from "next/link"
 
 export function PendingPurchasesTable() {
   const [purchases, setPurchases] = useState<Purchase[]>([])
@@ -32,7 +34,7 @@ export function PendingPurchasesTable() {
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
   const { toast } = useToast()
 
-  const fetchPurchases = async () => {
+  const fetchPurchases = useCallback(async () => {
     try {
       setLoading(true)
       const result = await getPendingPurchases()
@@ -55,63 +57,69 @@ export function PendingPurchasesTable() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
 
-  const fetchPurchaseDetails = async (purchaseId: string) => {
-    if (purchaseDetails[purchaseId]) return
+  const fetchPurchaseDetails = useCallback(
+    async (purchaseId: string) => {
+      if (purchaseDetails[purchaseId]) return
 
-    try {
-      setDetailsLoading((prev) => ({ ...prev, [purchaseId]: true }))
-      const result = await getPurchaseDetails(purchaseId)
-      if (result.success && result.data) {
-        setPurchaseDetails((prev) => ({ ...prev, [purchaseId]: result.data }))
-      } else {
+      try {
+        setDetailsLoading((prev) => ({ ...prev, [purchaseId]: true }))
+        const result = await getPurchaseDetails(purchaseId)
+        if (result.success && result.data) {
+          setPurchaseDetails((prev) => ({ ...prev, [purchaseId]: result.data }))
+        } else {
+          toast({
+            title: "Error",
+            description: "No se pudieron cargar los detalles de la compra",
+            variant: "destructive",
+          })
+        }
+      } catch (error) {
+        console.error("Error fetching purchase details:", error)
         toast({
           title: "Error",
-          description: "No se pudieron cargar los detalles de la compra",
+          description: "Ocurrió un error al cargar los detalles de la compra",
           variant: "destructive",
         })
+      } finally {
+        setDetailsLoading((prev) => ({ ...prev, [purchaseId]: false }))
       }
-    } catch (error) {
-      console.error("Error fetching purchase details:", error)
-      toast({
-        title: "Error",
-        description: "Ocurrió un error al cargar los detalles de la compra",
-        variant: "destructive",
-      })
-    } finally {
-      setDetailsLoading((prev) => ({ ...prev, [purchaseId]: false }))
-    }
-  }
+    },
+    [purchaseDetails, toast],
+  )
 
-  const toggleExpand = (purchaseId: string) => {
-    const newExpanded = { ...expanded, [purchaseId]: !expanded[purchaseId] }
-    setExpanded(newExpanded)
+  const toggleExpand = useCallback(
+    (purchaseId: string) => {
+      const newExpanded = { ...expanded, [purchaseId]: !expanded[purchaseId] }
+      setExpanded(newExpanded)
 
-    if (newExpanded[purchaseId] && !purchaseDetails[purchaseId]) {
-      fetchPurchaseDetails(purchaseId)
-    }
-  }
+      if (newExpanded[purchaseId] && !purchaseDetails[purchaseId]) {
+        fetchPurchaseDetails(purchaseId)
+      }
+    },
+    [expanded, purchaseDetails, fetchPurchaseDetails],
+  )
 
-  const handleOpenPaymentDialog = (purchase: Purchase) => {
+  const handleOpenPaymentDialog = useCallback((purchase: Purchase) => {
     setSelectedPurchase(purchase)
     setIsPaymentDialogOpen(true)
-  }
+  }, [])
 
-  const handlePaymentRegistered = () => {
+  const handlePaymentRegistered = useCallback(() => {
     fetchPurchases()
     // Limpiar los detalles para que se recarguen
     setPurchaseDetails({})
-  }
+  }, [fetchPurchases])
 
   useEffect(() => {
     fetchPurchases()
-  }, [])
+  }, [fetchPurchases])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     )
   }
@@ -138,44 +146,37 @@ export function PendingPurchasesTable() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50 hover:bg-muted/50">
-                <TableHead className="w-[50px]"></TableHead>
-                <TableHead>Proveedor</TableHead>
-                <TableHead>Factura</TableHead>
-                <TableHead>Fecha</TableHead>
-                <TableHead>Vencimiento</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Pendiente</TableHead>
-                <TableHead className="w-[100px]">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <AnimatePresence>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-muted/50">
+                <TableRow>
+                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead>Proveedor</TableHead>
+                  <TableHead>Factura</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Vencimiento</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Pendiente</TableHead>
+                  <TableHead className="w-[150px]">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {purchases.map((purchase) => {
-                  const pendingAmount = Number(purchase.totalAmount) - Number(purchase.paidAmount)
+                  const pendingAmount = Number(purchase.totalAmount) - Number(purchase.paidAmount || 0)
                   const isPastDue = purchase.dueDate && new Date(purchase.dueDate) < new Date()
 
                   return (
-                    <>
-                      <motion.tr
-                        key={purchase.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.2 }}
-                        className={`relative group hover:bg-muted/50 ${
-                          isPastDue ? "bg-red-50/30 dark:bg-red-900/10" : ""
-                        }`}
+                    <React.Fragment key={purchase.id}>
+                      <TableRow
+                        className={`relative hover:bg-muted/50 ${isPastDue ? "bg-red-50/30 dark:bg-red-900/10" : ""}`}
                       >
                         <TableCell>
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => toggleExpand(purchase.id)}
-                            className="transition-transform group-hover:scale-110"
+                            className="transition-transform hover:scale-110"
                           >
                             {expanded[purchase.id] ? (
                               <ChevronDown className="h-4 w-4" />
@@ -228,33 +229,25 @@ export function PendingPurchasesTable() {
                           {formatCurrency(pendingAmount)}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleOpenPaymentDialog(purchase)}
-                            className="w-full"
-                          >
-                            <DollarSign className="h-4 w-4 mr-1" /> Pagar
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handleOpenPaymentDialog(purchase)}>
+                              <DollarSign className="h-4 w-4 mr-1" /> Pagar
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/inventario/compras/${purchase.id}`} prefetch={false}>
+                                <Eye className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          </div>
                         </TableCell>
-                      </motion.tr>
+                      </TableRow>
                       {expanded[purchase.id] && (
-                        <motion.tr
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.2 }}
-                        >
+                        <TableRow>
                           <TableCell colSpan={9}>
-                            <motion.div
-                              initial={{ opacity: 0, y: -20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0, y: 20 }}
-                              className="p-4 bg-muted/30 rounded-lg"
-                            >
+                            <div className="p-4 bg-muted/30 rounded-lg">
                               {detailsLoading[purchase.id] ? (
                                 <div className="flex items-center justify-center p-4">
-                                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                  <Loader2 className="w-6 h-6 text-primary animate-spin" />
                                 </div>
                               ) : purchaseDetails[purchase.id] ? (
                                 <div className="space-y-4">
@@ -295,7 +288,8 @@ export function PendingPurchasesTable() {
                                     </div>
                                     <div>
                                       <h4 className="text-sm font-medium mb-2">Historial de Pagos</h4>
-                                      {purchaseDetails[purchase.id].payments.length > 0 ? (
+                                      {purchaseDetails[purchase.id].payments &&
+                                      purchaseDetails[purchase.id].payments.length > 0 ? (
                                         <div className="bg-background rounded-md border overflow-hidden">
                                           <Table>
                                             <TableHeader>
@@ -348,16 +342,16 @@ export function PendingPurchasesTable() {
                                   <p className="text-muted-foreground">No se pudieron cargar los detalles</p>
                                 </div>
                               )}
-                            </motion.div>
+                            </div>
                           </TableCell>
-                        </motion.tr>
+                        </TableRow>
                       )}
-                    </>
+                    </React.Fragment>
                   )
                 })}
-              </AnimatePresence>
-            </TableBody>
-          </Table>
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -367,7 +361,7 @@ export function PendingPurchasesTable() {
           onOpenChange={setIsPaymentDialogOpen}
           purchaseId={selectedPurchase.id}
           totalAmount={Number(selectedPurchase.totalAmount)}
-          paidAmount={Number(selectedPurchase.paidAmount)}
+          paidAmount={Number(selectedPurchase.paidAmount || 0)}
           onPaymentRegistered={handlePaymentRegistered}
         />
       )}

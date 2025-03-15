@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
-import { Package, DollarSign, Percent, Tag, ShoppingBag, AlertCircle } from "lucide-react"
+import { Package, DollarSign, Percent, Tag, ShoppingBag } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import type { BundleWithItems } from "../types"
 
@@ -105,15 +105,14 @@ export function BundlesList() {
 
             <div className="space-y-1">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-muted-foreground">Costo:</span>
-                <span className="font-medium">{formatCurrency(bundle.totalCostPrice)}</span>
+                <span className="text-sm text-muted-foreground">Costo estimado:</span>
+                <span className="font-medium">{formatCurrency(bundle.totalEstimatedCost)}</span>
               </div>
 
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Ganancia:</span>
                 <span className={`font-medium ${bundle.profit < 0 ? "text-destructive" : "text-green-600"}`}>
                   {formatCurrency(bundle.profit)}
-                  {bundle.profit < 0 && <AlertCircle className="inline h-3 w-3 ml-1" />}
                 </span>
               </div>
 

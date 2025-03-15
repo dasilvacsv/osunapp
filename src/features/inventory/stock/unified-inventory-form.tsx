@@ -1,10 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { motion, AnimatePresence } from "framer-motion"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -24,18 +23,19 @@ import {
   Trash2,
   ArrowDown,
   ArrowUp,
-  Calendar,
   Upload,
+  Calendar,
   CreditCard,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { InventoryItemSelector } from "./inventory-item-selector"
 import type { InventoryItem } from "@/features/inventory/types"
 import { registerPurchase, stockIn, stockOut } from "./actions"
-import { getInventoryItems } from "../actions"
-import { Checkbox } from "@/components/ui/checkbox"
-import { DatePicker } from "@/components/ui/date-picker"
 import { FileUploader } from "@/components/file-uploader"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
 
 // Schema for stock adjustment
 const stockAdjustmentSchema = z.object({
@@ -55,8 +55,7 @@ const purchaseSchema = z.object({
   supplierName: z.string().min(1, "El nombre del proveedor es requerido"),
   notes: z.string().optional(),
   invoiceNumber: z.string().optional(),
-  isCredit: z.boolean().default(false),
-  dueDate: z.date().optional().nullable(),
+  isPaid: z.boolean().default(true),
 })
 
 type StockAdjustmentFormValues = z.infer<typeof stockAdjustmentSchema>
@@ -77,21 +76,10 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
   >([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(items || [])
-  const [isCredit, setIsCredit] = useState(false)
   const [attachments, setAttachments] = useState<File[]>([])
+  const [isPaid, setIsPaid] = useState(true)
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined)
   const { toast } = useToast()
-
-  // Refresh inventory items
-  const refreshInventory = async () => {
-    try {
-      const result = await getInventoryItems()
-      if (result.success && result.data) {
-        setInventoryItems(result.data)
-      }
-    } catch (error) {
-      console.error("Error refreshing inventory:", error)
-    }
-  }
 
   // Form for stock adjustments
   const stockForm = useForm<StockAdjustmentFormValues>({
@@ -110,8 +98,7 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
       supplierName: "",
       notes: "",
       invoiceNumber: "",
-      isCredit: false,
-      dueDate: null,
+      isPaid: true,
     },
   })
 
@@ -130,15 +117,26 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
       return
     }
 
-    // Use costPrice if available, otherwise use basePrice
-    const initialCost = item.costPrice ? Number(item.costPrice) : Number(item.basePrice) || 0
+    // Calculate cost price based on margin if available
+    let costPrice = 0
+
+    if (item.costPrice) {
+      costPrice = Number(item.costPrice)
+    } else if (item.margin) {
+      costPrice = Number(item.basePrice) / (1 + Number(item.margin))
+    } else {
+      costPrice = Number(item.basePrice) * 0.7 // Default to 70% of base price if no margin
+    }
+
+    // Format to 2 decimal places to avoid long floating point numbers
+    const formattedCostPrice = Number.parseFloat(costPrice.toFixed(2))
 
     setSelectedItems([
       ...selectedItems,
       {
         item,
         quantity: 1,
-        unitCost: initialCost,
+        unitCost: formattedCostPrice,
       },
     ])
   }
@@ -154,7 +152,9 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
 
   // Handle cost change for purchase items
   const handleCostChange = (index: number, newCost: string) => {
-    const numericValue = Number.parseFloat(newCost) || 0
+    // Parse the input and format to 2 decimal places
+    const numericValue = Number.parseFloat(Number.parseFloat(newCost || "0").toFixed(2))
+
     const newItems = [...selectedItems]
     newItems[index].unitCost = numericValue
     setSelectedItems(newItems)
@@ -190,7 +190,6 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
           description: "El stock se ha actualizado correctamente.",
         })
         stockForm.reset()
-        refreshInventory()
       } else {
         toast({
           title: "Error",
@@ -234,8 +233,8 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
       // Prepare attachments if any
       let attachmentUrls: string[] = []
       if (attachments.length > 0) {
-        // Aquí iría la lógica para subir los archivos a un servicio de almacenamiento
-        // y obtener las URLs. Por ahora, solo simulamos esto.
+        // En un entorno real, aquí subirías los archivos a un servicio de almacenamiento
+        // y obtendrías las URLs. Por ahora, solo simulamos esto.
         attachmentUrls = attachments.map((file, index) => `attachment-${index}-${file.name}`)
       }
 
@@ -243,10 +242,10 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
         supplierName: values.supplierName,
         notes: values.notes || "",
         invoiceNumber: values.invoiceNumber || "",
-        isCredit: values.isCredit,
-        dueDate: values.dueDate,
         items: itemsData,
         attachments: attachmentUrls,
+        isPaid: isPaid,
+        dueDate: !isPaid ? dueDate : undefined,
       }
 
       // Call the server action
@@ -259,9 +258,9 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
         })
         purchaseForm.reset()
         setSelectedItems([])
-        setIsCredit(false)
         setAttachments([])
-        refreshInventory()
+        setIsPaid(true)
+        setDueDate(undefined)
       } else {
         toast({
           title: "Error",
@@ -282,18 +281,6 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
   }
 
   const totalPurchaseCost = selectedItems.reduce((sum, item) => sum + item.quantity * item.unitCost, 0)
-
-  // Load inventory items on mount
-  useEffect(() => {
-    if (!items || items.length === 0) {
-      refreshInventory()
-    }
-  }, [items])
-
-  // Update form when isCredit changes
-  useEffect(() => {
-    purchaseForm.setValue("isCredit", isCredit)
-  }, [isCredit, purchaseForm])
 
   return (
     <div className="space-y-6">
@@ -352,52 +339,54 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                 />
               </div>
 
-              <div className="flex flex-col md:flex-row gap-4 items-start">
-                <div className="w-full md:w-1/2">
-                  <FormField
-                    control={purchaseForm.control}
-                    name="isCredit"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4">
-                        <FormControl>
-                          <Checkbox
-                            checked={isCredit}
-                            onCheckedChange={(checked) => {
-                              setIsCredit(!!checked)
-                              field.onChange(!!checked)
-                            }}
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel className="flex items-center gap-2">
-                            <CreditCard className="w-4 h-4" />
-                            Compra a Crédito
-                          </FormLabel>
-                          <p className="text-sm text-muted-foreground">
-                            Marcar si esta compra se pagará posteriormente
-                          </p>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <FormLabel className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4" />
+                    Tipo de Compra
+                  </FormLabel>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="isPaid"
+                      checked={isPaid}
+                      onCheckedChange={(checked) => {
+                        setIsPaid(checked === true)
+                        if (checked === true) {
+                          setDueDate(undefined)
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="isPaid"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Pago al contado
+                    </label>
+                  </div>
                 </div>
 
-                {isCredit && (
-                  <div className="w-full md:w-1/2">
-                    <FormField
-                      control={purchaseForm.control}
-                      name="dueDate"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-col">
-                          <FormLabel className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4" />
-                            Fecha de Vencimiento
-                          </FormLabel>
-                          <DatePicker date={field.value || undefined} setDate={(date) => field.onChange(date)} />
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                {!isPaid && (
+                  <div className="space-y-2">
+                    <FormLabel className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Fecha de Vencimiento
+                    </FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={`w-full justify-start text-left font-normal ${
+                            !dueDate && "text-muted-foreground"
+                          }`}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {dueDate ? format(dueDate, "PPP") : "Seleccionar fecha"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <CalendarComponent mode="single" selected={dueDate} onSelect={setDueDate} initialFocus />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 )}
               </div>
@@ -422,28 +411,27 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                 )}
               />
 
-              {isCredit && (
-                <div className="space-y-2">
-                  <FormLabel className="flex items-center gap-2">
-                    <Upload className="w-4 h-4" />
-                    Adjuntar Documentos
-                  </FormLabel>
-                  <FileUploader
-                    value={attachments}
-                    onChange={setAttachments}
-                    maxFiles={5}
-                    maxSize={5 * 1024 * 1024} // 5MB
-                    accept={{
-                      "application/pdf": [".pdf"],
-                      "image/jpeg": [".jpg", ".jpeg"],
-                      "image/png": [".png"],
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Adjunte facturas, comprobantes u otros documentos relacionados con esta compra a crédito.
-                  </p>
-                </div>
-              )}
+              <div className="space-y-2">
+                <FormLabel className="flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  Adjuntar Documentos
+                </FormLabel>
+                <FileUploader
+                  value={attachments}
+                  onChange={setAttachments}
+                  maxFiles={5}
+                  maxSize={5 * 1024 * 1024} // 5MB
+                  accept={{
+                    "application/pdf": [".pdf"],
+                    "image/jpeg": [".jpg", ".jpeg"],
+                    "image/png": [".png"],
+                  }}
+                  showPreview={true}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Adjunte facturas, comprobantes u otros documentos relacionados con esta compra.
+                </p>
+              </div>
 
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Artículos</h3>
@@ -454,104 +442,91 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                   </div>
                 </div>
 
-                <AnimatePresence>
-                  {selectedItems.length > 0 ? (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="space-y-4"
-                    >
-                      {selectedItems.map((selectedItem, index) => (
-                        <Card key={selectedItem.item.id} className="overflow-hidden">
-                          <CardContent className="p-4">
-                            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-                              <div className="flex-1">
-                                <h4 className="font-medium">{selectedItem.item.name}</h4>
-                                <p className="text-sm text-muted-foreground">SKU: {selectedItem.item.sku}</p>
-                                {selectedItem.item.costPrice && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Último costo: {formatCurrency(Number(selectedItem.item.costPrice))}
-                                  </p>
-                                )}
-                              </div>
+                {selectedItems.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedItems.map((selectedItem, index) => (
+                      <Card key={selectedItem.item.id} className="overflow-hidden">
+                        <CardContent className="p-4">
+                          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                            <div className="flex-1">
+                              <h4 className="font-medium">{selectedItem.item.name}</h4>
+                              <p className="text-sm text-muted-foreground">SKU: {selectedItem.item.sku}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Precio base: {formatCurrency(Number(selectedItem.item.basePrice))}
+                              </p>
+                            </div>
 
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  onClick={() => handleQuantityChange(index, selectedItem.quantity - 1)}
-                                >
-                                  <Minus className="h-4 w-4" />
-                                </Button>
-                                <Input
-                                  type="number"
-                                  min="1"
-                                  id={`quantity-${selectedItem.item.id}`}
-                                  name={`quantity-${selectedItem.item.id}`}
-                                  value={selectedItem.quantity}
-                                  onChange={(e) => handleQuantityChange(index, Number.parseInt(e.target.value) || 1)}
-                                  className="w-20 text-center"
-                                />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  onClick={() => handleQuantityChange(index, selectedItem.quantity + 1)}
-                                >
-                                  <Plus className="h-4 w-4" />
-                                </Button>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <DollarSign className="w-4 h-4 text-muted-foreground" />
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  id={`unitCost-${selectedItem.item.id}`}
-                                  name={`unitCost-${selectedItem.item.id}`}
-                                  value={selectedItem.unitCost}
-                                  onChange={(e) => handleCostChange(index, e.target.value)}
-                                  className="w-32"
-                                  placeholder="Costo unitario"
-                                />
-                              </div>
-
-                              <div className="text-right font-medium">
-                                {formatCurrency(selectedItem.quantity * selectedItem.unitCost)}
-                              </div>
-
+                            <div className="flex items-center gap-2">
                               <Button
                                 type="button"
-                                variant="ghost"
+                                variant="outline"
                                 size="icon"
-                                className="text-destructive"
-                                onClick={() => handleRemoveItem(index)}
+                                onClick={() => handleQuantityChange(index, selectedItem.quantity - 1)}
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <Input
+                                type="number"
+                                min="1"
+                                id={`quantity-${selectedItem.item.id}`}
+                                name={`quantity-${selectedItem.item.id}`}
+                                value={selectedItem.quantity}
+                                onChange={(e) => handleQuantityChange(index, Number.parseInt(e.target.value) || 1)}
+                                className="w-20 text-center"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => handleQuantityChange(index, selectedItem.quantity + 1)}
+                              >
+                                <Plus className="h-4 w-4" />
                               </Button>
                             </div>
-                          </CardContent>
-                        </Card>
-                      ))}
 
-                      <div className="flex justify-between pt-4 border-t">
-                        <h4 className="font-medium">Total</h4>
-                        <div className="font-bold text-lg">{formatCurrency(totalPurchaseCost)}</div>
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-muted-foreground text-center py-8"
-                    >
-                      No hay artículos seleccionados. Use el buscador para agregar productos.
-                    </motion.p>
-                  )}
-                </AnimatePresence>
+                            <div className="flex items-center gap-2">
+                              <DollarSign className="w-4 h-4 text-muted-foreground" />
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                id={`unitCost-${selectedItem.item.id}`}
+                                name={`unitCost-${selectedItem.item.id}`}
+                                value={selectedItem.unitCost}
+                                onChange={(e) => handleCostChange(index, e.target.value)}
+                                className="w-32"
+                                placeholder="Costo unitario"
+                              />
+                            </div>
+
+                            <div className="text-right font-medium">
+                              {formatCurrency(selectedItem.quantity * selectedItem.unitCost)}
+                            </div>
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive"
+                              onClick={() => handleRemoveItem(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+
+                    <div className="flex justify-between pt-4 border-t">
+                      <h4 className="font-medium">Total</h4>
+                      <div className="font-bold text-lg">{formatCurrency(totalPurchaseCost)}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-center py-8">
+                    No hay artículos seleccionados. Use el buscador para agregar productos.
+                  </p>
+                )}
               </div>
 
               <Button
@@ -567,7 +542,7 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    {isCredit ? "Registrar Compra a Crédito" : "Registrar Compra"}
+                    Registrar Compra
                   </>
                 )}
               </Button>
@@ -578,7 +553,7 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
         <TabsContent value="adjustment" className="space-y-6 pt-4">
           <Form {...stockForm}>
             <form onSubmit={stockForm.handleSubmit(handleStockAdjustment)} className="space-y-6">
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid gap-6">
+              <div className="grid gap-6">
                 <FormField
                   control={stockForm.control}
                   name="itemId"
@@ -617,12 +592,7 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                 />
 
                 {selectedAdjustmentItem && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="p-4 rounded-lg bg-muted/50"
-                  >
+                  <div className="p-4 rounded-lg bg-muted/50">
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-muted-foreground">Stock Actual:</span>
@@ -632,16 +602,14 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                         <span className="text-muted-foreground">Stock Mínimo:</span>
                         <span className="ml-2 font-medium">{selectedAdjustmentItem.minimumStock}</span>
                       </div>
-                      {selectedAdjustmentItem.costPrice && (
-                        <div>
-                          <span className="text-muted-foreground">Precio de Costo:</span>
-                          <span className="ml-2 font-medium">
-                            {formatCurrency(Number(selectedAdjustmentItem.costPrice))}
-                          </span>
-                        </div>
-                      )}
+                      <div>
+                        <span className="text-muted-foreground">Precio Base:</span>
+                        <span className="ml-2 font-medium">
+                          {formatCurrency(Number(selectedAdjustmentItem.basePrice))}
+                        </span>
+                      </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
 
                 <FormField
@@ -727,7 +695,7 @@ export function UnifiedInventoryForm({ items }: UnifiedInventoryFormProps) {
                     </FormItem>
                   )}
                 />
-              </motion.div>
+              </div>
 
               <div className="flex justify-end gap-4">
                 <Button
