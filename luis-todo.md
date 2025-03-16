@@ -11,7 +11,7 @@
   - Improve structure to handle payments and partial payments
   - Track pending payments
 
-  (Solo queda resolver lo del pago completo, para que puedas pagar exacto, colocar en la ruta de bundles, para que se pueda asignar una organizacion a un bundle en especifico y tambien, poder crear una categoria.)
+  //Solo queda resolver lo del pago completo, para que puedas pagar exacto, ya que no te deja pagar todo, y cuando lo intentas, te dice que no puede ser un valor maximo q eso., colocar en la ruta de bundles, para que se pueda asignar una organizacion a un bundle en especifico y tambien, poder crear una categoria.//
 
 ## Sales & Payment Management
 - Implement draft sales system:
@@ -35,7 +35,7 @@
   - Track conversion rates for payments
 - Add button to mark sale as vendido (true/false) (this is not for vendido exactly, just add a field vendido on sale to make it work)
 
-(Me falta hacer que calcule de usd a bs o viceverza a una tasa insertada.)
+// (Me falta hacer que calcule de usd a bs o viceverza a una tasa insertada, al igual que los productos del bundle sean calculados en ambas tasas. Y que en la tabla, muestre el valor en bs correctamente.)  Lo de --vendido-- se oculta, y el dialog de abono, necesita una correcion para que haga correctamente un fetch al saldo restante. //
 
 ## Client Management (DONE)
 - Implement payment tracking:
