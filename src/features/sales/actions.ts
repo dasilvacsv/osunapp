@@ -13,8 +13,9 @@ import {
   organizations,
   payments,
   paymentPlans,
+  dailySalesReports,
 } from "@/db/schema"
-import { and, eq, sql, or } from "drizzle-orm"
+import { and, eq, sql, or, gte, lte } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { formatCurrency } from "@/lib/utils"
 import * as XLSX from "xlsx"
@@ -157,6 +158,11 @@ export async function exportSaleToExcel(id: string, download = false) {
       items: formattedItems,
       // Add payment information if available
       ...(paymentsInfo || {}),
+      // Add new fields
+      isDraft: purchase.isDraft || false,
+      vendido: purchase.vendido || false,
+      currencyType: purchase.currencyType || "USD",
+      conversionRate: purchase.conversionRate || "1",
     }
 
     if (download) {
@@ -171,8 +177,12 @@ export async function exportSaleToExcel(id: string, download = false) {
           Estado: exportData.status,
           "Método de Pago": exportData.paymentMethod,
           "Monto Total": exportData.totalAmount,
+          Moneda: exportData.currencyType,
+          "Tasa de Cambio": exportData.conversionRate,
           Referencia: exportData.transactionReference,
           Pagado: exportData.isPaid ? "Sí" : "No",
+          Borrador: exportData.isDraft ? "Sí" : "No",
+          Vendido: exportData.vendido ? "Sí" : "No",
           "Tipo de Venta":
             exportData.saleType === "DIRECT"
               ? "Directa"
@@ -322,6 +332,10 @@ export async function createPurchase(data: {
   saleType: "DIRECT" | "PRESALE"
   transactionReference?: string
   organizationId?: string | null
+  isDraft?: boolean
+  vendido?: boolean
+  currencyType?: string
+  conversionRate?: number
 }) {
   try {
     // Calculate the total price based on items
@@ -348,7 +362,7 @@ export async function createPurchase(data: {
       .insert(purchases)
       .values({
         clientId: data.clientId,
-        beneficiarioId: data.beneficiarioId,
+        beneficiarioId: data.beneficiaryId,
         bundleId: data.bundleId,
         status: "COMPLETED",
         totalAmount: totalAmount.toString(),
@@ -360,6 +374,11 @@ export async function createPurchase(data: {
         bookingMethod: data.saleType,
         // Store saleType in paymentMetadata
         paymentMetadata: { saleType: data.saleType },
+        // Add new fields
+        isDraft: data.isDraft || false,
+        vendido: data.vendido || false,
+        currencyType: data.currencyType || "USD",
+        conversionRate: data.conversionRate ? data.conversionRate.toString() : "1",
       })
       .returning()
 
@@ -386,8 +405,8 @@ export async function createPurchase(data: {
         totalPrice: (price * item.quantity).toString(),
       })
 
-      // If not a presale, update inventory immediately
-      if (data.saleType !== "PRESALE") {
+      // If not a draft and not a presale, update inventory immediately
+      if (!data.isDraft && data.saleType !== "PRESALE") {
         // Decrease stock
         await db
           .update(inventoryItems)
@@ -405,7 +424,7 @@ export async function createPurchase(data: {
           reference: { purchaseId: purchase.id },
           notes: `Venta #${purchase.id}`,
         })
-      } else {
+      } else if (!data.isDraft && data.saleType === "PRESALE") {
         // For presales, reserve the stock
         await db
           .update(inventoryItems)
@@ -424,6 +443,7 @@ export async function createPurchase(data: {
           notes: `Pre-venta #${purchase.id}`,
         })
       }
+      // For drafts, don't update inventory
     }
 
     // If this sale is for a bundle and doesn't have a beneficiaryId but has beneficiary details, create a beneficiary
@@ -453,8 +473,8 @@ export async function createPurchase(data: {
       }
     }
 
-    // Update bundle stats if this is a bundle purchase
-    if (data.bundleId) {
+    // Update bundle stats if this is a bundle purchase and not a draft
+    if (data.bundleId && !data.isDraft) {
       await db
         .update(bundles)
         .set({
@@ -516,7 +536,7 @@ export async function createPurchase(data: {
 
 export async function getSalesData() {
   try {
-    // Modificamos la consulta para usar el metadata para saleType
+    // Modificamos la consulta para incluir los nuevos campos
     const sales = await db
       .select({
         id: purchases.id,
@@ -529,6 +549,11 @@ export async function getSalesData() {
         transactionReference: purchases.transactionReference,
         // Usamos un valor por defecto para isPaid si no existe
         isPaid: sql`COALESCE(${purchases.isPaid}, false)`,
+        // Incluir nuevos campos
+        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
+        vendido: sql`COALESCE(${purchases.vendido}, false)`,
+        currencyType: purchases.currencyType,
+        conversionRate: purchases.conversionRate,
         client: clients,
         organization: organizations,
         // Extraer el saleType del paymentMetadata
@@ -546,6 +571,44 @@ export async function getSalesData() {
   } catch (error) {
     console.error("Error al obtener datos de ventas:", error)
     return { success: false, error: "Error al obtener datos de ventas" }
+  }
+}
+
+// Get draft sales
+export async function getDraftSalesData() {
+  try {
+    const sales = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        bundleId: purchases.bundleId,
+        status: purchases.status,
+        totalAmount: purchases.totalAmount,
+        paymentMethod: purchases.paymentMethod,
+        purchaseDate: purchases.purchaseDate,
+        transactionReference: purchases.transactionReference,
+        isPaid: sql`COALESCE(${purchases.isPaid}, false)`,
+        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
+        vendido: sql`COALESCE(${purchases.vendido}, false)`,
+        currencyType: purchases.currencyType,
+        conversionRate: purchases.conversionRate,
+        client: clients,
+        organization: organizations,
+        saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .where(eq(purchases.isDraft, true))
+      .orderBy(sql`${purchases.purchaseDate} DESC`)
+
+    return {
+      success: true,
+      data: sales,
+    }
+  } catch (error) {
+    console.error("Error al obtener datos de ventas en borrador:", error)
+    return { success: false, error: "Error al obtener datos de ventas en borrador" }
   }
 }
 
@@ -582,6 +645,265 @@ export async function updatePurchaseStatus(id: string, newStatus: string) {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Error al actualizar el estado",
+    }
+  }
+}
+
+// Update sale draft status
+export async function updateSaleDraftStatus(id: string, isDraft: boolean) {
+  try {
+    const [updatedSale] = await db
+      .update(purchases)
+      .set({
+        isDraft: isDraft,
+        updatedAt: new Date(),
+      })
+      .where(eq(purchases.id, id))
+      .returning()
+
+    // If changing from draft to non-draft, update inventory
+    if (!isDraft) {
+      const purchaseItemsData = await db
+        .select({
+          itemId: purchaseItems.itemId,
+          quantity: purchaseItems.quantity,
+        })
+        .from(purchaseItems)
+        .where(eq(purchaseItems.purchaseId, id))
+
+      // Get sale type
+      const [sale] = await db
+        .select({
+          saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
+        })
+        .from(purchases)
+        .where(eq(purchases.id, id))
+
+      const saleType = sale?.saleType || "DIRECT"
+
+      // Update inventory for each item
+      for (const item of purchaseItemsData) {
+        if (saleType === "DIRECT") {
+          // Decrease stock
+          await db
+            .update(inventoryItems)
+            .set({
+              currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(inventoryItems.id, item.itemId))
+
+          // Record transaction
+          await db.insert(inventoryTransactions).values({
+            itemId: item.itemId,
+            quantity: -item.quantity,
+            transactionType: "OUT",
+            reference: { purchaseId: id },
+            notes: `Venta #${id} (aprobada)`,
+          })
+        } else if (saleType === "PRESALE") {
+          // For presales, reserve the stock
+          await db
+            .update(inventoryItems)
+            .set({
+              reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${item.quantity}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(inventoryItems.id, item.itemId))
+
+          // Record reservation transaction
+          await db.insert(inventoryTransactions).values({
+            itemId: item.itemId,
+            quantity: -item.quantity,
+            transactionType: "RESERVATION",
+            reference: { purchaseId: id },
+            notes: `Pre-venta #${id} (aprobada)`,
+          })
+        }
+      }
+    }
+
+    revalidatePath("/sales")
+    revalidatePath(`/sales/${id}`)
+
+    return {
+      success: true,
+      data: updatedSale,
+    }
+  } catch (error) {
+    console.error("Error updating draft status:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error updating draft status",
+    }
+  }
+}
+
+// Update sale vendido status
+export async function updateSaleVendidoStatus(id: string, vendido: boolean) {
+  try {
+    const [updatedSale] = await db
+      .update(purchases)
+      .set({
+        vendido: vendido,
+        updatedAt: new Date(),
+      })
+      .where(eq(purchases.id, id))
+      .returning()
+
+    revalidatePath("/sales")
+    revalidatePath(`/sales/${id}`)
+
+    return {
+      success: true,
+      data: updatedSale,
+    }
+  } catch (error) {
+    console.error("Error updating vendido status:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error updating vendido status",
+    }
+  }
+}
+
+// Update sale currency
+export async function updateSaleCurrency(id: string, currencyType: string, conversionRate: number) {
+  try {
+    const [updatedSale] = await db
+      .update(purchases)
+      .set({
+        currencyType: currencyType,
+        conversionRate: conversionRate.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(purchases.id, id))
+      .returning()
+
+    revalidatePath("/sales")
+    revalidatePath(`/sales/${id}`)
+
+    return {
+      success: true,
+      data: updatedSale,
+    }
+  } catch (error) {
+    console.error("Error updating currency:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error updating currency",
+    }
+  }
+}
+
+// Get daily sales report
+export async function getDailySalesReport(date: Date) {
+  try {
+    // Format date to YYYY-MM-DD
+    const formattedDate = date.toISOString().split("T")[0]
+    const startDate = new Date(`${formattedDate}T00:00:00.000Z`)
+    const endDate = new Date(`${formattedDate}T23:59:59.999Z`)
+
+    // Get direct sales for the day
+    const directSales = await db
+      .select({
+        totalAmount: sql`SUM(CAST(${purchases.totalAmount} AS DECIMAL))`,
+        totalUSD: sql`SUM(CASE WHEN ${purchases.currencyType} = 'USD' THEN CAST(${purchases.totalAmount} AS DECIMAL) ELSE CAST(${purchases.totalAmount} AS DECIMAL) / CAST(${purchases.conversionRate} AS DECIMAL) END)`,
+        totalBS: sql`SUM(CASE WHEN ${purchases.currencyType} = 'BS' THEN CAST(${purchases.totalAmount} AS DECIMAL) ELSE CAST(${purchases.totalAmount} AS DECIMAL) * CAST(${purchases.conversionRate} AS DECIMAL) END)`,
+        count: sql`COUNT(*)`,
+      })
+      .from(purchases)
+      .where(
+        and(
+          gte(purchases.purchaseDate, startDate),
+          lte(purchases.purchaseDate, endDate),
+          eq(purchases.isDraft, false),
+          eq(sql`(${purchases.paymentMetadata}->>'saleType')::text`, "DIRECT"),
+        ),
+      )
+
+    // Get payments for the day
+    const paymentsData = await db
+      .select({
+        totalAmount: sql`SUM(CAST(${payments.amount} AS DECIMAL))`,
+        totalUSD: sql`SUM(CASE WHEN ${payments.currencyType} = 'USD' THEN CAST(${payments.amount} AS DECIMAL) ELSE CAST(${payments.amount} AS DECIMAL) / CAST(${payments.conversionRate} AS DECIMAL) END)`,
+        totalBS: sql`SUM(CASE WHEN ${payments.currencyType} = 'BS' THEN CAST(${payments.amount} AS DECIMAL) ELSE CAST(${payments.amount} AS DECIMAL) * CAST(${payments.conversionRate} AS DECIMAL) END)`,
+        count: sql`COUNT(*)`,
+      })
+      .from(payments)
+      .where(and(gte(payments.paymentDate, startDate), lte(payments.paymentDate, endDate), eq(payments.status, "PAID")))
+
+    // Check if a report already exists for this date
+    const existingReport = await db
+      .select()
+      .from(dailySalesReports)
+      .where(eq(dailySalesReports.date, startDate))
+      .limit(1)
+
+    let report
+
+    if (existingReport.length > 0) {
+      // Update existing report
+      ;[report] = await db
+        .update(dailySalesReports)
+        .set({
+          totalDirectSales: directSales[0]?.totalAmount?.toString() || "0",
+          totalPayments: paymentsData[0]?.totalAmount?.toString() || "0",
+          totalSalesUSD: directSales[0]?.totalUSD?.toString() || "0",
+          totalSalesBS: directSales[0]?.totalBS?.toString() || "0",
+          updatedAt: new Date(),
+          metadata: {
+            directSalesCount: directSales[0]?.count || 0,
+            paymentsCount: paymentsData[0]?.count || 0,
+            paymentsUSD: paymentsData[0]?.totalUSD || 0,
+            paymentsBS: paymentsData[0]?.totalBS || 0,
+          },
+        })
+        .where(eq(dailySalesReports.id, existingReport[0].id))
+        .returning()
+    } else {
+      // Create new report
+      ;[report] = await db
+        .insert(dailySalesReports)
+        .values({
+          date: startDate,
+          totalDirectSales: directSales[0]?.totalAmount?.toString() || "0",
+          totalPayments: paymentsData[0]?.totalAmount?.toString() || "0",
+          totalSalesUSD: directSales[0]?.totalUSD?.toString() || "0",
+          totalSalesBS: directSales[0]?.totalBS?.toString() || "0",
+          metadata: {
+            directSalesCount: directSales[0]?.count || 0,
+            paymentsCount: paymentsData[0]?.count || 0,
+            paymentsUSD: paymentsData[0]?.totalUSD || 0,
+            paymentsBS: paymentsData[0]?.totalBS || 0,
+          },
+        })
+        .returning()
+    }
+
+    return {
+      success: true,
+      data: {
+        report,
+        directSales: {
+          total: directSales[0]?.totalAmount || 0,
+          totalUSD: directSales[0]?.totalUSD || 0,
+          totalBS: directSales[0]?.totalBS || 0,
+          count: directSales[0]?.count || 0,
+        },
+        payments: {
+          total: paymentsData[0]?.totalAmount || 0,
+          totalUSD: paymentsData[0]?.totalUSD || 0,
+          totalBS: paymentsData[0]?.totalBS || 0,
+          count: paymentsData[0]?.count || 0,
+        },
+      },
+    }
+  } catch (error) {
+    console.error("Error generating daily sales report:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error generating daily sales report",
     }
   }
 }

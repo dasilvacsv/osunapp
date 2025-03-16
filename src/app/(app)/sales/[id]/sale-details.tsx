@@ -24,19 +24,32 @@ import {
   Phone,
   Mail,
   Building2,
-  CreditCard as CreditCardIcon,
+  CreditCardIcon,
   CalendarRange,
   ChevronRight,
   DollarSign,
   Truck,
+  FilePenLine,
+  FileCheck,
+  Coins,
 } from "lucide-react"
-import { updatePurchaseStatus } from "@/features/sales/actions"
+import {
+  updatePurchaseStatus,
+  updateSaleDraftStatus,
+  updateSaleVendidoStatus,
+  updateSaleCurrency,
+} from "@/features/sales/actions"
 import { useToast } from "@/hooks/use-toast"
 import { StatusTimeline } from "@/features/sales/status-timeline"
 import { PaymentsTable } from "@/features/sales/views/plan/payments-table"
 import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
-import { getPaymentsByPurchase, getPaymentPlan } from "@/features/sales/views/plan/payment-actions"
+import { PartialPaymentDialog } from "@/features/sales/views/partial-payment-dialog"
+import { getPaymentsByPurchase, getPaymentPlan, getRemainingBalance } from "@/features/sales/views/payment-actions"
 import { ExportSaleButton } from "@/features/sales/views/export/export-sale-button"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 const statusLabels = {
   PENDING: "Pendiente",
@@ -112,20 +125,27 @@ export function SaleDetails({ sale }: { sale: any }) {
   const [payments, setPayments] = useState<any[]>([])
   const [paymentPlan, setPaymentPlan] = useState<any>(null)
   const [showPaymentPlanDialog, setShowPaymentPlanDialog] = useState(false)
+  const [showPartialPaymentDialog, setShowPartialPaymentDialog] = useState(false)
   const [isLoadingPayments, setIsLoadingPayments] = useState(false)
+  const [isDraft, setIsDraft] = useState(sale.isDraft || false)
+  const [isUpdatingDraft, setIsUpdatingDraft] = useState(false)
+  const [vendido, setVendido] = useState(sale.vendido || false)
+  const [isUpdatingVendido, setIsUpdatingVendido] = useState(false)
+  const [currencyType, setCurrencyType] = useState(sale.currencyType || "USD")
+  const [conversionRate, setConversionRate] = useState(sale.conversionRate || "1")
+  const [isUpdatingCurrency, setIsUpdatingCurrency] = useState(false)
+  const [remainingBalance, setRemainingBalance] = useState<any>(null)
 
   useEffect(() => {
     fetchPayments()
+    fetchRemainingBalance()
   }, [])
 
   const fetchPayments = async () => {
     setIsLoadingPayments(true)
     try {
-      const [paymentsResult, planResult] = await Promise.all([
-        getPaymentsByPurchase(sale.id),
-        getPaymentPlan(sale.id),
-      ])
-      
+      const [paymentsResult, planResult] = await Promise.all([getPaymentsByPurchase(sale.id), getPaymentPlan(sale.id)])
+
       if (paymentsResult.success) {
         setPayments(paymentsResult.data || [])
       }
@@ -136,6 +156,17 @@ export function SaleDetails({ sale }: { sale: any }) {
       console.error("Error fetching payments:", error)
     } finally {
       setIsLoadingPayments(false)
+    }
+  }
+
+  const fetchRemainingBalance = async () => {
+    try {
+      const result = await getRemainingBalance(sale.id)
+      if (result.success) {
+        setRemainingBalance(result.data)
+      }
+    } catch (error) {
+      console.error("Error fetching remaining balance:", error)
     }
   }
 
@@ -182,6 +213,93 @@ export function SaleDetails({ sale }: { sale: any }) {
     })
   }
 
+  const handleDraftChange = async (checked: boolean) => {
+    try {
+      setIsUpdatingDraft(true)
+      const result = await updateSaleDraftStatus(sale.id, checked)
+
+      if (result.success) {
+        setIsDraft(checked)
+        toast({
+          title: checked ? "Venta marcada como borrador" : "Venta aprobada",
+          description: checked
+            ? "La venta ha sido marcada como borrador"
+            : "La venta ha sido aprobada y ya no es un borrador",
+          className: checked
+            ? "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800"
+            : "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+        })
+      } else {
+        throw new Error(result.error || "Error al actualizar el estado de borrador")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      })
+      // Revert the switch if there was an error
+      setIsDraft(!checked)
+    } finally {
+      setIsUpdatingDraft(false)
+    }
+  }
+
+  const handleVendidoChange = async (checked: boolean) => {
+    try {
+      setIsUpdatingVendido(true)
+      const result = await updateSaleVendidoStatus(sale.id, checked)
+
+      if (result.success) {
+        setVendido(checked)
+        toast({
+          title: checked ? "Venta marcada como vendida" : "Venta desmarcada",
+          description: checked ? "La venta ha sido marcada como vendida" : "La venta ha sido desmarcada como vendida",
+          className: checked
+            ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+            : "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800",
+        })
+      } else {
+        throw new Error(result.error || "Error al actualizar el estado de vendido")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      })
+      // Revert the switch if there was an error
+      setVendido(!checked)
+    } finally {
+      setIsUpdatingVendido(false)
+    }
+  }
+
+  const handleCurrencyUpdate = async () => {
+    try {
+      setIsUpdatingCurrency(true)
+      const result = await updateSaleCurrency(sale.id, currencyType, Number(conversionRate))
+
+      if (result.success) {
+        toast({
+          title: "Moneda actualizada",
+          description: `La moneda ha sido actualizada a ${currencyType} con tasa de ${conversionRate}`,
+          className: "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800",
+        })
+      } else {
+        throw new Error(result.error || "Error al actualizar la moneda")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdatingCurrency(false)
+    }
+  }
+
   const PaymentMethodIcon = paymentMethodIcons[sale.paymentMethod as keyof typeof paymentMethodIcons] || CreditCardIcon
   const SaleTypeIcon = saleTypeIcons[sale.saleType as keyof typeof saleTypeIcons] || Package
   const StatusIcon = statusIcons[currentStatus as keyof typeof statusIcons]
@@ -205,8 +323,17 @@ export function SaleDetails({ sale }: { sale: any }) {
 
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div className="flex flex-col gap-2">
-              <h1 className="text-4xl font-bold tracking-tight">
+              <h1 className="text-4xl font-bold tracking-tight flex items-center gap-2">
                 Venta #{sale.id.slice(0, 8)}
+                {isDraft && (
+                  <Badge
+                    variant="outline"
+                    className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 ml-2"
+                  >
+                    <FilePenLine className="h-3.5 w-3.5 mr-1" />
+                    Borrador
+                  </Badge>
+                )}
               </h1>
               <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
                 <Calendar className="h-4 w-4" />
@@ -237,6 +364,102 @@ export function SaleDetails({ sale }: { sale: any }) {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="xl:col-span-2 space-y-8">
+            {/* Draft and Vendido Status */}
+            <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+              <div className="p-6">
+                <h2 className="text-lg font-semibold mb-4">Estado de la Venta</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FilePenLine className="h-5 w-5 text-amber-500" />
+                      <div>
+                        <p className="font-medium">Borrador</p>
+                        <p className="text-sm text-muted-foreground">Marcar como borrador pendiente de aprobación</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <Switch
+                        checked={isDraft}
+                        onCheckedChange={handleDraftChange}
+                        disabled={isUpdatingDraft}
+                        className={cn(isDraft ? "bg-amber-500" : "bg-gray-200 dark:bg-gray-700")}
+                      />
+                      {isUpdatingDraft && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileCheck className="h-5 w-5 text-green-500" />
+                      <div>
+                        <p className="font-medium">Vendido</p>
+                        <p className="text-sm text-muted-foreground">Marcar esta venta como vendida</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <Switch
+                        checked={vendido}
+                        onCheckedChange={handleVendidoChange}
+                        disabled={isUpdatingVendido}
+                        className={cn(vendido ? "bg-green-500" : "bg-gray-200 dark:bg-gray-700")}
+                      />
+                      {isUpdatingVendido && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Currency Settings */}
+            <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+              <div className="p-6">
+                <h2 className="text-lg font-semibold mb-4">Configuración de Moneda</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="currencyType">Moneda</Label>
+                    <Select value={currencyType} onValueChange={setCurrencyType}>
+                      <SelectTrigger id="currencyType">
+                        <SelectValue placeholder="Seleccionar moneda" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="BS">BS</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="conversionRate">Tasa de cambio</Label>
+                    <Input
+                      id="conversionRate"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={conversionRate}
+                      onChange={(e) => setConversionRate(e.target.value)}
+                      placeholder="Tasa BS/USD"
+                    />
+                  </div>
+
+                  <div className="col-span-1 md:col-span-2">
+                    <Button onClick={handleCurrencyUpdate} disabled={isUpdatingCurrency} className="w-full">
+                      {isUpdatingCurrency ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Actualizando...
+                        </>
+                      ) : (
+                        <>
+                          <Coins className="mr-2 h-4 w-4" />
+                          Actualizar Moneda
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
             {/* Status Timeline */}
             <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
               <div className="p-6">
@@ -301,9 +524,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                             <Package className="h-8 w-8 text-gray-400 dark:text-gray-500" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-medium truncate">
-                              {item.inventoryItem?.name || "Producto eliminado"}
-                            </h3>
+                            <h3 className="font-medium truncate">{item.inventoryItem?.name || "Producto eliminado"}</h3>
                             <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
                               <span>{item.quantity} unidades</span>
                               <span>•</span>
@@ -320,9 +541,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className="font-semibold">
-                              {formatCurrency(item.totalPrice)}
-                            </span>
+                            <span className="font-semibold">{formatCurrency(item.totalPrice)}</span>
                           </div>
                         </div>
                       </motion.div>
@@ -335,29 +554,61 @@ export function SaleDetails({ sale }: { sale: any }) {
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-gray-400">Total</span>
                   <span className="text-2xl font-bold">
-                    {formatCurrency(sale.totalAmount)}
+                    {formatCurrency(sale.totalAmount)} {sale.currencyType || "USD"}
                   </span>
                 </div>
               </div>
             </Card>
 
             {/* Payments */}
-            {(payments.length > 0 || sale.saleType === "PRESALE") && (
+            {(payments.length > 0 || sale.saleType === "PRESALE" || remainingBalance) && (
               <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
                 <div className="p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold">Pagos</h2>
-                    {paymentPlan && (
-                      <Badge variant="outline" className="px-3 py-1.5">
-                        Plan: {paymentPlan.installmentCount} cuotas{" "}
-                        {paymentPlan.installmentFrequency === "WEEKLY"
-                          ? "semanales"
-                          : paymentPlan.installmentFrequency === "BIWEEKLY"
-                            ? "quincenales"
-                            : "mensuales"}
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {paymentPlan && (
+                        <Badge variant="outline" className="px-3 py-1.5">
+                          Plan: {paymentPlan.installmentCount} cuotas{" "}
+                          {paymentPlan.installmentFrequency === "WEEKLY"
+                            ? "semanales"
+                            : paymentPlan.installmentFrequency === "BIWEEKLY"
+                              ? "quincenales"
+                              : "mensuales"}
+                        </Badge>
+                      )}
+
+                      {remainingBalance && remainingBalance.remainingAmount > 0 && (
+                        <Button variant="outline" size="sm" onClick={() => setShowPartialPaymentDialog(true)}>
+                          <Coins className="mr-2 h-4 w-4" />
+                          Registrar Abono
+                        </Button>
+                      )}
+                    </div>
                   </div>
+
+                  {remainingBalance && (
+                    <div className="bg-muted/30 p-4 rounded-lg mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total</p>
+                        <p className="text-lg font-bold">
+                          {formatCurrency(remainingBalance.totalAmount)} {remainingBalance.currencyType}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Pagado</p>
+                        <p className="text-lg font-bold">
+                          {formatCurrency(remainingBalance.totalPaid)} {remainingBalance.currencyType}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Pendiente</p>
+                        <p className="text-lg font-bold">
+                          {formatCurrency(remainingBalance.remainingAmount)} {remainingBalance.currencyType}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {isLoadingPayments ? (
                     <div className="flex justify-center items-center py-8">
@@ -372,10 +623,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                   <>
                     <Separator />
                     <div className="p-6 bg-gray-50/50 dark:bg-gray-950/50">
-                      <Button
-                        onClick={() => setShowPaymentPlanDialog(true)}
-                        className="w-full"
-                      >
+                      <Button onClick={() => setShowPaymentPlanDialog(true)} className="w-full">
                         <CreditCardIcon className="h-4 w-4 mr-2" />
                         Crear Plan de Pago
                       </Button>
@@ -398,12 +646,8 @@ export function SaleDetails({ sale }: { sale: any }) {
                       <User className="h-6 w-6 text-gray-500 dark:text-gray-400" />
                     </div>
                     <div>
-                      <p className="font-medium">
-                        {sale.client?.name || "Cliente no registrado"}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {sale.client?.document}
-                      </p>
+                      <p className="font-medium">{sale.client?.name || "Cliente no registrado"}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{sale.client?.document}</p>
                     </div>
                   </div>
 
@@ -491,9 +735,7 @@ export function SaleDetails({ sale }: { sale: any }) {
 
                   {sale.transactionReference && (
                     <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                        Referencia de pago
-                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Referencia de pago</p>
                       <code className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-sm">
                         {sale.transactionReference}
                       </code>
@@ -509,9 +751,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                     <div className="flex items-start gap-3 mb-4">
                       <AlertCircle className="h-5 w-5 text-amber-500 dark:text-amber-400 shrink-0" />
                       <div>
-                        <p className="font-medium text-amber-700 dark:text-amber-300">
-                          Sin plan de pago
-                        </p>
+                        <p className="font-medium text-amber-700 dark:text-amber-300">Sin plan de pago</p>
                         <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
                           Esta preventa requiere un plan de pago para gestionar los pagos a plazos.
                         </p>
@@ -538,8 +778,23 @@ export function SaleDetails({ sale }: { sale: any }) {
         onOpenChange={setShowPaymentPlanDialog}
         purchaseId={sale.id}
         totalAmount={Number.parseFloat(sale.totalAmount)}
-        onSuccess={fetchPayments}
+        onSuccess={() => {
+          fetchPayments()
+          fetchRemainingBalance()
+        }}
+      />
+
+      {/* Partial Payment Dialog */}
+      <PartialPaymentDialog
+        open={showPartialPaymentDialog}
+        onOpenChange={setShowPartialPaymentDialog}
+        purchaseId={sale.id}
+        onSuccess={() => {
+          fetchPayments()
+          fetchRemainingBalance()
+        }}
       />
     </div>
   )
 }
+

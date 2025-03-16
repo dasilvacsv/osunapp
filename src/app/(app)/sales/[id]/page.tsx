@@ -1,16 +1,23 @@
-import { getPurchaseDetails } from '@/features/sales/actions'
-import { SaleDetails } from './sale-details'
+import { notFound } from "next/navigation"
+import { SaleDetails } from "./sale-details"
+import { getPurchaseById } from "@/features/sales/views/actions"
 
-export default async function SaleDetailPage({
-  params
-}: {
-  params: { id: string }
-}) {
-  const result = await getPurchaseDetails(params.id)
-  
+interface SalePageProps {
+  params: {
+    id: string
+  }
+}
+
+export default async function SalePage({ params }: SalePageProps) {
+  const { id } = params
+
+  // Fetch sale data
+  const result = await getPurchaseById(id)
+
   if (!result.success || !result.data) {
-    return <div className="p-6 text-red-500">Venta no encontrada</div>
+    notFound()
   }
 
   return <SaleDetails sale={result.data} />
 }
+

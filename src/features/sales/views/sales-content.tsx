@@ -3,21 +3,21 @@
 import { DataTable } from "@/features/sales/views/data-table"
 import { columns } from "@/features/sales/views/columns"
 import { Button } from "@/components/ui/button"
-import { PlusIcon, RefreshCw, ShoppingCart, CreditCard } from "lucide-react"
+import { PlusIcon, RefreshCw, ShoppingCart, CreditCard, FileText, Calendar } from "lucide-react"
 import { DeletePackageDialog } from "@/features/sales/delete-package-dialog"
 import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { PaymentTable } from "@/features/sales/views/payment-table"
 import { useCallback, useState } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
-import { getSalesData2 } from "@/features/sales/views/actions"
+import { getSalesData2, getDraftSalesData } from "@/features/sales/views/actions"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { DailySalesReport } from "@/features/sales/views/daily-sales-report"
 
 export default function SalesPageContent({ initialSales }: { initialSales: any[] }) {
-  console.log(initialSales);
-  
   const [sales, setSales] = useState<any[]>(initialSales)
+  const [draftSales, setDraftSales] = useState<any[]>([])
   const [showDialog, setShowDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showPaymentPlanDialog, setShowPaymentPlanDialog] = useState(false)
@@ -33,10 +33,11 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
   const refreshSales = useCallback(async () => {
     setIsRefreshing(true)
     try {
-      const result = await getSalesData2()
-      if (result.success && result.data) {
+      const [salesResult, draftResult] = await Promise.all([getSalesData2(), getDraftSalesData()])
+
+      if (salesResult.success && salesResult.data) {
         // Transform the data to match the expected format for the table
-        const formattedSales = result.data.map((sale: any) => ({
+        const formattedSales = salesResult.data.map((sale: any) => ({
           ...sale,
           // Ensure the client object has the expected structure
           client: sale.client,
@@ -58,14 +59,30 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
         }))
 
         setSales(formattedSales)
-        toast({
-          title: "Datos actualizados",
-          description: "La lista de ventas ha sido actualizada",
-          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
-        })
-      } else {
-        throw new Error(result.error || "No se pudieron cargar los datos")
       }
+
+      if (draftResult.success && draftResult.data) {
+        const formattedDrafts = draftResult.data.map((sale: any) => ({
+          ...sale,
+          client: sale.client,
+          beneficiario: sale.beneficiario,
+          bundleName: sale.bundle?.name || "N/A",
+          organization: sale.organization,
+          totalAmount: typeof sale.totalAmount === "string" ? Number.parseFloat(sale.totalAmount) : sale.totalAmount,
+          purchaseDate: sale.purchaseDate ? new Date(sale.purchaseDate) : null,
+          payments: sale.payments || [],
+          paymentPlans: sale.paymentPlans || [],
+          items: sale.items || [],
+        }))
+
+        setDraftSales(formattedDrafts)
+      }
+
+      toast({
+        title: "Datos actualizados",
+        description: "La lista de ventas ha sido actualizada",
+        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+      })
     } catch (error) {
       toast({
         title: "Error",
@@ -123,9 +140,17 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
               <ShoppingCart className="h-4 w-4" />
               Ventas
             </TabsTrigger>
+            <TabsTrigger value="drafts" className="flex items-center gap-2 px-6 py-2">
+              <FileText className="h-4 w-4" />
+              Borradores
+            </TabsTrigger>
             <TabsTrigger value="payments" className="flex items-center gap-2 px-6 py-2">
               <CreditCard className="h-4 w-4" />
               Pagos
+            </TabsTrigger>
+            <TabsTrigger value="reports" className="flex items-center gap-2 px-6 py-2">
+              <Calendar className="h-4 w-4" />
+              Cierre Diario
             </TabsTrigger>
           </TabsList>
           <Button onClick={() => router.push("/sales/new")} className="group pl-4">
@@ -137,6 +162,19 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
         <TabsContent value="sales" className="space-y-6">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <DataTable columns={columns} data={sales} searchKey="client.name" onSaleSelect={handleSaleSelect} />
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="drafts" className="space-y-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <DataTable
+              columns={columns}
+              data={draftSales}
+              searchKey="client.name"
+              onSaleSelect={handleSaleSelect}
+              title="Borradores de Ventas"
+              description="Ventas en estado de borrador pendientes de aprobación"
+            />
           </motion.div>
         </TabsContent>
 
@@ -155,6 +193,12 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
           ) : (
             <div className="text-center py-12 text-muted-foreground">Selecciona una venta para ver sus pagos</div>
           )}
+        </TabsContent>
+
+        <TabsContent value="reports" className="space-y-6">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <DailySalesReport />
+          </motion.div>
         </TabsContent>
       </Tabs>
 

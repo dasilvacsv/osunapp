@@ -1,306 +1,357 @@
-// app/actions/clients.ts
 "use server"
-import { db } from "@/db";
-import { and, eq, sql, inArray, SQL } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { 
-  clients, 
-  organizations, 
-  beneficiarios, 
-  purchases, 
-  purchaseItems,
-  organizationMembers,
+
+import { db } from "@/db"
+import {
+  clients,
+  organizations,
+  inventoryItems,
   bundles,
-  inventoryItems
-} from "@/db/schema";
+  bundleItems,
+  beneficiarios,
+  purchases,
+  purchaseItems,
+  payments,
+  organizationMembers,
+} from "@/db/schema"
+import { eq, and, or, isNull, inArray } from "drizzle-orm"
+import { revalidatePath } from "next/cache"
 
-export type ClientFormData = {
-  name: string;
-  document?: string;
-  phone?: string;
-  whatsapp?: string;
-  contactInfo: {
-    email: string;
-    phone?: string;
-  };
-  organizationId?: string;
-  role: "PARENT" | "EMPLOYEE" | "INDIVIDUAL";
-  status?: "ACTIVE" | "INACTIVE";
-};
-
-export type DetailedClientResponse = {
-  client: typeof clients.$inferSelect;
-  organization?: typeof organizations.$inferSelect;
-  children?: (typeof beneficiarios.$inferSelect)[];
-  purchases?: {
-    purchase: typeof purchases.$inferSelect;
-    items: {
-      item: typeof purchaseItems.$inferSelect;
-      inventoryItem: typeof inventoryItems.$inferSelect;
-    }[];
-    bundle?: typeof bundles.$inferSelect;
-  }[];
-  organizationMemberships?: {
-    membership: typeof organizationMembers.$inferSelect;
-    organization: typeof organizations.$inferSelect;
-  }[];
+// Define types for our nested data structures
+type OrganizationMembership = {
+  membership: typeof organizationMembers.$inferSelect;
+  organization: typeof organizations.$inferSelect;
 }
 
-export type OrganizationFormData = {
-  name: string;
-  type: "SCHOOL" | "COMPANY" | "OTHER";
-  address?: string;
-  contactInfo: {
-    phone?: string;
-    email?: string;
-  };
-};
+type PurchaseWithDetails = {
+  purchase: typeof purchases.$inferSelect;
+  items: {
+    item: typeof purchaseItems.$inferSelect;
+    inventoryItem: typeof inventoryItems.$inferSelect;
+  }[];
+  bundle?: typeof bundles.$inferSelect;
+}
 
-export type BeneficiaryFormData = {
-  name: string;
-  clientId: string;
-  organizationId?: string;
-  grade?: string;
-  section?: string;
-  firstName?: string;
-  lastName?: string;
-  school?: string;
-  level?: string;
-  bundleId?: string;
-  status?: "ACTIVE" | "INACTIVE";
-};
-
-export async function getClients(organizationId?: string) {
+// Get all clients with related data
+export async function getClients() {
   try {
-    // Prepare the conditions
-    const conditions: SQL[] = [];
-    if (organizationId) {
-      conditions.push(eq(clients.organizationId, organizationId));
+    // Get all active clients
+    const clientsData = await db.select().from(clients).where(eq(clients.status, "ACTIVE"))
+    
+    if (clientsData.length === 0) {
+      return {
+        success: true,
+        data: [],
+      }
     }
+
+    const clientIds = clientsData.map(client => client.id)
     
-    // Get all clients with the condition if specified
-    const clientsData = await db.select().from(clients)
-      .where(conditions.length > 0 ? and(...conditions) : undefined);
-    
-    const clientIds = clientsData.map(client => client.id);
-    
-    // If no clients found, return early
-    if (clientIds.length === 0) {
-      return { data: [] };
-    }
-    
-    // Get organizations for these clients that have an organization
+    // Get organizations for these clients
     const organizationIds = clientsData
       .filter(c => c.organizationId)
-      .map(c => c.organizationId as string);
-      
-    const organizations_data = organizationIds.length > 0 
+      .map(c => c.organizationId as string)
+    
+    const organizationsData = organizationIds.length > 0
       ? await db.select().from(organizations)
           .where(inArray(organizations.id, organizationIds))
-      : [];
+      : []
     
-    // Get beneficiarios for these clients
-    const beneficiarios_data = await db.select().from(beneficiarios)
-      .where(inArray(beneficiarios.clientId, clientIds));
+    // Get beneficiaries for these clients
+    const beneficiariesData = await db.select().from(beneficiarios)
+      .where(inArray(beneficiarios.clientId, clientIds))
     
-    // Map organizations and beneficiarios to clients
+    // Map organizations and beneficiaries to clients
     const result = clientsData.map(client => {
-      // Find the organization for this client
-      const organization = client.organizationId 
-        ? organizations_data.find(org => org.id === client.organizationId) 
-        : undefined;
+      const organization = client.organizationId
+        ? organizationsData.find(org => org.id === client.organizationId)
+        : undefined
       
-      // Find all beneficiarios for this client
-      const clientBeneficiarios = beneficiarios_data.filter(ben => ben.clientId === client.id);
+      const clientBeneficiaries = beneficiariesData.filter(ben => ben.clientId === client.id)
       
       return {
         ...client,
         organization,
-        beneficiarios: clientBeneficiarios
-      };
-    });
-    
-    return { data: result };
+        beneficiaries: clientBeneficiaries,
+      }
+    })
+
+    return {
+      success: true,
+      data: result,
+    }
   } catch (error) {
-    console.error("Error fetching clients:", error);
-    return { error: "Failed to fetch clients" };
+    console.error("Error fetching clients:", error)
+    return {
+      success: false,
+      error: "Failed to fetch clients",
+    }
+  }
+}
+
+// Get detailed client information
+export async function getClientDetail(clientId: string) {
+  try {
+    // Get client
+    const clientResult = await db.select().from(clients)
+      .where(eq(clients.id, clientId))
+    
+    if (!clientResult || clientResult.length === 0) {
+      return {
+        success: false,
+        error: "Client not found",
+      }
+    }
+    
+    const client = clientResult[0]
+    
+    // Get organization if it exists
+    let organization: typeof organizations.$inferSelect | undefined
+    if (client.organizationId) {
+      const orgResult = await db.select().from(organizations)
+        .where(eq(organizations.id, client.organizationId))
+      organization = orgResult.length > 0 ? orgResult[0] : undefined
+    }
+    
+    // Get beneficiaries
+    const beneficiariesData = await db.select().from(beneficiarios)
+      .where(eq(beneficiarios.clientId, clientId))
+    
+    // Get organization memberships
+    const memberships = await db.select().from(organizationMembers)
+      .where(eq(organizationMembers.clientId, clientId))
+    
+    let organizationMemberships: OrganizationMembership[] = []
+    if (memberships.length > 0) {
+      const membershipOrgIds = memberships.map(m => m.organizationId)
+      const membershipOrgs = await db.select().from(organizations)
+        .where(inArray(organizations.id, membershipOrgIds))
+      
+      organizationMemberships = memberships.map(membership => {
+        const org = membershipOrgs.find(o => o.id === membership.organizationId)
+        return org ? { membership, organization: org } : null
+      }).filter((item): item is OrganizationMembership => item !== null)
+    }
+    
+    // Get purchases with items and bundles
+    const purchasesData = await db.select().from(purchases)
+      .where(eq(purchases.clientId, clientId))
+    
+    let clientPurchases: PurchaseWithDetails[] = []
+    if (purchasesData.length > 0) {
+      const purchaseIds = purchasesData.map(p => p.id)
+      const bundleIds = purchasesData
+        .filter(p => p.bundleId)
+        .map(p => p.bundleId as string)
+      
+      // Get bundles
+      const bundlesData = bundleIds.length > 0
+        ? await db.select().from(bundles).where(inArray(bundles.id, bundleIds))
+        : []
+      
+      // Get purchase items with inventory items
+      const purchaseItemsData = await db.select().from(purchaseItems)
+        .where(inArray(purchaseItems.purchaseId, purchaseIds))
+      
+      const inventoryItemIds = purchaseItemsData.map(pi => pi.itemId)
+      const inventoryItemsData = await db.select().from(inventoryItems)
+        .where(inArray(inventoryItems.id, inventoryItemIds))
+      
+      clientPurchases = purchasesData.map(purchase => {
+        const bundle = purchase.bundleId
+          ? bundlesData.find(b => b.id === purchase.bundleId)
+          : undefined
+        
+        const items = purchaseItemsData
+          .filter(pi => pi.purchaseId === purchase.id)
+          .map(item => {
+            const inventoryItem = inventoryItemsData.find(ii => ii.id === item.itemId)
+            return inventoryItem ? { item, inventoryItem } : null
+          })
+          .filter((item): item is { item: typeof purchaseItems.$inferSelect; inventoryItem: typeof inventoryItems.$inferSelect } => item !== null)
+        
+        return {
+          purchase,
+          items,
+          bundle,
+        }
+      })
+    }
+
+    return {
+      success: true,
+      data: {
+        client,
+        organization,
+        children: beneficiariesData,
+        organizationMemberships,
+        purchases: clientPurchases,
+      },
+    }
+  } catch (error) {
+    console.error("Error fetching client detail:", error)
+    return {
+      success: false,
+      error: "Failed to fetch client detail",
+    }
   }
 }
 
 export async function getOrganizations() {
   try {
-    const data = await db.select().from(organizations)
-      .where(eq(organizations.status, "ACTIVE"));
-    return { data };
+    const result = await db.select().from(organizations).where(eq(organizations.status, "ACTIVE"))
+
+    return {
+      success: true,
+      data: result,
+    }
   } catch (error) {
-    return { error: "Failed to fetch organizations" };
+    console.error("Error fetching organizations:", error)
+    return {
+      success: false,
+      error: "Failed to fetch organizations",
+    }
   }
 }
 
-export async function getClientDetail(clientId: string): Promise<{data?: DetailedClientResponse, error?: string}> {
+export async function getProducts() {
   try {
-    // Get client
-    const clientResult = await db.select().from(clients)
-      .where(eq(clients.id, clientId));
-    
-    if (!clientResult || clientResult.length === 0) {
-      return { error: "Client not found" };
-    }
-    
-    const client = clientResult[0];
-    
-    // Get organization if it exists
-    let organization: typeof organizations.$inferSelect | undefined;
-    if (client.organizationId) {
-      const orgResult = await db.select().from(organizations)
-        .where(eq(organizations.id, client.organizationId));
-      organization = orgResult.length > 0 ? orgResult[0] : undefined;
-    }
-    
-    // Get beneficiarios
-    const beneficiariosData = await db.select().from(beneficiarios)
-      .where(eq(beneficiarios.clientId, clientId));
-    
-    // Get memberships with their organizations
-    const membershipRows = await db.select().from(organizationMembers)
-      .where(eq(organizationMembers.clientId, clientId));
-    
-    let organizationMemberships: {
-      membership: typeof organizationMembers.$inferSelect;
-      organization: typeof organizations.$inferSelect;
-    }[] = [];
-    
-    if (membershipRows.length > 0) {
-      const membershipOrgIds = membershipRows.map(m => m.organizationId);
-      const membershipOrgs = await db.select().from(organizations)
-        .where(inArray(organizations.id, membershipOrgIds));
-      
-      organizationMemberships = membershipRows.map(membership => {
-        const org = membershipOrgs.find(o => o.id === membership.organizationId);
-        if (!org) return null;
-        return {
-          membership,
-          organization: org
-        };
-      }).filter((item): item is NonNullable<typeof item> => item !== null);
-    }
-    
-    // Get purchases
-    const purchasesRows = await db.select().from(purchases)
-      .where(eq(purchases.clientId, clientId));
-    
-    let clientPurchases: {
-      purchase: typeof purchases.$inferSelect;
-      items: {
-        item: typeof purchaseItems.$inferSelect;
-        inventoryItem: typeof inventoryItems.$inferSelect;
-      }[];
-      bundle?: typeof bundles.$inferSelect;
-    }[] = [];
-    
-    if (purchasesRows.length > 0) {
-      const purchaseIds = purchasesRows.map(p => p.id);
-      
-      // Get bundles for these purchases
-      const purchaseBundleIds = purchasesRows
-        .filter(p => p.bundleId !== null)
-        .map(p => p.bundleId as string);
-      
-      const bundlesData = purchaseBundleIds.length > 0 
-        ? await db.select().from(bundles).where(inArray(bundles.id, purchaseBundleIds)) 
-        : [];
-      
-      // Get purchase items
-      const purchaseItemsRows = await db.select().from(purchaseItems)
-        .where(inArray(purchaseItems.purchaseId, purchaseIds));
-      
-      // Get inventory items for these purchase items
-      const inventoryItemIds = purchaseItemsRows.map(pi => pi.itemId);
-      const inventoryItemsData = inventoryItemIds.length > 0
-        ? await db.select().from(inventoryItems).where(inArray(inventoryItems.id, inventoryItemIds))
-        : [];
-      
-      // Build the purchases object
-      clientPurchases = purchasesRows.map(purchase => {
-        const bundle = purchase.bundleId 
-          ? bundlesData.find(b => b.id === purchase.bundleId) 
-          : undefined;
-          
-        const purchaseItemsList = purchaseItemsRows
-          .filter(pi => pi.purchaseId === purchase.id);
-          
-        const items = purchaseItemsList.map(item => {
-          const inventoryItem = inventoryItemsData.find(ii => ii.id === item.itemId);
-          if (!inventoryItem) return null;
-          return { item, inventoryItem };
-        }).filter((item): item is NonNullable<typeof item> => item !== null);
-        
-        return {
-          purchase,
-          items,
-          bundle
-        };
-      });
-    }
-    
-    // Structure the detailed response
-    const detailedClient: DetailedClientResponse = {
-      client,
-      organization,
-      children: beneficiariosData,
-      organizationMemberships,
-      purchases: clientPurchases
-    };
-    
-    return { data: detailedClient };
-  } catch (error) {
-    console.error("Error fetching client details:", error);
-    return { error: "Failed to fetch client details" };
-  }
-}
-
-export async function getClient(id: string) {
-  try {
-    const data = await db
+    const result = await db
       .select()
-      .from(clients)
-      .where(eq(clients.id, id))
-      .limit(1);
-    
-    return { data: data[0] };
-  } catch (error) {
-    return { error: "Failed to fetch client" };
-  }
-}
-
-export async function getClientsByOrganization(organizationId: string) {
-  try {
-    const data = await db
-      .select()
-      .from(clients)
+      .from(inventoryItems)
       .where(
-        eq(clients.organizationId, organizationId)
-      );
-    
-    return { data };
+        and(eq(inventoryItems.status, "ACTIVE"), or(isNull(inventoryItems.type), eq(inventoryItems.type, "PHYSICAL"))),
+      )
+
+    return {
+      success: true,
+      data: result,
+    }
   } catch (error) {
-    return { error: "Failed to fetch clients" };
+    console.error("Error fetching products:", error)
+    return {
+      success: false,
+      error: "Failed to fetch products",
+    }
   }
 }
 
-export async function getOrganization(id: string) {
+export async function getBundles() {
   try {
-    const data = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.id, id))
-      .limit(1);
-    
-    return { data: data[0] };
+    const bundlesData = await db.select().from(bundles).where(eq(bundles.status, "ACTIVE"))
+
+    const bundlesWithItems = await Promise.all(
+      bundlesData.map(async (bundle) => {
+        const items = await db
+          .select({
+            id: bundleItems.id,
+            quantity: bundleItems.quantity,
+            overridePrice: bundleItems.overridePrice,
+            item: inventoryItems,
+          })
+          .from(bundleItems)
+          .innerJoin(inventoryItems, eq(bundleItems.itemId, inventoryItems.id))
+          .where(eq(bundleItems.bundleId, bundle.id))
+
+        return {
+          ...bundle,
+          items,
+        }
+      }),
+    )
+
+    return {
+      success: true,
+      data: bundlesWithItems,
+    }
   } catch (error) {
-    return { error: "Failed to fetch organization" };
+    console.error("Error fetching bundles:", error)
+    return {
+      success: false,
+      error: "Failed to fetch bundles",
+    }
   }
 }
 
+export async function createSale(data: any) {
+  try {
+    // Create the purchase first
+    const [purchase] = await db
+      .insert(purchases)
+      .values({
+        clientId: data.clientId,
+        beneficiarioId: data.beneficiarioId,
+        bundleId: data.bundleId,
+        organizationId: data.organizationId,
+        status: data.status || "PENDING",
+        totalAmount: data.totalAmount.toString(),
+        paymentMethod: data.paymentMethod,
+        transactionReference: data.transactionReference,
+        paymentMetadata: data.paymentMetadata || {},
+        isPaid: data.isPaid || false,
+        isDraft: data.isDraft || false,
+        currencyType: data.currencyType || "USD",
+        conversionRate: data.conversionRate?.toString() || "1",
+        vendido: data.vendido || false,
+      })
+      .returning()
 
+    // Create purchase items if they exist
+    if (data.items && data.items.length > 0) {
+      const purchaseItemsData = data.items.map((item: any) => ({
+        purchaseId: purchase.id,
+        itemId: item.itemId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice.toString(),
+        totalPrice: item.totalPrice.toString(),
+        metadata: item.metadata || {},
+      }))
 
+      await db.insert(purchaseItems).values(purchaseItemsData)
+    }
+
+    // Create payment if the purchase is paid
+    if (data.isPaid) {
+      await db.insert(payments).values({
+        purchaseId: purchase.id,
+        amount: data.totalAmount.toString(),
+        status: "PAID",
+        paymentDate: new Date(),
+        paymentMethod: data.paymentMethod,
+        transactionReference: data.transactionReference,
+        currencyType: data.currencyType || "USD",
+        originalAmount: data.totalAmount.toString(),
+        conversionRate: data.conversionRate?.toString() || "1",
+      })
+    }
+
+    revalidatePath("/sales")
+
+    return {
+      success: true,
+      data: purchase,
+    }
+  } catch (error) {
+    console.error("Error creating sale:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to create sale",
+    }
+  }
+}
+
+export async function getBeneficiariesByClient(clientId: string) {
+  try {
+    const result = await db.select().from(beneficiarios).where(eq(beneficiarios.clientId, clientId))
+
+    return {
+      success: true,
+      data: result,
+    }
+  } catch (error) {
+    console.error("Error fetching beneficiaries:", error)
+    return {
+      success: false,
+      error: "Failed to fetch beneficiaries",
+    }
+  }
+}

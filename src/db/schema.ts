@@ -10,8 +10,7 @@ import {
   timestamp,
   decimal,
   jsonb,
-  uniqueIndex,
-  index,
+  numeric,
 } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm"
 
@@ -48,7 +47,12 @@ export const transactionTypeEnum = pgEnum("transaction_type", [
   "RESERVATION",
   "FULFILLMENT",
 ])
-export const certificateStatusEnum = pgEnum("certificate_status", ["GENERATED", "NOT_GENERATED", "NEEDS_REVISION", "APPROVED"])
+export const certificateStatusEnum = pgEnum("certificate_status", [
+  "GENERATED",
+  "NOT_GENERATED",
+  "NEEDS_REVISION",
+  "APPROVED",
+])
 
 // Cities table for organization locations
 export const cities = pgTable("cities", {
@@ -180,7 +184,9 @@ export const beneficiariosRelations = relations(beneficiarios, ({ one, many }) =
 // Certificates Table for tracking certificate generation and approval status
 export const certificates = pgTable("certificates", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
-  purchaseId: uuid("purchase_id").notNull().references(() => purchases.id),
+  purchaseId: uuid("purchase_id")
+    .notNull()
+    .references(() => purchases.id),
   beneficiarioId: uuid("beneficiario_id").references(() => beneficiarios.id),
   status: certificateStatusEnum("status").default("NOT_GENERATED"),
   fileUrl: varchar("file_url", { length: 512 }),
@@ -358,6 +364,11 @@ export const purchases = pgTable("purchases", {
   bookingMethod: varchar("booking_method", { length: 50 }),
   paymentType: text("payment_type"),
   isPaid: boolean("is_paid").default(false),
+  // New fields
+  vendido: boolean("vendido").default(false),
+  isDraft: boolean("is_draft").default(false),
+  currencyType: varchar("currency_type", { length: 10 }).default("USD"),
+  conversionRate: numeric("conversion_rate").default("1"),
 })
 
 export const purchasesRelations = relations(purchases, ({ one, many }) => ({
@@ -397,6 +408,10 @@ export const payments = pgTable("payments", {
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+  // New fields
+  currencyType: varchar("currency_type", { length: 10 }).default("USD"),
+  originalAmount: numeric("original_amount"),
+  conversionRate: numeric("conversion_rate").default("1"),
 })
 
 export const paymentsRelations = relations(payments, ({ one }) => ({
@@ -405,6 +420,19 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
     references: [purchases.id],
   }),
 }))
+
+// Daily sales reports table
+export const dailySalesReports = pgTable("daily_sales_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  date: date("date").notNull(),
+  totalDirectSales: numeric("total_direct_sales").default("0"),
+  totalPayments: numeric("total_payments").default("0"),
+  totalSalesUSD: numeric("total_sales_usd").default("0"),
+  totalSalesBS: numeric("total_sales_bs").default("0"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  metadata: jsonb("metadata"),
+})
 
 // Payment plans table
 export const paymentPlans = pgTable("payment_plans", {
@@ -613,3 +641,4 @@ export const saleItemsRelations = relations(saleItems, ({ one }) => ({
     references: [inventoryItems.id],
   }),
 }))
+

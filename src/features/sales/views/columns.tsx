@@ -19,12 +19,13 @@ import {
   Package2,
   CreditCard,
   MoreHorizontal,
-  ShoppingBag,
   AlertTriangle,
   DollarSign,
   Calendar,
   User,
   BookOpen,
+  FileCheck,
+  FilePenLine,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -37,7 +38,7 @@ import {
 import { useState } from "react"
 import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { Switch } from "@/components/ui/switch"
-import { updateSalePreSaleFlag } from "@/features/sales/actions"
+import { updateSaleVendidoStatus, updateSaleDraftStatus } from "@/features/sales/actions"
 
 export type Sale = {
   id: string
@@ -71,6 +72,10 @@ export type Sale = {
   transactionReference?: string
   saleType: "DIRECT" | "PRESALE"
   isPaid: boolean
+  isDraft?: boolean
+  vendido?: boolean
+  currencyType?: string
+  conversionRate?: number
   paymentPlan?: {
     id: string
     installmentCount: number
@@ -118,12 +123,20 @@ export const columns: ColumnDef<Sale>[] = [
           </div>
         )
       }
+
+      // Add draft badge if it's a draft
+      const isDraft = row.original.isDraft
+
       return (
         <Link
           href={`/sales/${id}`}
           className="group flex items-center gap-2 text-muted-foreground hover:text-foreground transition-all duration-200"
         >
-          <FileText className="h-4 w-4 transition-transform group-hover:scale-110" />
+          {isDraft ? (
+            <FilePenLine className="h-4 w-4 transition-transform group-hover:scale-110 text-amber-500" />
+          ) : (
+            <FileText className="h-4 w-4 transition-transform group-hover:scale-110" />
+          )}
           <span className="font-mono">#{id.slice(0, 8).toUpperCase()}</span>
           <ArrowRight className="h-4 w-4 opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
         </Link>
@@ -267,9 +280,20 @@ export const columns: ColumnDef<Sale>[] = [
     cell: ({ row }) => {
       const saleType = row.getValue("saleType") as string
       const allowPreSale = row.original?.allowPreSale || false
+      const isDraft = row.original?.isDraft || false
 
       return (
         <div className="flex items-center gap-1.5">
+          {isDraft && (
+            <Badge
+              variant="outline"
+              className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 flex items-center gap-1 py-0.5 h-5 text-xs"
+            >
+              <FilePenLine className="h-3 w-3" />
+              <span>Borrador</span>
+            </Badge>
+          )}
+
           <Badge
             variant="outline"
             className={cn(
@@ -298,6 +322,69 @@ export const columns: ColumnDef<Sale>[] = [
               Pre-venta
             </Badge>
           )}
+        </div>
+      )
+    },
+  },
+  {
+    accessorKey: "currencyType",
+    header: () => <span className="text-xs">Moneda</span>,
+    cell: ({ row }) => {
+      const currencyType = row.original?.currencyType || "USD"
+      const conversionRate = row.original?.conversionRate || 1
+
+      return (
+        <Badge
+          variant="outline"
+          className={cn(
+            "py-0.5 h-5 text-xs",
+            currencyType === "USD"
+              ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300"
+              : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300",
+          )}
+        >
+          <DollarSign className="h-3 w-3 mr-1" />
+          {currencyType}
+          {currencyType !== "USD" && <span className="ml-1 text-xs opacity-70">({conversionRate})</span>}
+        </Badge>
+      )
+    },
+  },
+  {
+    accessorKey: "vendido",
+    header: () => <span className="text-xs">Vendido</span>,
+    cell: ({ row }) => {
+      const [vendido, setVendido] = useState(row.original?.vendido || false)
+      const [isUpdating, setIsUpdating] = useState(false)
+
+      const handleVendidoChange = async (checked: boolean) => {
+        try {
+          setIsUpdating(true)
+          const result = await updateSaleVendidoStatus(row.original.id, checked)
+
+          if (result.success) {
+            setVendido(checked)
+          } else {
+            throw new Error(result.error)
+          }
+        } catch (error) {
+          console.error("Error updating vendido status:", error)
+          // Revert the switch if there was an error
+          setVendido(!checked)
+        } finally {
+          setIsUpdating(false)
+        }
+      }
+
+      return (
+        <div className="flex items-center">
+          <Switch
+            checked={vendido}
+            onCheckedChange={handleVendidoChange}
+            disabled={isUpdating}
+            className={cn(vendido ? "bg-green-500" : "bg-gray-200 dark:bg-gray-700")}
+          />
+          {isUpdating && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
         </div>
       )
     },
@@ -347,7 +434,13 @@ export const columns: ColumnDef<Sale>[] = [
       }
 
       const amount = row.getValue("totalAmount")
-      return <div className="text-right font-medium text-sm">{formatCurrency(amount)}</div>
+      const currencyType = row.original?.currencyType || "USD"
+
+      return (
+        <div className="text-right font-medium text-sm">
+          {formatCurrency(amount)} {currencyType}
+        </div>
+      )
     },
   },
   {
@@ -396,6 +489,28 @@ export const columns: ColumnDef<Sale>[] = [
     cell: ({ row }) => {
       const sale = row.original
       const [isDialogOpen, setIsDialogOpen] = useState(false)
+      const [isUpdating, setIsUpdating] = useState(false)
+
+      const handleDraftStatusChange = async (isDraft: boolean) => {
+        try {
+          setIsUpdating(true)
+          const result = await updateSaleDraftStatus(sale.id, isDraft)
+
+          if (result.success) {
+            // Dispatch a custom event to refresh the table
+            const event = new CustomEvent("sales-updated", {
+              detail: { id: sale.id, isDraft },
+            })
+            window.dispatchEvent(event)
+          } else {
+            throw new Error(result.error)
+          }
+        } catch (error) {
+          console.error("Error updating draft status:", error)
+        } finally {
+          setIsUpdating(false)
+        }
+      }
 
       return (
         <>
@@ -434,6 +549,28 @@ export const columns: ColumnDef<Sale>[] = [
                 >
                   <CreditCard className="mr-2 h-3.5 w-3.5" />
                   Ver pagos
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuSeparator />
+
+              {sale.isDraft ? (
+                <DropdownMenuItem
+                  onClick={() => handleDraftStatusChange(false)}
+                  className="cursor-pointer text-xs"
+                  disabled={isUpdating}
+                >
+                  <FileCheck className="mr-2 h-3.5 w-3.5" />
+                  Aprobar borrador
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={() => handleDraftStatusChange(true)}
+                  className="cursor-pointer text-xs"
+                  disabled={isUpdating}
+                >
+                  <FilePenLine className="mr-2 h-3.5 w-3.5" />
+                  Marcar como borrador
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
