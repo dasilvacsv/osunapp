@@ -64,6 +64,13 @@
       "when": 1742079474536,
       "tag": "0008_skinny_nick_fury",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1742099510320,
+      "tag": "0009_sharp_jack_power",
+      "breakpoints": true
     }
   ]
 }
