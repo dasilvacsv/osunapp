@@ -54,6 +54,10 @@ export const certificateStatusEnum = pgEnum("certificate_status", [
   "APPROVED",
 ])
 
+// New enums for client payment tracking
+export const clientPaymentStatusEnum = pgEnum("client_payment_status", ["PAID", "PARTIAL", "PENDING", "OVERDUE"])
+export const paymentTransactionMethodEnum = pgEnum("payment_transaction_method", ["CASH", "TRANSFER", "CARD", "OTHER"])
+
 // Cities table for organization locations
 export const cities = pgTable("cities", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
@@ -130,6 +134,8 @@ export const clients = pgTable("clients", {
   organizationId: uuid("organization_id").references(() => organizations.id),
   role: clientRoleEnum("role").notNull(),
   status: statusEnum("status").default("ACTIVE"),
+  // New field for tracking overdue accounts
+  deudor: boolean("deudor").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 })
@@ -142,6 +148,8 @@ export const clientsRelations = relations(clients, ({ one, many }) => ({
   beneficiarios: many(beneficiarios),
   purchases: many(purchases),
   organizationMemberships: many(organizationMembers),
+  // New relation for client payments
+  payments: many(clientPayments),
 }))
 
 // Beneficiarios Table (renamed from children)
@@ -639,6 +647,53 @@ export const saleItemsRelations = relations(saleItems, ({ one }) => ({
   item: one(inventoryItems, {
     fields: [saleItems.itemId],
     references: [inventoryItems.id],
+  }),
+}))
+
+// New tables for client payment tracking
+
+// Client Payments Table (separate from purchase-specific payments)
+export const clientPayments = pgTable("client_payments", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  clientId: uuid("client_id")
+    .notNull()
+    .references(() => clients.id),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  date: timestamp("date", { withTimezone: true }).notNull(),
+  description: text("description"),
+  status: clientPaymentStatusEnum("status").default("PENDING"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// Payment Transactions Table (for tracking partial payments/abonos)
+export const paymentTransactions = pgTable("payment_transactions", {
+  id: uuid("id").notNull().primaryKey().defaultRandom(),
+  paymentId: uuid("payment_id")
+    .notNull()
+    .references(() => clientPayments.id),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  date: timestamp("date", { withTimezone: true }).notNull(),
+  method: paymentTransactionMethodEnum("method").notNull(),
+  reference: varchar("reference", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+})
+
+// Add relations for client payments
+export const clientPaymentsRelations = relations(clientPayments, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [clientPayments.clientId],
+    references: [clients.id],
+  }),
+  transactions: many(paymentTransactions),
+}))
+
+export const paymentTransactionsRelations = relations(paymentTransactions, ({ one }) => ({
+  payment: one(clientPayments, {
+    fields: [paymentTransactions.paymentId],
+    references: [clientPayments.id],
   }),
 }))
 
