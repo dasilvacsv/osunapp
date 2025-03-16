@@ -1,12 +1,14 @@
 // app/components/ClientDetails.tsx
 "use client"
 
-import { useCallback, useState, useTransition } from 'react'
-import { BeneficiaryTable } from './beneficiary-table'
-import { getOrganizations, getBeneficiariesByClient, createBeneficiary, updateBeneficiary, deleteBeneficiary } from '@/app/(app)/clientes/client'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Client, Organization, Beneficiary } from '@/lib/types'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useCallback, useState, useTransition } from "react"
+import { BeneficiaryTable } from "./beneficiary-table"
+import { createBeneficiary, updateBeneficiary, deleteBeneficiary } from "@/app/(app)/clientes/client"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type { Client, Organization, Beneficiary } from "@/lib/types"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PaymentSummary } from "@/features/payments/payment-summary"
+import { PaymentList } from "@/features/payments/payment-list"
 
 interface ClientDetailsProps {
   client: Client
@@ -18,51 +20,59 @@ export function ClientDetails({ client, initialBeneficiaries = [], organizations
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>(initialBeneficiaries)
   const [isPending, startTransition] = useTransition()
 
-  const handleCreateBeneficiary = useCallback(async (data: any) => {
-    startTransition(async () => {
-      const result = await createBeneficiary({...data, clientId: client.id})
-      if (result.success && result.data) {
-        const newBeneficiary = {
-          ...result.data, 
-          status: result.data.status || "ACTIVE",
-          organization: result.data.organizationId && result.data.organizationId !== 'none' 
-            ? organizations.find(o => o.id === result.data.organizationId) 
-            : undefined
-        } as Beneficiary;
-        
-        setBeneficiaries(prev => [...prev, newBeneficiary]);
-      }
-    })
-  }, [client.id, organizations])
+  const handleCreateBeneficiary = useCallback(
+    async (data: any) => {
+      startTransition(async () => {
+        const result = await createBeneficiary({ ...data, clientId: client.id })
+        if (result.success && result.data) {
+          const newBeneficiary = {
+            ...result.data,
+            status: result.data.status || "ACTIVE",
+            organization:
+              result.data.organizationId && result.data.organizationId !== "none"
+                ? organizations.find((o) => o.id === result.data.organizationId)
+                : undefined,
+          } as Beneficiary
 
-  const handleUpdateBeneficiary = useCallback(async (id: string, data: any) => {
-    startTransition(async () => {
-      const result = await updateBeneficiary(id, data)
-      if (result.success && result.data) {
-        setBeneficiaries(prev => 
-          prev.map(beneficiary => {
-            if (beneficiary.id === id) {
-              const updatedBeneficiary = {
-                ...result.data, 
-                status: result.data.status || "ACTIVE",
-                organization: result.data.organizationId && result.data.organizationId !== 'none'
-                  ? organizations.find(o => o.id === result.data.organizationId) 
-                  : undefined
-              } as Beneficiary;
-              return updatedBeneficiary;
-            }
-            return beneficiary;
-          })
-        )
-      }
-    })
-  }, [organizations])
+          setBeneficiaries((prev) => [...prev, newBeneficiary])
+        }
+      })
+    },
+    [client.id, organizations],
+  )
+
+  const handleUpdateBeneficiary = useCallback(
+    async (id: string, data: any) => {
+      startTransition(async () => {
+        const result = await updateBeneficiary(id, data)
+        if (result.success && result.data) {
+          setBeneficiaries((prev) =>
+            prev.map((beneficiary) => {
+              if (beneficiary.id === id) {
+                const updatedBeneficiary = {
+                  ...result.data,
+                  status: result.data.status || "ACTIVE",
+                  organization:
+                    result.data.organizationId && result.data.organizationId !== "none"
+                      ? organizations.find((o) => o.id === result.data.organizationId)
+                      : undefined,
+                } as Beneficiary
+                return updatedBeneficiary
+              }
+              return beneficiary
+            }),
+          )
+        }
+      })
+    },
+    [organizations],
+  )
 
   const handleDeleteBeneficiary = useCallback(async (id: string) => {
     startTransition(async () => {
       const result = await deleteBeneficiary(id)
       if (result.success) {
-        setBeneficiaries(prev => prev.filter(beneficiary => beneficiary.id !== id))
+        setBeneficiaries((prev) => prev.filter((beneficiary) => beneficiary.id !== id))
       }
     })
   }, [])
@@ -73,17 +83,23 @@ export function ClientDetails({ client, initialBeneficiaries = [], organizations
         <CardHeader>
           <CardTitle>{client.name}</CardTitle>
           <CardDescription>
-            {client.role === 'PARENT' ? 'Padre/Representante' : 
-             client.role === 'EMPLOYEE' ? 'Empleado' : 'Individual'}
+            {client.role === "PARENT" ? "Padre/Representante" : client.role === "EMPLOYEE" ? "Empleado" : "Individual"}
             {client.organization && ` - ${client.organization.name}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="beneficiaries">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
+          <Tabs defaultValue="payments">
+            <TabsList className="grid w-full grid-cols-3 mb-4">
+              <TabsTrigger value="payments">Pagos</TabsTrigger>
               <TabsTrigger value="beneficiaries">Beneficiarios</TabsTrigger>
               <TabsTrigger value="info">Información</TabsTrigger>
             </TabsList>
+            <TabsContent value="payments">
+              <div className="space-y-6">
+                <PaymentSummary clientId={client.id} />
+                <PaymentList clientId={client.id} />
+              </div>
+            </TabsContent>
             <TabsContent value="beneficiaries">
               <BeneficiaryTable
                 beneficiaries={beneficiaries}
@@ -106,23 +122,27 @@ export function ClientDetails({ client, initialBeneficiaries = [], organizations
                     </div>
                     <div className="flex justify-between border-b pb-2">
                       <span className="font-medium">Documento:</span>
-                      <span>{client.document || 'N/A'}</span>
+                      <span>{client.document || "N/A"}</span>
                     </div>
                     <div className="flex justify-between border-b pb-2">
                       <span className="font-medium">Teléfono:</span>
-                      <span>{client.phone || 'N/A'}</span>
+                      <span>{client.phone || "N/A"}</span>
                     </div>
                     <div className="flex justify-between border-b pb-2">
                       <span className="font-medium">WhatsApp:</span>
-                      <span>{client.whatsapp || 'N/A'}</span>
+                      <span>{client.whatsapp || "N/A"}</span>
                     </div>
                     <div className="flex justify-between border-b pb-2">
                       <span className="font-medium">Email:</span>
-                      <span>{client.contactInfo?.email || 'N/A'}</span>
+                      <span>{client.contactInfo?.email || "N/A"}</span>
                     </div>
                     <div className="flex justify-between border-b pb-2">
                       <span className="font-medium">Organización:</span>
-                      <span>{client.organization?.name || 'N/A'}</span>
+                      <span>{client.organization?.name || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between border-b pb-2">
+                      <span className="font-medium">Estado de Cuenta:</span>
+                      <span>{client.deudor ? "Deudor" : "Al día"}</span>
                     </div>
                   </div>
                 </div>
@@ -134,3 +154,4 @@ export function ClientDetails({ client, initialBeneficiaries = [], organizations
     </div>
   )
 }
+
