@@ -1,17 +1,21 @@
 // app/(app)/clientes/page.tsx
 
-import ClientList from "@/features/clients/client-list";
-import { Client } from "@/lib/types";
-import { getClients } from "./client";
-import { getOrganizationsWithClients } from "@/features/clients/byorg/actions";
+import ClientList from "@/features/clients/client-list"
+import type { Client } from "@/lib/types"
+import { getClients } from "./client"
+import { checkOverdueClients } from "./client-payment-actions"
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"
 
 export default async function ClientPage() {
-  const { data } = await getClients();
+  // Check for overdue clients on page load
+  await checkOverdueClients()
+
+  const { data } = await getClients()
 
   // Ensure we always pass an array, even if empty
-  const initialClients: Client[] = data || [];
+  const initialClients: Client[] = data || []
 
-  return <ClientList initialClients={initialClients}/>;
+  return <ClientList initialClients={initialClients} />
 }
+

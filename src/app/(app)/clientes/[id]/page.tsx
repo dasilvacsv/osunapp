@@ -9,4 +9,5 @@ export default function ClientDetailPage({ params }: { params: { id: string } })
       <ViewClient clientId={params.id} />
     </div>
   )
-} 
+}
+

@@ -1,6 +1,6 @@
 "use server"
 import { db } from "@/db"
-import { and, eq, sql } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { clientPayments, paymentTransactions, clients } from "@/db/schema"
 import type { PaymentSummary, PaymentStatus } from "@/features/payments/payment-types"
@@ -65,6 +65,9 @@ export async function createPayment(data: PaymentFormData) {
       })
       .returning()
 
+    // Reset deudor status when a new payment is created
+    await updateClientDebtorStatus(data.clientId, false)
+
     revalidatePath(`/clientes/${data.clientId}`)
     return { success: true, data: newPayment[0] }
   } catch (error) {
@@ -116,6 +119,9 @@ export async function createPaymentTransaction(data: PaymentTransactionFormData)
           updatedAt: new Date(),
         })
         .where(eq(clientPayments.id, data.paymentId))
+
+      // Reset deudor status when a new transaction is created
+      await updateClientDebtorStatus(payment[0].clientId, false)
 
       revalidatePath(`/clientes/${payment[0].clientId}`)
     }
@@ -186,13 +192,7 @@ export async function getClientPaymentSummary(
 
     // If account is overdue, update client status to reflect this
     if (isOverdue) {
-      await db
-        .update(clients)
-        .set({
-          deudor: true,
-          updatedAt: new Date(),
-        })
-        .where(eq(clients.id, clientId))
+      await updateClientDebtorStatus(clientId, true)
     }
 
     return {
@@ -213,45 +213,60 @@ export async function getClientPaymentSummary(
   }
 }
 
-export async function getOverdueClients() {
+export async function updateClientDebtorStatus(clientId: string, isDeudor: boolean) {
+  try {
+    await db
+      .update(clients)
+      .set({
+        deudor: isDeudor,
+        updatedAt: new Date(),
+      })
+      .where(eq(clients.id, clientId))
+
+    revalidatePath(`/clientes/${clientId}`)
+    revalidatePath("/clientes")
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error updating client debtor status:", error)
+    return { success: false, error: "Error al actualizar el estado de deudor del cliente" }
+  }
+}
+
+export async function checkOverdueClients() {
   try {
     // Find clients with payments where the last transaction was more than 30 days ago
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    // This is a simplified query - in a real implementation, you'd need to join with
-    // the latest transaction date for each client
-    const overdueClients = await db
+    // Get all clients with their latest transaction date
+    const clientsWithLastPayment = await db
       .select({
-        client: clients,
-        lastPaymentDate: sql<Date>`MAX(${paymentTransactions.date})`,
+        clientId: clients.id,
+        lastPaymentDate: sql<Date | null>`
+          (SELECT MAX(pt.date) 
+           FROM ${paymentTransactions} pt
+           JOIN ${clientPayments} cp ON pt.payment_id = cp.id
+           WHERE cp.client_id = ${clients.id})
+        `,
       })
       .from(clients)
-      .leftJoin(clientPayments, eq(clients.id, clientPayments.clientId))
-      .leftJoin(paymentTransactions, eq(clientPayments.id, paymentTransactions.paymentId))
-      .groupBy(clients.id)
-      .having(
-        and(
-          sql`MAX(${paymentTransactions.date}) < ${thirtyDaysAgo}`,
-          sql`MAX(${paymentTransactions.date}) IS NOT NULL`,
-        ),
-      )
+      .where(eq(clients.status, "ACTIVE"))
 
-    // Update all overdue clients to set deudor flag
-    for (const { client } of overdueClients) {
-      await db
-        .update(clients)
-        .set({
-          deudor: true,
-          updatedAt: new Date(),
-        })
-        .where(eq(clients.id, client.id))
+    // Update deudor status based on last payment date
+    for (const client of clientsWithLastPayment) {
+      const isOverdue = client.lastPaymentDate ? new Date(client.lastPaymentDate) < thirtyDaysAgo : false
+
+      // Only update if there's a last payment date and it's overdue
+      if (client.lastPaymentDate && isOverdue) {
+        await updateClientDebtorStatus(client.clientId, true)
+      }
     }
 
-    return { success: true, data: overdueClients }
+    return { success: true, data: clientsWithLastPayment }
   } catch (error) {
-    console.error("Error fetching overdue clients:", error)
-    return { success: false, error: "Error al obtener clientes con pagos vencidos" }
+    console.error("Error checking overdue clients:", error)
+    return { success: false, error: "Error al verificar clientes con pagos vencidos" }
   }
 }
 

@@ -36,7 +36,7 @@
 - Add button to mark sale as vendido (true/false) (this is not for vendido exactly, just add a field vendido on sale to make it work)
 
 
-## Client Management
+## Client Management (DONE)
 - Implement payment tracking:
   - Send payment confirmation messages
   - Show payment breakdown:
