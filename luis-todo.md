@@ -29,12 +29,13 @@
   - Break down direct sales vs payments
   - Create daily closure report (cierre)
 - Implement dual currency support:
-  - Track payments in BS and USD
+  - Track payments in BS and USD  
   - Add conversion rate management
   - Allow payment currency selection
   - Track conversion rates for payments
 - Add button to mark sale as vendido (true/false) (this is not for vendido exactly, just add a field vendido on sale to make it work)
 
+(Me falta hacer que calcule de usd a bs o viceverza a una tasa insertada.)
 
 ## Client Management (DONE)
 - Implement payment tracking:
