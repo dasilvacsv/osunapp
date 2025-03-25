@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { addPartialPayment, getRemainingBalance } from "@/features/sales/views/payment-actions"
 import { formatCurrency } from "@/lib/utils"
-import { Loader2, DollarSign, CreditCard, AlertCircle } from "lucide-react"
+import { getBCVRate } from "@/lib/exchangeRates"
+import { Loader2, DollarSign, CreditCard, AlertCircle, RefreshCw } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface PartialPaymentDialogProps {
@@ -24,7 +25,9 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [loadingBalance, setLoadingBalance] = useState(false)
+  const [loadingBCV, setLoadingBCV] = useState(false)
   const [amount, setAmount] = useState("")
+  const [bsAmount, setBsAmount] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("CASH")
   const [currencyType, setCurrencyType] = useState("USD")
   const [conversionRate, setConversionRate] = useState("1")
@@ -90,6 +93,34 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
     }
   }
 
+  const fetchBCVRate = async () => {
+    try {
+      setLoadingBCV(true)
+      const rateInfo = await getBCVRate()
+      setConversionRate(rateInfo.rate.toString())
+      
+      // Update USD amount if BS amount exists
+      if (bsAmount) {
+        const usdAmount = (Number(bsAmount) / rateInfo.rate).toFixed(2)
+        setAmount(usdAmount)
+      }
+
+      toast({
+        title: "Tasa BCV actualizada",
+        description: `Tasa actual: ${rateInfo.rate} Bs/USD`,
+        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo obtener la tasa BCV",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingBCV(false)
+    }
+  }
+
   useEffect(() => {
     if (!open) {
       setError(null)
@@ -105,6 +136,12 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
       fetchRemainingBalance()
     }
   }, [open, purchaseId])
+
+  useEffect(() => {
+    if (currencyType === "BS") {
+      fetchBCVRate()
+    }
+  }, [currencyType])
 
   const handleDialogOpenChange = (open: boolean) => {
     onOpenChange(open)
@@ -148,6 +185,30 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleBsAmountChange = (value: string) => {
+    setBsAmount(value)
+    if (value && conversionRate) {
+      const usdAmount = (Number(value) / Number(conversionRate)).toFixed(2)
+      setAmount(usdAmount)
+    } else {
+      setAmount("")
+    }
+  }
+
+  const handleCurrencyChange = async (value: string) => {
+    setCurrencyType(value)
+    if (value === "BS") {
+      await fetchBCVRate()
+      if (amount) {
+        const bsValue = (Number(amount) * Number(conversionRate)).toFixed(2)
+        setBsAmount(bsValue)
+      }
+    } else {
+      setConversionRate("1")
+      setBsAmount("")
     }
   }
 
@@ -200,25 +261,59 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="amount">Monto del abono</Label>
-              <div className="relative">
-                <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="pl-9"
-                />
-              </div>
+              {currencyType === "BS" ? (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">Bs.</span>
+                    <Input
+                      id="bsAmount"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={bsAmount}
+                      onChange={(e) => handleBsAmountChange(e.target.value)}
+                      placeholder="0.00"
+                      className="pl-9"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>≈ ${amount} USD</span>
+                    <div className="flex items-center gap-2">
+                      <span>Tasa: {conversionRate} Bs/USD</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={fetchBCVRate}
+                        disabled={loadingBCV}
+                      >
+                        <RefreshCw className={`h-4 w-4 ${loadingBCV ? "animate-spin" : ""}`} />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-9"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="currencyType">Moneda</Label>
-                <Select value={currencyType} onValueChange={setCurrencyType}>
+                <Select value={currencyType} onValueChange={handleCurrencyChange}>
                   <SelectTrigger id="currencyType">
                     <SelectValue placeholder="Seleccionar moneda" />
                   </SelectTrigger>

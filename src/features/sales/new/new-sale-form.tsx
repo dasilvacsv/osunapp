@@ -22,7 +22,8 @@ import { SaleTypeSelector } from "@/features/sales/new/selectors/sale-type-selec
 import { createSale, getBeneficiariesByClient } from "@/features/sales/new/actions"
 import { useToast } from "@/hooks/use-toast"
 import { formatCurrency } from "@/lib/utils"
-import { ShoppingCart, User, Package2, CreditCard, Trash2, Save, Loader2, FileText, Coins } from "lucide-react"
+import { ShoppingCart, User, Package2, CreditCard, Trash2, Save, Loader2, FileText, Coins, RefreshCw } from "lucide-react"
+import { getBCVRate } from "@/lib/exchangeRates"
 
 // Form schema
 const saleFormSchema = z.object({
@@ -571,7 +572,28 @@ export function NewSaleForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Moneda</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={async (value) => {
+                      field.onChange(value)
+                      if (value === "BS") {
+                        try {
+                          const rateInfo = await getBCVRate()
+                          form.setValue("conversionRate", rateInfo.rate)
+                          toast({
+                            title: "Tasa BCV actualizada",
+                            description: `Tasa actual: ${rateInfo.rate} Bs/USD`,
+                            className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+                          })
+                        } catch (error) {
+                          toast({
+                            title: "Error",
+                            description: "No se pudo obtener la tasa BCV",
+                            variant: "destructive",
+                          })
+                        }
+                      } else {
+                        form.setValue("conversionRate", 1)
+                      }
+                    }} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Seleccionar moneda" />
@@ -602,10 +624,35 @@ export function NewSaleForm({
                             step="0.01"
                             min="0.01"
                             placeholder="Tasa BS/USD"
-                            className="pl-9"
+                            className="pl-9 pr-12"
                             {...field}
                             onChange={(e) => field.onChange(Number.parseFloat(e.target.value) || 1)}
                           />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-1 top-1 h-7 w-7"
+                            onClick={async () => {
+                              try {
+                                const rateInfo = await getBCVRate()
+                                form.setValue("conversionRate", rateInfo.rate)
+                                toast({
+                                  title: "Tasa BCV actualizada",
+                                  description: `Tasa actual: ${rateInfo.rate} Bs/USD`,
+                                  className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+                                })
+                              } catch (error) {
+                                toast({
+                                  title: "Error",
+                                  description: "No se pudo obtener la tasa BCV",
+                                  variant: "destructive",
+                                })
+                              }
+                            }}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
                         </div>
                       </FormControl>
                       <FormDescription>Tasa de cambio BS/USD (cuántos BS equivalen a 1 USD)</FormDescription>
