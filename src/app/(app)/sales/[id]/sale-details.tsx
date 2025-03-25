@@ -116,6 +116,13 @@ const saleTypeIcons = {
   PRESALE: CalendarRange,
 }
 
+const formatSaleCurrency = (amount: number, currency: string = "USD") => {
+  if (currency === "BS") {
+    return `Bs. ${formatCurrency(amount).replace("$", "")}`
+  }
+  return formatCurrency(amount)
+}
+
 export function SaleDetails({ sale }: { sale: any }) {
   console.log(sale);
   
@@ -530,7 +537,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                             <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
                               <span>{item.quantity} unidades</span>
                               <span>•</span>
-                              <span>{formatCurrency(item.unitPrice)} c/u</span>
+                              <span>{formatSaleCurrency(item.unitPrice, sale.currencyType)} c/u</span>
                               {hoveredItem === index && (
                                 <>
                                   <span>•</span>
@@ -543,7 +550,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className="font-semibold">{formatCurrency(item.totalPrice)}</span>
+                            <span className="font-semibold">{formatSaleCurrency(item.totalPrice, sale.currencyType)}</span>
                           </div>
                         </div>
                       </motion.div>
@@ -556,7 +563,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-gray-400">Total</span>
                   <span className="text-2xl font-bold">
-                    {formatCurrency(sale.totalAmount)} {sale.currencyType || "USD"}
+                    {formatSaleCurrency(sale.totalAmount, sale.currencyType)}
                   </span>
                 </div>
               </div>
@@ -594,19 +601,19 @@ export function SaleDetails({ sale }: { sale: any }) {
                       <div>
                         <p className="text-sm text-muted-foreground">Total</p>
                         <p className="text-lg font-bold">
-                          {formatCurrency(remainingBalance.totalAmount)} {remainingBalance.currencyType}
+                          {formatSaleCurrency(remainingBalance.totalAmount, remainingBalance.currencyType)}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Pagado</p>
                         <p className="text-lg font-bold">
-                          {formatCurrency(remainingBalance.totalPaid)} {remainingBalance.currencyType}
+                          {formatSaleCurrency(remainingBalance.totalPaid, remainingBalance.currencyType)}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Pendiente</p>
                         <p className="text-lg font-bold">
-                          {formatCurrency(remainingBalance.remainingAmount)} {remainingBalance.currencyType}
+                          {formatSaleCurrency(remainingBalance.remainingAmount, remainingBalance.currencyType)}
                         </p>
                       </div>
                     </div>
