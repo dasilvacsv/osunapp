@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { addPartialPayment, getRemainingBalance } from "./payment-actions"
+import { addPartialPayment, getRemainingBalance } from "@/features/sales/views/payment-actions"
 import { formatCurrency } from "@/lib/utils"
 import { Loader2, DollarSign, CreditCard, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -38,23 +38,51 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
     currencyType: string
     conversionRate: number
   } | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchRemainingBalance = async () => {
+    if (!purchaseId) {
+      console.error("No purchaseId provided")
+      setError("ID de compra no proporcionado")
+      return
+    }
+
+    console.log("Fetching balance for purchaseId:", purchaseId)
     try {
       setLoadingBalance(true)
+      setError(null)
+      
       const result = await getRemainingBalance(purchaseId)
+      console.log("Balance result:", result)
 
-      if (result.success) {
-        setRemainingBalance(result.data)
-        setCurrencyType(result.data.currencyType)
-        setConversionRate(result.data.conversionRate.toString())
+      if (!result) {
+        throw new Error("No se pudo obtener el saldo")
+      }
+
+      if (result.success && result.data) {
+        const data = {
+          totalAmount: Number(result.data.totalAmount),
+          totalPaid: Number(result.data.totalPaid || 0),
+          remainingAmount: Number(result.data.remainingAmount),
+          isPaid: Boolean(result.data.isPaid),
+          currencyType: String(result.data.currencyType || "USD"),
+          conversionRate: Number(result.data.conversionRate || 1),
+        }
+        
+        console.log("Processed balance data:", data)
+        setRemainingBalance(data)
+        setCurrencyType(data.currencyType)
+        setConversionRate(data.conversionRate.toString())
       } else {
-        throw new Error(result.error)
+        throw new Error(result.error || "Error al obtener el saldo")
       }
     } catch (error) {
+      console.error("Error in fetchRemainingBalance:", error)
+      const errorMessage = error instanceof Error ? error.message : "Error al obtener el saldo pendiente"
+      setError(errorMessage)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Error al obtener el saldo pendiente",
+        description: errorMessage,
         variant: "destructive",
       })
     } finally {
@@ -62,10 +90,23 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
     }
   }
 
-  const handleDialogOpenChange = (open: boolean) => {
-    if (open) {
+  useEffect(() => {
+    if (!open) {
+      setError(null)
+      setAmount("")
+      setPaymentMethod("CASH")
+      setCurrencyType("USD")
+      setConversionRate("1")
+      setTransactionReference("")
+      setNotes("")
+      setRemainingBalance(null)
+    } else if (purchaseId) {
+      console.log("Dialog opened with purchaseId:", purchaseId)
       fetchRemainingBalance()
     }
+  }, [open, purchaseId])
+
+  const handleDialogOpenChange = (open: boolean) => {
     onOpenChange(open)
   }
 
@@ -152,7 +193,7 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error</AlertTitle>
-              <AlertDescription>No se pudo obtener el saldo pendiente. Intente nuevamente.</AlertDescription>
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 

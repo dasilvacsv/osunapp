@@ -330,17 +330,24 @@ export async function getRemainingBalance(purchaseId: string) {
       .from(payments)
       .where(and(eq(payments.purchaseId, purchaseId), eq(payments.status, "PAID")))
 
-    const totalPaid = existingPayments[0]?.totalPaid || 0
+    const totalPaid = Number(existingPayments[0]?.totalPaid || 0)
     const totalAmount = Number(purchase.totalAmount)
-    const remainingAmount = totalAmount - Number(totalPaid)
+    
+    // Round to 2 decimal places to avoid floating point precision issues
+    const roundedTotalPaid = Math.round(totalPaid * 100) / 100
+    const roundedTotalAmount = Math.round(totalAmount * 100) / 100
+    const remainingAmount = Math.round((roundedTotalAmount - roundedTotalPaid) * 100) / 100
+
+    // Consider paid if remaining amount is less than 0.01
+    const isPaid = remainingAmount <= 0.01
 
     return {
       success: true,
       data: {
-        totalAmount,
-        totalPaid,
-        remainingAmount,
-        isPaid: remainingAmount <= 0,
+        totalAmount: roundedTotalAmount,
+        totalPaid: roundedTotalPaid,
+        remainingAmount: isPaid ? 0 : remainingAmount, // If considered paid, show 0 remaining
+        isPaid,
         currencyType: purchase.currencyType || "USD",
         conversionRate: Number(purchase.conversionRate || 1),
       },

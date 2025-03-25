@@ -117,6 +117,8 @@ const saleTypeIcons = {
 }
 
 export function SaleDetails({ sale }: { sale: any }) {
+  console.log(sale);
+  
   const router = useRouter()
   const { toast } = useToast()
   const [currentStatus, setCurrentStatus] = useState(sale.status)
