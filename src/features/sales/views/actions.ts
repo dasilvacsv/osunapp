@@ -382,85 +382,37 @@ export async function getDraftSalesData() {
   try {
     const sales = await db
       .select({
-        // Purchase information
         id: purchases.id,
         clientId: purchases.clientId,
         bundleId: purchases.bundleId,
-        beneficiarioId: purchases.beneficiarioId,
-        organizationId: purchases.organizationId,
         status: purchases.status,
         totalAmount: purchases.totalAmount,
-        paymentStatus: purchases.paymentStatus,
         paymentMethod: purchases.paymentMethod,
-        paymentType: purchases.paymentType,
         purchaseDate: purchases.purchaseDate,
         transactionReference: purchases.transactionReference,
-        bookingMethod: purchases.bookingMethod,
         isPaid: sql`COALESCE(${purchases.isPaid}, false)`,
-        paymentMetadata: purchases.paymentMetadata,
         isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
         vendido: sql`COALESCE(${purchases.vendido}, false)`,
+        isDonation: sql`COALESCE(${purchases.isDonation}, false)`,
         currencyType: purchases.currencyType,
         conversionRate: purchases.conversionRate,
-
-        // Client information
         client: clients,
-
-        // Organization information
         organization: organizations,
-
-        // Beneficiario information
-        beneficiario: beneficiarios,
-
-        // Bundle information
-        bundle: bundles,
-
-        // Extract saleType from paymentMetadata
         saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
       })
       .from(purchases)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
       .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
-      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
-      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
       .where(eq(purchases.isDraft, true))
       .orderBy(sql`${purchases.purchaseDate} DESC`)
 
-    // For each sale, fetch related payment plans and purchase items
-    const enhancedSales = await Promise.all(
-      sales.map(async (sale) => {
-        // Get payment plans for this purchase
-        const relatedPaymentPlans = await db.select().from(paymentPlans).where(eq(paymentPlans.purchaseId, sale.id))
-
-        // Get payments for this purchase
-        const relatedPayments = await db.select().from(payments).where(eq(payments.purchaseId, sale.id))
-
-        // Get purchase items with inventory item details
-        const relatedItems = await db
-          .select({
-            purchaseItem: purchaseItems,
-            inventoryItem: inventoryItems,
-          })
-          .from(purchaseItems)
-          .leftJoin(inventoryItems, eq(purchaseItems.itemId, inventoryItems.id))
-          .where(eq(purchaseItems.purchaseId, sale.id))
-
-        return {
-          ...sale,
-          paymentPlans: relatedPaymentPlans,
-          payments: relatedPayments,
-          items: relatedItems,
-        }
-      }),
-    )
-
     return {
       success: true,
-      data: enhancedSales,
+      data: sales,
     }
   } catch (error) {
-    console.error("Error fetching draft sales data:", error)
-    return { success: false, error: "Failed to fetch draft sales data" }
+    console.error("Error al obtener datos de ventas en borrador:", error)
+    return { success: false, error: "Error al obtener datos de ventas en borrador" }
   }
 }
 
@@ -786,9 +738,6 @@ export async function getTopSellingProducts(limit = 10, period: "week" | "month"
         const day = now.getDay()
         startDate = new Date(now.setDate(now.getDate() - day))
         startDate.setHours(0, 0, 0, 0)
-        break
-      case "month":
-        startDate = new Date(now.getFullYear0, 0, 0)
         break
       case "month":
         startDate = new Date(now.getFullYear(), now.getMonth(), 1)

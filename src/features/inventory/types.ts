@@ -115,6 +115,8 @@ export interface Bundle {
   status: "ACTIVE" | "INACTIVE"
   createdAt: Date
   updatedAt: Date
+  currencyType?: string
+  conversionRate?: string
 }
 
 export type CreateBundleInput = {
@@ -128,6 +130,8 @@ export type CreateBundleInput = {
   }[]
   totalBasePrice: number
   savingsPercentage: number
-  totalCostPrice?: number // Add total cost price field
+  totalCostPrice?: number
+  currencyType?: string
+  conversionRate?: number
 }
 

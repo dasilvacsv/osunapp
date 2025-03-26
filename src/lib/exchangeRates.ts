@@ -51,25 +51,37 @@ export async function fetchBCVRate() {
 /**
  * Get BCV rate with caching to avoid excessive API calls
  */
-export async function getBCVRate() {
-    const now = Date.now();
-    
-    // If cache is valid, return cached rate
-    if (bcvRateCache && lastFetchTime && (now - lastFetchTime < CACHE_DURATION_MS)) {
-        console.log('Using cached BCV rate:', bcvRateCache.rate);
-        return bcvRateCache;
+export async function getBCVRate(): Promise<{ rate: number; lastUpdate: string; isError: boolean }> {
+    try {
+      // Try to fetch from BCV API
+      const response = await fetch("https://api.exchangerate-api.com/v4/latest/USD", {
+        next: { revalidate: 3600 }, // Revalidate every hour
+      })
+  
+      if (!response.ok) {
+        throw new Error("Failed to fetch BCV rate")
+      }
+  
+      const data = await response.json()
+  
+      // Extract the VES (Venezuelan Bolivar) rate
+      const rate = data?.rates?.VES || 35.0 // Default to 35 if not available
+  
+      return {
+        rate,
+        lastUpdate: new Date().toISOString(),
+        isError: false,
+      }
+    } catch (error) {
+      console.error("Error fetching BCV rate:", error)
+      // Return a default rate if the API fails
+      return {
+        rate: 35.0,
+        lastUpdate: new Date().toISOString(),
+        isError: true,
+      }
     }
-    
-    // Fetch new rate
-    console.log('Fetching fresh BCV rate');
-    const rateInfo = await fetchBCVRate();
-    
-    // Update cache
-    bcvRateCache = rateInfo;
-    lastFetchTime = now;
-    
-    return rateInfo;
-}
+  }
 
 /**
  * Formats a USD amount to VES using the current BCV rate
@@ -113,3 +125,32 @@ export async function formatUsdToVes(usdAmount: number) {
         };
     }
 } 
+
+export function formatSaleCurrency(amount: number, currencyType = "USD", conversionRate?: number | string) {
+    const rate = typeof conversionRate === "string" ? Number.parseFloat(conversionRate) : conversionRate || 1
+  
+    if (currencyType === "BS") {
+      return `${amount.toFixed(2)} Bs`
+    } else {
+      return `$${amount.toFixed(2)}`
+    }
+  }
+  
+  // Convert between currencies
+  export function convertCurrency(
+    amount: number,
+    fromCurrency: string,
+    toCurrency: string,
+    conversionRate: number,
+  ): number {
+    if (fromCurrency === toCurrency) return amount
+  
+    if (fromCurrency === "USD" && toCurrency === "BS") {
+      return amount * conversionRate
+    } else if (fromCurrency === "BS" && toCurrency === "USD") {
+      return amount / conversionRate
+    }
+  
+    return amount
+  }
+  

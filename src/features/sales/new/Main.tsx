@@ -1,17 +1,10 @@
 "use client"
 
-import { useState, memo } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Input } from "@/components/ui/input" 
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { 
-  Form, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormControl,
-  FormMessage
-} from "@/components/ui/form"
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -19,36 +12,31 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { OrganizationSelect } from "./selectors/organization-select"
 import { ClientSelect } from "./selectors/client-select"
-import { BeneficiarySelect, Beneficiary } from "./selectors/beneficiary-select"
-import { Organization } from "@/lib/types"
+import { BeneficiarySelect, type Beneficiary } from "./selectors/beneficiary-select"
+import type { Organization } from "@/lib/types"
 import { useToast } from "@/hooks/use-toast"
 import { CartSection } from "./cart-section"
-import { type Bundle, type CartItem, type InventoryItem } from "./types"
-import { type Client } from "./selectors/client-select"
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select"
+import type { Bundle, CartItem, InventoryItem } from "./types"
+import type { Client } from "./selectors/client-select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CreditCard, Loader2 } from "lucide-react"
 import { createSale } from "./products"
+import { getBCVRate } from "@/lib/exchangeRates"
 
 export interface OrganizationSelectFormProps {
-  className?: string;
-  initialOrganizations: Organization[];
-  initialClients: Client[];
-  initialBundles: Bundle[];
-  initialItems: InventoryItem[];
+  className?: string
+  initialOrganizations: Organization[]
+  initialClients: Client[]
+  initialBundles: Bundle[]
+  initialItems: InventoryItem[]
   onSubmit: (data: {
-    organizationId: string;
-    clientId: string;
-    beneficiarioId: string;
-    bundleId?: string;
-    cart: CartItem[];
-    totalAmount: number;
-  }) => Promise<void>;
+    organizationId: string
+    clientId: string
+    beneficiarioId: string
+    bundleId?: string
+    cart: CartItem[]
+    totalAmount: number
+  }) => Promise<void>
 }
 
 // Define form schema
@@ -62,30 +50,35 @@ const saleFormSchema = z.object({
   saleType: z.enum(["DIRECT", "PRESALE"]).default("DIRECT"),
   paymentMethod: z.enum(["CASH", "CARD", "TRANSFER", "OTHER"]).default("CASH"),
   transactionReference: z.string().optional(),
-  cart: z.array(z.object({
-    itemId: z.string(),
-    name: z.string(),
-    quantity: z.number().min(1),
-    unitPrice: z.number(),
-    overridePrice: z.number().optional(),
-    stock: z.number().optional(),
-    allowPreSale: z.boolean().optional()
-  })).min(1, "At least one item must be added to cart")
+  currencyType: z.enum(["USD", "BS"]).default("USD"),
+  conversionRate: z.number().min(0.01, "Conversion rate must be positive").default(1),
+  cart: z
+    .array(
+      z.object({
+        itemId: z.string(),
+        name: z.string(),
+        quantity: z.number().min(1),
+        unitPrice: z.number(),
+        overridePrice: z.number().optional(),
+        stock: z.number().optional(),
+        allowPreSale: z.boolean().optional(),
+      }),
+    )
+    .min(1, "At least one item must be added to cart"),
 })
 
 type SaleFormValues = z.infer<typeof saleFormSchema>
 
-export function OrganizationSelectForm({ 
+export function OrganizationSelectForm({
   className,
-  initialOrganizations, 
+  initialOrganizations,
   initialClients,
   initialBundles,
-  initialItems 
+  initialItems,
 }: OrganizationSelectFormProps) {
-  
   const { toast } = useToast()
   const router = useRouter()
-  
+
   const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>("")
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [selectedClient, setSelectedClient] = useState<any | null>(null)
@@ -93,7 +86,8 @@ export function OrganizationSelectForm({
   const [selectedBundleId, setSelectedBundleId] = useState<string>("")
   const [cartTotal, setCartTotal] = useState(0)
   const [loading, setLoading] = useState(false)
-  
+  const [isLoadingBCVRate, setIsLoadingBCVRate] = useState(false)
+
   // Initialize form
   const form = useForm<SaleFormValues>({
     resolver: zodResolver(saleFormSchema),
@@ -107,12 +101,15 @@ export function OrganizationSelectForm({
       saleType: "DIRECT",
       paymentMethod: "CASH",
       transactionReference: "",
-      cart: []
+      currencyType: "USD",
+      conversionRate: 1,
+      cart: [],
     },
   })
 
   // Watch the saleType field to conditionally render payment fields
   const saleType = form.watch("saleType")
+  const currencyType = form.watch("currencyType")
 
   const handleOrganizationSelect = (organizationId: string, organization: Organization) => {
     setSelectedOrganizationId(organizationId)
@@ -126,10 +123,10 @@ export function OrganizationSelectForm({
     // Reset beneficiary when client changes
     setSelectedBeneficiaryId("")
     form.setValue("beneficiaryId", "")
-    
+
     // If client has an organization, auto-select it
     if (client.organizationId) {
-      const clientOrg = initialOrganizations.find(org => org.id === client.organizationId)
+      const clientOrg = initialOrganizations.find((org) => org.id === client.organizationId)
       if (clientOrg) {
         handleOrganizationSelect(clientOrg.id, clientOrg)
       }
@@ -151,9 +148,9 @@ export function OrganizationSelectForm({
       const updatedBeneficiaries = [...(selectedClient.beneficiarios || []), beneficiary]
       setSelectedClient({
         ...selectedClient,
-        beneficiarios: updatedBeneficiaries
+        beneficiarios: updatedBeneficiaries,
       })
-      
+
       // Automatically select the new beneficiary
       handleBeneficiarySelect(beneficiary.id, beneficiary)
     }
@@ -167,11 +164,11 @@ export function OrganizationSelectForm({
     // Clear previous cart items
     handleCartChange([])
     setCartTotal(0)
-    
+
     // Set the selected bundle ID
     setSelectedBundleId(bundleId)
     form.setValue("bundleId", bundleId)
-    
+
     // Map bundle items to cart items
     const cartItems = bundle.items.map((item) => ({
       itemId: item.item.id,
@@ -181,7 +178,7 @@ export function OrganizationSelectForm({
       stock: item.item.currentStock,
       allowPreSale: item.item.status === "ACTIVE",
       isFromBundle: true,
-      bundleId: bundle.id
+      bundleId: bundle.id,
     }))
 
     // Update the cart with the bundle items
@@ -189,9 +186,9 @@ export function OrganizationSelectForm({
     setCartTotal(calculateTotal(cartItems))
   }
 
-  const calculateBundleItemPrice = (item: any, bundleDiscount: number = 0) => {
+  const calculateBundleItemPrice = (item: any, bundleDiscount = 0) => {
     const basePrice = item.overridePrice || item.item.basePrice
-    return Number(basePrice) * (1 - (bundleDiscount / 100))
+    return Number(basePrice) * (1 - bundleDiscount / 100)
   }
 
   const calculateTotal = (cartItems: CartItem[]): number => {
@@ -202,26 +199,55 @@ export function OrganizationSelectForm({
     form.setValue("saleType", type)
   }
 
+  const handleCurrencyChange = (currency: string, rate: number) => {
+    form.setValue("currencyType", currency as "USD" | "BS")
+    form.setValue("conversionRate", rate)
+  }
+
+  // Fetch BCV rate
+  const fetchBCVRate = async () => {
+    try {
+      setIsLoadingBCVRate(true)
+      const rateInfo = await getBCVRate()
+      form.setValue("conversionRate", rateInfo.rate)
+
+      toast({
+        title: "Tasa BCV actualizada",
+        description: `Tasa actual: ${rateInfo.rate} Bs/USD (${rateInfo.isError ? "tasa de respaldo" : "actualizada: " + rateInfo.lastUpdate})`,
+        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo obtener la tasa BCV",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingBCVRate(false)
+    }
+  }
+
   const onSubmit = async (values: SaleFormValues) => {
     try {
       setLoading(true)
-      
+
       const formData = {
         ...values,
-        total: cartTotal
+        total: cartTotal,
+        isPaid: saleType === "DIRECT", // Mark as paid for direct sales
       }
 
       console.log("Form submitted with values:", formData)
-      
+
       // Call the server action to create the sale
       const result = await createSale(formData)
-      
+
       if (result.success) {
         toast({
           title: "Success",
-          description: `Sale created successfully${result.data?.id ? ` with ID: ${result.data.id}` : ''}`,
+          description: `Sale created successfully${result.data?.id ? ` with ID: ${result.data.id}` : ""}`,
         })
-        
+
         // Reset form
         form.reset()
         router.push("/sales")
@@ -229,14 +255,14 @@ export function OrganizationSelectForm({
         toast({
           title: "Error",
           description: result.error || "Failed to create sale",
-          variant: "destructive"
+          variant: "destructive",
         })
       }
     } catch (error) {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to create sale",
-        variant: "destructive"
+        variant: "destructive",
       })
     } finally {
       setLoading(false)
@@ -314,13 +340,14 @@ export function OrganizationSelectForm({
               />
 
               {/* Cart Section */}
-              <CartSection 
+              <CartSection
                 control={form.control}
                 initialItems={initialItems}
                 initialBundles={initialBundles}
                 onCartChange={handleCartChange}
                 onTotalChange={setCartTotal}
                 onSaleTypeChange={handleSaleTypeChange}
+                onCurrencyChange={handleCurrencyChange}
                 selectedBundleId={selectedBundleId}
                 onBundleSelect={handleBundleSelect}
               />
@@ -366,17 +393,14 @@ export function OrganizationSelectForm({
                       <FormItem>
                         <FormLabel>Transaction Reference</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="Receipt number, transaction ID, etc." 
-                            {...field} 
-                          />
+                          <Input placeholder="Receipt number, transaction ID, etc." {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 )}
-                
+
                 <FormField
                   control={form.control}
                   name="notes"
@@ -384,17 +408,14 @@ export function OrganizationSelectForm({
                     <FormItem>
                       <FormLabel>Notes</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          placeholder="Any additional notes for this sale" 
-                          {...field} 
-                        />
+                        <Textarea placeholder="Any additional notes for this sale" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-              
+
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? (
                   <>
@@ -412,3 +433,4 @@ export function OrganizationSelectForm({
     </div>
   )
 }
+

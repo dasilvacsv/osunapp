@@ -3,7 +3,7 @@
 import { useState, memo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Trash, Plus, Minus, AlertCircle } from "lucide-react"
+import { Trash, Plus, Minus, AlertCircle, RefreshCw } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { ProductSelect } from "./selectors/product-select"
 import { BundleSelect } from "./selectors/bundle-select"
@@ -12,6 +12,9 @@ import type { Control } from "react-hook-form"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SaleTypeSelector } from "./selectors/sale-type-selector"
 import { Alert } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getBCVRate } from "@/lib/exchangeRates"
+import { useToast } from "@/hooks/use-toast"
 
 interface InventoryItem {
   id: string
@@ -58,6 +61,7 @@ interface CartSectionProps {
   onCartChange: (cart: CartItem[]) => void
   onTotalChange: (total: number) => void
   onSaleTypeChange: (type: "DIRECT" | "PRESALE") => void
+  onCurrencyChange?: (currency: string, rate: number) => void
   selectedBundleId?: string
   onBundleSelect?: (bundleId: string, bundle: Bundle) => void
 }
@@ -69,6 +73,7 @@ export const CartSection = memo(function CartSection({
   onCartChange,
   onTotalChange,
   onSaleTypeChange,
+  onCurrencyChange,
   selectedBundleId,
   onBundleSelect,
 }: CartSectionProps) {
@@ -81,14 +86,20 @@ export const CartSection = memo(function CartSection({
   const [bundleResults, setBundleResults] = useState<Bundle[]>([])
   const [saleType, setSaleType] = useState<"DIRECT" | "PRESALE">("DIRECT")
   const [hasInsufficientStock, setHasInsufficientStock] = useState(false)
+  const [currencyType, setCurrencyType] = useState<string>("USD")
+  const [conversionRate, setConversionRate] = useState<number>(1)
+  const [isLoadingRate, setIsLoadingRate] = useState(false)
+  const { toast } = useToast()
 
   // Get cart value from form
   useEffect(() => {
-    const cartValue = control._formValues?.cart
-    if (cartValue && Array.isArray(cartValue) && cartValue.length > 0) {
-      setCart(cartValue)
+    if (control && control.getValues) {
+      const cartValue = control.getValues("cart")
+      if (cartValue && Array.isArray(cartValue) && cartValue.length > 0) {
+        setCart(cartValue)
+      }
     }
-  }, [control._formValues?.cart])
+  }, [control])
 
   // Reset available items when initialItems changes
   useEffect(() => {
@@ -116,7 +127,7 @@ export const CartSection = memo(function CartSection({
     }
 
     checkStock()
-  }, [cart, saleType])
+  }, [cart, saleType, onSaleTypeChange])
 
   // Filter products and bundles based on search query
   const filterItems = (query: string) => {
@@ -134,6 +145,48 @@ export const CartSection = memo(function CartSection({
     } else {
       setSearchResults([])
       setBundleResults([])
+    }
+  }
+
+  // Fetch BCV rate
+  const fetchBCVRate = async () => {
+    try {
+      setIsLoadingRate(true)
+      const rateInfo = await getBCVRate()
+      setConversionRate(rateInfo.rate)
+
+      // Notify parent component about currency change
+      if (onCurrencyChange) {
+        onCurrencyChange(currencyType, rateInfo.rate)
+      }
+
+      toast({
+        title: "Tasa BCV actualizada",
+        description: `Tasa actual: ${rateInfo.rate} Bs/USD (${rateInfo.isError ? "tasa de respaldo" : "actualizada: " + rateInfo.lastUpdate})`,
+        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo obtener la tasa BCV",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingRate(false)
+    }
+  }
+
+  // Handle currency change
+  const handleCurrencyChange = async (value: string) => {
+    setCurrencyType(value)
+
+    if (value === "BS") {
+      await fetchBCVRate()
+    } else {
+      setConversionRate(1)
+      if (onCurrencyChange) {
+        onCurrencyChange("USD", 1)
+      }
     }
   }
 
@@ -240,6 +293,14 @@ export const CartSection = memo(function CartSection({
     }
   }
 
+  // Format currency based on selected type
+  const formatCartCurrency = (amount: number) => {
+    if (currencyType === "BS") {
+      return `Bs. ${formatCurrency(amount).replace("$", "")}`
+    }
+    return formatCurrency(amount)
+  }
+
   return (
     <div className="space-y-6">
       {/* Sale Type Selector */}
@@ -257,7 +318,6 @@ export const CartSection = memo(function CartSection({
                   onSaleTypeChange(type)
                 }}
                 defaultValue={saleType}
-                disabled={hasInsufficientStock}
               />
             </FormControl>
             <FormMessage />
@@ -265,13 +325,53 @@ export const CartSection = memo(function CartSection({
         )}
       />
 
+      {/* Currency Selector */}
+      <FormField
+        control={control}
+        name="currencyType"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Moneda</FormLabel>
+            <div className="flex gap-2">
+              <FormControl>
+                <Select
+                  value={field.value || currencyType}
+                  onValueChange={(value) => {
+                    field.onChange(value)
+                    handleCurrencyChange(value)
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Seleccionar moneda" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="BS">BS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              {field.value === "BS" && (
+                <Button type="button" variant="outline" size="icon" onClick={fetchBCVRate} disabled={isLoadingRate}>
+                  <RefreshCw className={`h-4 w-4 ${isLoadingRate ? "animate-spin" : ""}`} />
+                </Button>
+              )}
+            </div>
+            {field.value === "BS" && (
+              <div className="text-sm text-muted-foreground mt-1">Tasa: {conversionRate} Bs/USD</div>
+            )}
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
       {hasInsufficientStock && (
-        <Alert variant="warning" className="bg-amber-50/50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30">
+        <Alert
+          variant="warning"
+          className="bg-amber-50/50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/30"
+        >
           <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
           <div className="ml-2">
-            <p className="text-amber-700 dark:text-amber-300">
-              Stock insuficiente para venta directa
-            </p>
+            <p className="text-amber-700 dark:text-amber-300">Stock insuficiente para venta directa</p>
             <p className="text-sm text-amber-600/90 dark:text-amber-400/90 mt-0.5">
               La venta se ha configurado automáticamente como preventa
             </p>
@@ -405,10 +505,10 @@ export const CartSection = memo(function CartSection({
                     </div>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="font-semibold">{formatCurrency(item.unitPrice * item.quantity)}</span>
+                    <span className="font-semibold">{formatCartCurrency(item.unitPrice * item.quantity)}</span>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-sm text-muted-foreground">
-                        {item.quantity} x {formatCurrency(item.unitPrice)}
+                        {item.quantity} x {formatCartCurrency(item.unitPrice)}
                       </span>
                       <Button
                         size="sm"
@@ -431,7 +531,7 @@ export const CartSection = memo(function CartSection({
 
             <div className="flex justify-between items-center p-3 border-t pt-4">
               <span className="font-semibold">Total</span>
-              <span className="text-xl font-bold">{formatCurrency(calculateTotal())}</span>
+              <span className="text-xl font-bold">{formatCartCurrency(calculateTotal())}</span>
             </div>
           </div>
         )}
@@ -439,3 +539,4 @@ export const CartSection = memo(function CartSection({
     </div>
   )
 })
+

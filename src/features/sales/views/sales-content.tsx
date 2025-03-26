@@ -7,7 +7,7 @@ import { PlusIcon, RefreshCw, ShoppingCart, CreditCard, FileText, Calendar } fro
 import { DeletePackageDialog } from "@/features/sales/delete-package-dialog"
 import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { PaymentTable } from "@/features/sales/views/payment-table"
-import { useCallback, useState } from "react"
+import { useCallback, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { getSalesData2, getDraftSalesData } from "@/features/sales/views/actions"
@@ -29,6 +29,36 @@ export default function SalesPageContent({ initialSales }: { initialSales: any[]
 
   const router = useRouter()
   const { toast } = useToast()
+
+  // Initial load of draft sales
+  useEffect(() => {
+    const loadDraftSales = async () => {
+      try {
+        const draftResult = await getDraftSalesData()
+
+        if (draftResult.success && draftResult.data) {
+          const formattedDrafts = draftResult.data.map((sale: any) => ({
+            ...sale,
+            client: sale.client,
+            beneficiario: sale.beneficiario,
+            bundleName: sale.bundle?.name || "N/A",
+            organization: sale.organization,
+            totalAmount: typeof sale.totalAmount === "string" ? Number.parseFloat(sale.totalAmount) : sale.totalAmount,
+            purchaseDate: sale.purchaseDate ? new Date(sale.purchaseDate) : null,
+            payments: sale.payments || [],
+            paymentPlans: sale.paymentPlans || [],
+            items: sale.items || [],
+          }))
+
+          setDraftSales(formattedDrafts)
+        }
+      } catch (error) {
+        console.error("Error loading draft sales:", error)
+      }
+    }
+
+    loadDraftSales()
+  }, [])
 
   const refreshSales = useCallback(async () => {
     setIsRefreshing(true)

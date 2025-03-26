@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { NewSaleForm } from "@/features/sales/new/new-sale-form"
+import  NewSaleForm  from "@/features/sales/new/new-sale-form"
 import { getClients, getOrganizations, getProducts, getBundles } from "@/features/sales/new/actions"
 import { Skeleton } from "@/components/ui/skeleton"
 

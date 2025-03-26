@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
-import { Package, DollarSign, Percent, Tag, ShoppingBag } from "lucide-react"
+import { Package, DollarSign, Percent, Tag, ShoppingBag, Coins } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import type { BundleWithItems } from "../types"
 
@@ -44,6 +44,16 @@ export function BundlesList() {
     fetchBundles()
   }, [])
 
+  // Format currency based on bundle's currency type
+  const formatBundleCurrency = (amount: number, currencyType?: string, conversionRate?: string) => {
+    if (currencyType === "BS") {
+      const rate = conversionRate ? Number(conversionRate) : 1
+      const bsAmount = amount * rate
+      return `${bsAmount.toFixed(2)} Bs`
+    }
+    return formatCurrency(amount)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -70,10 +80,16 @@ export function BundlesList() {
             <div className="flex justify-between items-start">
               <CardTitle className="text-lg">{bundle.name}</CardTitle>
               <Badge variant="outline" className="bg-primary/10 text-primary">
-                {formatCurrency(bundle.totalDiscountedPrice)}
+                {formatBundleCurrency(bundle.totalDiscountedPrice, bundle.currencyType, bundle.conversionRate)}
               </Badge>
             </div>
             {bundle.description && <p className="text-sm text-muted-foreground mt-1">{bundle.description}</p>}
+            {bundle.currencyType === "BS" && (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 mt-2">
+                <Coins className="h-3 w-3 mr-1" />
+                Bolívares
+              </Badge>
+            )}
           </CardHeader>
 
           <CardContent className="py-2 flex-grow">
@@ -81,7 +97,9 @@ export function BundlesList() {
               <div className="flex items-center gap-1">
                 <Tag className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">Precio base:</span>
-                <span className="font-medium">{formatCurrency(bundle.totalBasePrice)}</span>
+                <span className="font-medium">
+                  {formatBundleCurrency(bundle.totalBasePrice, bundle.currencyType, bundle.conversionRate)}
+                </span>
               </div>
 
               <div className="flex items-center gap-1">
@@ -93,7 +111,9 @@ export function BundlesList() {
               <div className="flex items-center gap-1">
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">Ahorro:</span>
-                <span className="font-medium">{formatCurrency(bundle.savings)}</span>
+                <span className="font-medium">
+                  {formatBundleCurrency(bundle.savings, bundle.currencyType, bundle.conversionRate)}
+                </span>
               </div>
 
               <div className="flex items-center gap-1">
@@ -106,13 +126,15 @@ export function BundlesList() {
             <div className="space-y-1">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Costo estimado:</span>
-                <span className="font-medium">{formatCurrency(bundle.totalEstimatedCost)}</span>
+                <span className="font-medium">
+                  {formatBundleCurrency(bundle.totalEstimatedCost, bundle.currencyType, bundle.conversionRate)}
+                </span>
               </div>
 
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">Ganancia:</span>
                 <span className={`font-medium ${bundle.profit < 0 ? "text-destructive" : "text-green-600"}`}>
-                  {formatCurrency(bundle.profit)}
+                  {formatBundleCurrency(bundle.profit, bundle.currencyType, bundle.conversionRate)}
                 </span>
               </div>
 

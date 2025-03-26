@@ -1,5 +1,6 @@
 "use client"
 
+// Add currency type selection to the form
 import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -11,7 +12,19 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { Package, Plus, Minus, Save, Trash2, DollarSign, Percent, Tag, ShoppingBag } from "lucide-react"
+import {
+  Package,
+  Plus,
+  Minus,
+  Save,
+  Trash2,
+  DollarSign,
+  Percent,
+  Tag,
+  ShoppingBag,
+  Coins,
+  RefreshCw,
+} from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { InventoryItemSelector } from "../stock/inventory-item-selector"
 import type { InventoryItem, BundleItem } from "../types"
@@ -19,6 +32,7 @@ import { getInventoryItems } from "../actions"
 import { createBundle } from "./actions"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
+import { getBCVRate } from "@/lib/exchangeRates"
 
 // Schema for bundle
 const bundleSchema = z.object({
@@ -26,6 +40,8 @@ const bundleSchema = z.object({
   description: z.string().optional(),
   categoryId: z.string().min(1, "La categoría es requerida"),
   savingsPercentage: z.coerce.number().min(0).max(100),
+  currencyType: z.enum(["USD", "BS"]).default("USD"),
+  conversionRate: z.coerce.number().optional(),
 })
 
 type BundleFormValues = z.infer<typeof bundleSchema>
@@ -39,6 +55,8 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
   const [selectedItems, setSelectedItems] = useState<BundleItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
+  const [isLoadingRate, setIsLoadingRate] = useState(false)
+  const [bcvRate, setBcvRate] = useState<number>(35)
   const { toast } = useToast()
   const router = useRouter()
 
@@ -61,16 +79,57 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
       description: "",
       categoryId: "",
       savingsPercentage: 0,
+      currencyType: "USD",
+      conversionRate: undefined,
     },
   })
 
   const savingsPercentage = form.watch("savingsPercentage")
+  const currencyType = form.watch("currencyType")
+  const conversionRate = form.watch("conversionRate")
+
   const discountedPrice = totalBasePrice * (1 - savingsPercentage / 100)
   const savings = totalBasePrice - discountedPrice
 
   // Calculate profit
   const profit = discountedPrice - totalCostPrice
   const profitPercentage = discountedPrice > 0 ? (profit / discountedPrice) * 100 : 0
+
+  // Load BCV rate on mount and when currency changes
+  useEffect(() => {
+    if (currencyType === "BS") {
+      fetchBCVRate()
+    }
+  }, [currencyType])
+
+  // Fetch BCV rate
+  const fetchBCVRate = async () => {
+    try {
+      setIsLoadingRate(true)
+      const rateInfo = await getBCVRate()
+      setBcvRate(rateInfo.rate)
+
+      // Set the conversion rate if not already set
+      if (!conversionRate) {
+        form.setValue("conversionRate", rateInfo.rate)
+      }
+
+      toast({
+        title: "Tasa BCV actualizada",
+        description: `Tasa actual: ${rateInfo.rate} Bs/USD (${rateInfo.isError ? "tasa de respaldo" : "actualizada"})`,
+        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+      })
+    } catch (error) {
+      console.error("Error fetching BCV rate:", error)
+      toast({
+        title: "Error",
+        description: "No se pudo obtener la tasa BCV",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingRate(false)
+    }
+  }
 
   // Refresh inventory items
   const refreshInventory = async () => {
@@ -130,6 +189,16 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
     setSelectedItems(selectedItems.filter((_, i) => i !== index))
   }
 
+  // Format currency based on type
+  const formatBundleCurrency = (amount: number) => {
+    if (currencyType === "BS") {
+      const rate = conversionRate || bcvRate
+      const bsAmount = amount * rate
+      return `${bsAmount.toFixed(2)} Bs`
+    }
+    return formatCurrency(amount)
+  }
+
   // Submit bundle
   const handleSubmit = async (values: BundleFormValues) => {
     try {
@@ -137,6 +206,16 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
         toast({
           title: "Error",
           description: "Debe seleccionar al menos un artículo para el bundle",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // Validate conversion rate for BS currency
+      if (values.currencyType === "BS" && !values.conversionRate) {
+        toast({
+          title: "Error",
+          description: "Debe especificar una tasa de conversión para bundles en Bolívares",
           variant: "destructive",
         })
         return
@@ -157,6 +236,8 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
         totalBasePrice,
         totalCostPrice,
         savingsPercentage: values.savingsPercentage,
+        currencyType: values.currencyType,
+        conversionRate: values.conversionRate,
       }
 
       // Llamar a la acción del servidor para crear el bundle
@@ -278,6 +359,71 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                   </FormItem>
                 )}
               />
+
+              {/* Currency Settings */}
+              <div className="grid md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="currencyType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Coins className="w-4 h-4" />
+                        Moneda
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar moneda" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="USD">Dólares (USD)</SelectItem>
+                          <SelectItem value="BS">Bolívares (BS)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {currencyType === "BS" && (
+                  <FormField
+                    control={form.control}
+                    name="conversionRate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4" />
+                          Tasa de Cambio (Bs/USD)
+                        </FormLabel>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0.01"
+                              {...field}
+                              onChange={(e) => field.onChange(Number(e.target.value))}
+                              placeholder={`Tasa BCV: ${bcvRate}`}
+                            />
+                          </FormControl>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={fetchBCVRate}
+                            disabled={isLoadingRate}
+                          >
+                            <RefreshCw className={`h-4 w-4 ${isLoadingRate ? "animate-spin" : ""}`} />
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -371,7 +517,7 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                             </div>
 
                             <div className="text-right font-medium">
-                              {formatCurrency(
+                              {formatBundleCurrency(
                                 (selectedItem.overridePrice !== undefined
                                   ? selectedItem.overridePrice
                                   : Number(selectedItem.item.basePrice)) * selectedItem.quantity,
@@ -398,17 +544,19 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                           <div className="space-y-4">
                             <div className="flex justify-between items-center">
                               <span className="text-muted-foreground">Precio Base Total:</span>
-                              <span className="font-medium">{formatCurrency(totalBasePrice)}</span>
+                              <span className="font-medium">{formatBundleCurrency(totalBasePrice)}</span>
                             </div>
 
                             <div className="flex justify-between items-center">
                               <span className="text-muted-foreground">Costo Total:</span>
-                              <span className="font-medium">{formatCurrency(totalCostPrice)}</span>
+                              <span className="font-medium">{formatBundleCurrency(totalCostPrice)}</span>
                             </div>
 
                             <div className="flex justify-between items-center">
                               <span className="text-muted-foreground">Margen Bruto:</span>
-                              <span className="font-medium">{formatCurrency(totalBasePrice - totalCostPrice)}</span>
+                              <span className="font-medium">
+                                {formatBundleCurrency(totalBasePrice - totalCostPrice)}
+                              </span>
                             </div>
 
                             <div className="flex justify-between items-center">
@@ -456,18 +604,20 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
 
                             <div className="flex justify-between items-center">
                               <span className="text-muted-foreground">Ahorro:</span>
-                              <span className="font-medium">{formatCurrency(savings)}</span>
+                              <span className="font-medium">{formatBundleCurrency(savings)}</span>
                             </div>
 
                             <div className="flex justify-between items-center">
                               <span className="text-muted-foreground">Precio Final:</span>
-                              <span className="font-bold text-lg text-primary">{formatCurrency(discountedPrice)}</span>
+                              <span className="font-bold text-lg text-primary">
+                                {formatBundleCurrency(discountedPrice)}
+                              </span>
                             </div>
 
                             <div className="flex justify-between items-center">
                               <span className="text-muted-foreground">Ganancia:</span>
                               <span className={`font-medium ${profit < 0 ? "text-destructive" : "text-green-600"}`}>
-                                {formatCurrency(profit)}
+                                {formatBundleCurrency(profit)}
                               </span>
                             </div>
 

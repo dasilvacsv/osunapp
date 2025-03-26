@@ -8,8 +8,6 @@ import { revalidatePath } from "next/cache"
 export type InstallmentFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY"
 export type PaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED"
 
-// Your existing functions from payment-actions.ts remain unchanged
-
 export async function createPaymentPlan({
   purchaseId,
   totalAmount,
@@ -69,6 +67,8 @@ export async function createPaymentPlan({
           status: "PENDING",
           dueDate: startDate,
           notes: "Pago inicial",
+          currencyType: purchase.currencyType || "USD",
+          conversionRate: purchase.conversionRate || "1",
         })
         .returning()
 
@@ -88,6 +88,8 @@ export async function createPaymentPlan({
           status: "PENDING",
           dueDate: dueDates[i],
           notes: `Cuota ${i + 1} de ${installmentCount}`,
+          currencyType: purchase.currencyType || "USD",
+          conversionRate: purchase.conversionRate || "1",
         })
         .returning()
 
@@ -111,14 +113,25 @@ export async function recordPayment({
   transactionReference,
   paymentDate = new Date(),
   notes,
+  currencyType,
+  conversionRate,
 }: {
   paymentId: string
   paymentMethod: string
   transactionReference?: string
   paymentDate?: Date
   notes?: string
+  currencyType?: string
+  conversionRate?: string
 }) {
   try {
+    // Get the payment to update
+    const [payment] = await db.select().from(payments).where(eq(payments.id, paymentId))
+
+    if (!payment) {
+      return { success: false, error: "Pago no encontrado" }
+    }
+
     // Actualizar el pago
     const [updatedPayment] = await db
       .update(payments)
@@ -128,6 +141,8 @@ export async function recordPayment({
         paymentMethod,
         transactionReference,
         notes,
+        currencyType: currencyType || payment.currencyType || "USD",
+        conversionRate: conversionRate || payment.conversionRate || "1",
         updatedAt: new Date(),
       })
       .where(eq(payments.id, paymentId))
@@ -152,6 +167,11 @@ export async function recordPayment({
           updatedAt: new Date(),
         })
         .where(eq(purchases.id, updatedPayment.purchaseId))
+
+      // Delete any pending payments (auto-purge)
+      await db
+        .delete(payments)
+        .where(and(eq(payments.purchaseId, updatedPayment.purchaseId), eq(payments.status, "PENDING")))
     }
 
     revalidatePath(`/sales/${updatedPayment.purchaseId}`)
@@ -227,6 +247,7 @@ export async function addPartialPayment({
   transactionReference,
   paymentDate = new Date(),
   notes,
+  originalAmount,
 }: {
   purchaseId: string
   amount: number
@@ -236,6 +257,7 @@ export async function addPartialPayment({
   transactionReference?: string
   paymentDate?: Date
   notes?: string
+  originalAmount?: number
 }) {
   try {
     // Get the purchase to check remaining amount
@@ -266,10 +288,14 @@ export async function addPartialPayment({
     }
 
     // Calculate original amount based on currency
-    let originalAmount = amount
-    if (currencyType !== "USD") {
-      // If paying in BS, convert to USD for storage
-      originalAmount = amount / conversionRate
+    let finalOriginalAmount = originalAmount || amount
+    if (!originalAmount && currencyType !== purchase.currencyType) {
+      // If paying in different currency, convert to purchase currency
+      if (currencyType === "BS" && purchase.currencyType === "USD") {
+        finalOriginalAmount = amount / conversionRate
+      } else if (currencyType === "USD" && purchase.currencyType === "BS") {
+        finalOriginalAmount = amount * conversionRate
+      }
     }
 
     // Create the payment
@@ -278,7 +304,7 @@ export async function addPartialPayment({
       .values({
         purchaseId,
         amount: amount.toString(),
-        originalAmount: originalAmount.toString(),
+        originalAmount: finalOriginalAmount.toString(),
         status: "PAID",
         paymentDate,
         paymentMethod,
@@ -290,7 +316,7 @@ export async function addPartialPayment({
       .returning()
 
     // Check if this payment completes the purchase
-    const newTotalPaid = Number(totalPaid) + amount
+    const newTotalPaid = Number(totalPaid) + finalOriginalAmount
     if (newTotalPaid >= totalAmount) {
       await db
         .update(purchases)
@@ -299,6 +325,9 @@ export async function addPartialPayment({
           updatedAt: new Date(),
         })
         .where(eq(purchases.id, purchaseId))
+
+      // Auto-purge any pending payments
+      await db.delete(payments).where(and(eq(payments.purchaseId, purchaseId), eq(payments.status, "PENDING")))
     }
 
     revalidatePath(`/sales/${purchaseId}`)
@@ -332,7 +361,7 @@ export async function getRemainingBalance(purchaseId: string) {
 
     const totalPaid = Number(existingPayments[0]?.totalPaid || 0)
     const totalAmount = Number(purchase.totalAmount)
-    
+
     // Round to 2 decimal places to avoid floating point precision issues
     const roundedTotalPaid = Math.round(totalPaid * 100) / 100
     const roundedTotalAmount = Math.round(totalAmount * 100) / 100

@@ -38,9 +38,11 @@ export async function createBundle(input: CreateBundleInput): Promise<ActionResp
         description: input.description || null,
         categoryId: input.categoryId,
         type: "REGULAR", // Puedes ajustar esto según tus necesidades
-        basePrice: input.totalBasePrice,
-        discountPercentage: input.savingsPercentage,
-        bundlePrice: input.totalBasePrice * (1 - input.savingsPercentage / 100),
+        basePrice: input.totalBasePrice.toString(),
+        discountPercentage: input.savingsPercentage.toString(),
+        bundlePrice: (input.totalBasePrice * (1 - input.savingsPercentage / 100)).toString(),
+        currencyType: input.currencyType || "USD",
+        conversionRate: input.conversionRate ? input.conversionRate.toString() : null,
       })
       .returning({ id: bundles.id })
 
@@ -54,7 +56,7 @@ export async function createBundle(input: CreateBundleInput): Promise<ActionResp
         bundleId: bundle.id,
         itemId: item.itemId,
         quantity: item.quantity,
-        overridePrice: item.overridePrice,
+        overridePrice: item.overridePrice ? item.overridePrice.toString() : null,
       })
     }
 
@@ -123,6 +125,8 @@ export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
           totalEstimatedCost,
           profit,
           profitPercentage,
+          currencyType: bundle.currencyType || "USD",
+          conversionRate: bundle.conversionRate || "1",
         }
       }),
     )

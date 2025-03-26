@@ -10,25 +10,26 @@ import {
   beneficiarios,
   purchases,
   purchaseItems,
-  payments,
   organizationMembers,
+  inventoryTransactions,
 } from "@/db/schema"
-import { eq, and, or, isNull, inArray } from "drizzle-orm"
+import { eq, and, or, isNull, inArray, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+import { getBCVRate } from "@/lib/exchangeRates"
 
 // Define types for our nested data structures
 type OrganizationMembership = {
-  membership: typeof organizationMembers.$inferSelect;
-  organization: typeof organizations.$inferSelect;
+  membership: typeof organizationMembers.$inferSelect
+  organization: typeof organizations.$inferSelect
 }
 
 type PurchaseWithDetails = {
-  purchase: typeof purchases.$inferSelect;
+  purchase: typeof purchases.$inferSelect
   items: {
-    item: typeof purchaseItems.$inferSelect;
-    inventoryItem: typeof inventoryItems.$inferSelect;
-  }[];
-  bundle?: typeof bundles.$inferSelect;
+    item: typeof purchaseItems.$inferSelect
+    inventoryItem: typeof inventoryItems.$inferSelect
+  }[]
+  bundle?: typeof bundles.$inferSelect
 }
 
 // Get all clients with related data
@@ -36,7 +37,7 @@ export async function getClients() {
   try {
     // Get all active clients
     const clientsData = await db.select().from(clients).where(eq(clients.status, "ACTIVE"))
-    
+
     if (clientsData.length === 0) {
       return {
         success: true,
@@ -44,30 +45,27 @@ export async function getClients() {
       }
     }
 
-    const clientIds = clientsData.map(client => client.id)
-    
+    const clientIds = clientsData.map((client) => client.id)
+
     // Get organizations for these clients
-    const organizationIds = clientsData
-      .filter(c => c.organizationId)
-      .map(c => c.organizationId as string)
-    
-    const organizationsData = organizationIds.length > 0
-      ? await db.select().from(organizations)
-          .where(inArray(organizations.id, organizationIds))
-      : []
-    
+    const organizationIds = clientsData.filter((c) => c.organizationId).map((c) => c.organizationId as string)
+
+    const organizationsData =
+      organizationIds.length > 0
+        ? await db.select().from(organizations).where(inArray(organizations.id, organizationIds))
+        : []
+
     // Get beneficiaries for these clients
-    const beneficiariesData = await db.select().from(beneficiarios)
-      .where(inArray(beneficiarios.clientId, clientIds))
-    
+    const beneficiariesData = await db.select().from(beneficiarios).where(inArray(beneficiarios.clientId, clientIds))
+
     // Map organizations and beneficiaries to clients
-    const result = clientsData.map(client => {
+    const result = clientsData.map((client) => {
       const organization = client.organizationId
-        ? organizationsData.find(org => org.id === client.organizationId)
+        ? organizationsData.find((org) => org.id === client.organizationId)
         : undefined
-      
-      const clientBeneficiaries = beneficiariesData.filter(ben => ben.clientId === client.id)
-      
+
+      const clientBeneficiaries = beneficiariesData.filter((ben) => ben.clientId === client.id)
+
       return {
         ...client,
         organization,
@@ -92,83 +90,83 @@ export async function getClients() {
 export async function getClientDetail(clientId: string) {
   try {
     // Get client
-    const clientResult = await db.select().from(clients)
-      .where(eq(clients.id, clientId))
-    
+    const clientResult = await db.select().from(clients).where(eq(clients.id, clientId))
+
     if (!clientResult || clientResult.length === 0) {
       return {
         success: false,
         error: "Client not found",
       }
     }
-    
+
     const client = clientResult[0]
-    
+
     // Get organization if it exists
     let organization: typeof organizations.$inferSelect | undefined
     if (client.organizationId) {
-      const orgResult = await db.select().from(organizations)
-        .where(eq(organizations.id, client.organizationId))
+      const orgResult = await db.select().from(organizations).where(eq(organizations.id, client.organizationId))
       organization = orgResult.length > 0 ? orgResult[0] : undefined
     }
-    
+
     // Get beneficiaries
-    const beneficiariesData = await db.select().from(beneficiarios)
-      .where(eq(beneficiarios.clientId, clientId))
-    
+    const beneficiariesData = await db.select().from(beneficiarios).where(eq(beneficiarios.clientId, clientId))
+
     // Get organization memberships
-    const memberships = await db.select().from(organizationMembers)
-      .where(eq(organizationMembers.clientId, clientId))
-    
+    const memberships = await db.select().from(organizationMembers).where(eq(organizationMembers.clientId, clientId))
+
     let organizationMemberships: OrganizationMembership[] = []
     if (memberships.length > 0) {
-      const membershipOrgIds = memberships.map(m => m.organizationId)
-      const membershipOrgs = await db.select().from(organizations)
-        .where(inArray(organizations.id, membershipOrgIds))
-      
-      organizationMemberships = memberships.map(membership => {
-        const org = membershipOrgs.find(o => o.id === membership.organizationId)
-        return org ? { membership, organization: org } : null
-      }).filter((item): item is OrganizationMembership => item !== null)
+      const membershipOrgIds = memberships.map((m) => m.organizationId)
+      const membershipOrgs = await db.select().from(organizations).where(inArray(organizations.id, membershipOrgIds))
+
+      organizationMemberships = memberships
+        .map((membership) => {
+          const org = membershipOrgs.find((o) => o.id === membership.organizationId)
+          return org ? { membership, organization: org } : null
+        })
+        .filter((item): item is OrganizationMembership => item !== null)
     }
-    
+
     // Get purchases with items and bundles
-    const purchasesData = await db.select().from(purchases)
-      .where(eq(purchases.clientId, clientId))
-    
+    const purchasesData = await db.select().from(purchases).where(eq(purchases.clientId, clientId))
+
     let clientPurchases: PurchaseWithDetails[] = []
     if (purchasesData.length > 0) {
-      const purchaseIds = purchasesData.map(p => p.id)
-      const bundleIds = purchasesData
-        .filter(p => p.bundleId)
-        .map(p => p.bundleId as string)
-      
+      const purchaseIds = purchasesData.map((p) => p.id)
+      const bundleIds = purchasesData.filter((p) => p.bundleId).map((p) => p.bundleId as string)
+
       // Get bundles
-      const bundlesData = bundleIds.length > 0
-        ? await db.select().from(bundles).where(inArray(bundles.id, bundleIds))
-        : []
-      
+      const bundlesData =
+        bundleIds.length > 0 ? await db.select().from(bundles).where(inArray(bundles.id, bundleIds)) : []
+
       // Get purchase items with inventory items
-      const purchaseItemsData = await db.select().from(purchaseItems)
+      const purchaseItemsData = await db
+        .select()
+        .from(purchaseItems)
         .where(inArray(purchaseItems.purchaseId, purchaseIds))
-      
-      const inventoryItemIds = purchaseItemsData.map(pi => pi.itemId)
-      const inventoryItemsData = await db.select().from(inventoryItems)
+
+      const inventoryItemIds = purchaseItemsData.map((pi) => pi.itemId)
+      const inventoryItemsData = await db
+        .select()
+        .from(inventoryItems)
         .where(inArray(inventoryItems.id, inventoryItemIds))
-      
-      clientPurchases = purchasesData.map(purchase => {
-        const bundle = purchase.bundleId
-          ? bundlesData.find(b => b.id === purchase.bundleId)
-          : undefined
-        
+
+      clientPurchases = purchasesData.map((purchase) => {
+        const bundle = purchase.bundleId ? bundlesData.find((b) => b.id === purchase.bundleId) : undefined
+
         const items = purchaseItemsData
-          .filter(pi => pi.purchaseId === purchase.id)
-          .map(item => {
-            const inventoryItem = inventoryItemsData.find(ii => ii.id === item.itemId)
+          .filter((pi) => pi.purchaseId === purchase.id)
+          .map((item) => {
+            const inventoryItem = inventoryItemsData.find((ii) => ii.id === item.itemId)
             return inventoryItem ? { item, inventoryItem } : null
           })
-          .filter((item): item is { item: typeof purchaseItems.$inferSelect; inventoryItem: typeof inventoryItems.$inferSelect } => item !== null)
-        
+          .filter(
+            (
+              item,
+            ): item is { item: typeof purchaseItems.$inferSelect; inventoryItem: typeof inventoryItems.$inferSelect } =>
+              item !== null,
+          )
+
         return {
           purchase,
           items,
@@ -272,70 +270,264 @@ export async function getBundles() {
   }
 }
 
-export async function createSale(data: any) {
+// Create a new sale
+export async function createSale(data: {
+  clientId: string
+  items: Array<{
+    itemId: string
+    quantity: number
+    overridePrice?: number
+  }>
+  bundleId?: string
+  beneficiaryId?: string
+  beneficiary?: {
+    firstName: string
+    lastName: string
+    school: string
+    level: string
+    section: string
+  }
+  paymentMethod: string
+  saleType: "DIRECT" | "PRESALE"
+  transactionReference?: string
+  organizationId?: string | null
+  isDraft?: boolean
+  vendido?: boolean
+  isDonation?: boolean
+  currencyType?: string
+  conversionRate?: number
+}) {
   try {
-    // Create the purchase first
+    // Calculate the total price based on items
+    let totalAmount = 0
+
+    // Calculate total from items
+    for (const item of data.items) {
+      const inventoryItem = await db
+        .select({ basePrice: inventoryItems.basePrice })
+        .from(inventoryItems)
+        .where(eq(inventoryItems.id, item.itemId))
+        .limit(1)
+
+      if (!inventoryItem.length) {
+        throw new Error(`Producto no encontrado: ${item.itemId}`)
+      }
+
+      const price = item.overridePrice || Number(inventoryItem[0].basePrice)
+      totalAmount += price * item.quantity
+    }
+
+    // If this is a bundle sale, check if the bundle has a specific currency type
+    let currencyType = data.currencyType || "USD"
+    let conversionRate = data.conversionRate || 1
+
+    if (data.bundleId) {
+      const bundleResult = await db
+        .select({
+          currencyType: bundles.currencyType,
+          conversionRate: bundles.conversionRate,
+        })
+        .from(bundles)
+        .where(eq(bundles.id, data.bundleId))
+        .limit(1)
+
+      if (bundleResult.length > 0) {
+        // If the bundle has a currency type, use it
+        if (bundleResult[0].currencyType) {
+          currencyType = bundleResult[0].currencyType
+
+          // If the bundle has a conversion rate, use it
+          if (bundleResult[0].conversionRate) {
+            conversionRate = Number(bundleResult[0].conversionRate)
+          } else if (currencyType === "BS") {
+            // If no conversion rate but currency is BS, get BCV rate
+            try {
+              conversionRate = await getBCVRate()
+            } catch (error) {
+              console.error("Error getting BCV rate:", error)
+              // Default to 35 if BCV rate fetch fails
+              conversionRate = 35
+            }
+          }
+        }
+      }
+    }
+
+    // Insert the purchase
     const [purchase] = await db
       .insert(purchases)
       .values({
         clientId: data.clientId,
-        beneficiarioId: data.beneficiarioId,
+        beneficiarioId: data.beneficiaryId,
         bundleId: data.bundleId,
-        organizationId: data.organizationId,
-        status: data.status || "PENDING",
-        totalAmount: data.totalAmount.toString(),
+        status: "COMPLETED",
+        totalAmount: totalAmount.toString(),
         paymentMethod: data.paymentMethod,
+        paymentStatus: "PAID",
+        isPaid: true,
+        organizationId: data.organizationId === "none" ? null : data.organizationId,
         transactionReference: data.transactionReference,
-        paymentMetadata: data.paymentMetadata || {},
-        isPaid: data.isPaid || false,
+        bookingMethod: data.saleType,
+        // Store saleType in paymentMetadata
+        paymentMetadata: { saleType: data.saleType },
+        // Add new fields
         isDraft: data.isDraft || false,
-        currencyType: data.currencyType || "USD",
-        conversionRate: data.conversionRate?.toString() || "1",
         vendido: data.vendido || false,
+        isDonation: data.isDonation || false,
+        currencyType: currencyType,
+        conversionRate: conversionRate.toString(),
       })
       .returning()
 
-    // Create purchase items if they exist
-    if (data.items && data.items.length > 0) {
-      const purchaseItemsData = data.items.map((item: any) => ({
+    if (!purchase) {
+      throw new Error("Error al crear el registro de compra")
+    }
+
+    // Process each item individually
+    for (const item of data.items) {
+      const inventoryItem = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId)).limit(1)
+
+      if (!inventoryItem.length) {
+        throw new Error(`Producto no encontrado: ${item.itemId}`)
+      }
+
+      const price = item.overridePrice || Number(inventoryItem[0].basePrice)
+
+      // Insert purchase item
+      await db.insert(purchaseItems).values({
         purchaseId: purchase.id,
         itemId: item.itemId,
         quantity: item.quantity,
-        unitPrice: item.unitPrice.toString(),
-        totalPrice: item.totalPrice.toString(),
-        metadata: item.metadata || {},
-      }))
-
-      await db.insert(purchaseItems).values(purchaseItemsData)
-    }
-
-    // Create payment if the purchase is paid
-    if (data.isPaid) {
-      await db.insert(payments).values({
-        purchaseId: purchase.id,
-        amount: data.totalAmount.toString(),
-        status: "PAID",
-        paymentDate: new Date(),
-        paymentMethod: data.paymentMethod,
-        transactionReference: data.transactionReference,
-        currencyType: data.currencyType || "USD",
-        originalAmount: data.totalAmount.toString(),
-        conversionRate: data.conversionRate?.toString() || "1",
+        unitPrice: price.toString(),
+        totalPrice: (price * item.quantity).toString(),
       })
+
+      // If not a draft and not a presale, update inventory immediately
+      if (!data.isDraft && data.saleType !== "PRESALE") {
+        // Decrease stock
+        await db
+          .update(inventoryItems)
+          .set({
+            currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryItems.id, item.itemId))
+
+        // Record transaction
+        await db.insert(inventoryTransactions).values({
+          itemId: item.itemId,
+          quantity: -item.quantity,
+          transactionType: "OUT",
+          reference: { purchaseId: purchase.id },
+          notes: `Venta #${purchase.id}`,
+        })
+      } else if (!data.isDraft && data.saleType === "PRESALE") {
+        // For presales, reserve the stock
+        await db
+          .update(inventoryItems)
+          .set({
+            reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${item.quantity}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryItems.id, item.itemId))
+
+        // Record reservation transaction
+        await db.insert(inventoryTransactions).values({
+          itemId: item.itemId,
+          quantity: -item.quantity,
+          transactionType: "RESERVATION",
+          reference: { purchaseId: purchase.id },
+          notes: `Pre-venta #${purchase.id}`,
+        })
+      }
+      // For drafts, don't update inventory
     }
 
+    // If this sale is for a bundle and doesn't have a beneficiaryId but has beneficiary details, create a beneficiary
+    if (data.bundleId && !data.beneficiaryId && data.beneficiary) {
+      const fullName = `${data.beneficiary.firstName} ${data.beneficiary.lastName}`
+
+      // Create a new beneficiary
+      const [newBeneficiary] = await db
+        .insert(beneficiarios)
+        .values({
+          name: fullName,
+          clientId: data.clientId,
+          firstName: data.beneficiary.firstName,
+          lastName: data.beneficiary.lastName,
+          school: data.beneficiary.school,
+          level: data.beneficiary.level,
+          section: data.beneficiary.section,
+          bundleId: data.bundleId,
+          organizationId: data.organizationId === "none" ? null : data.organizationId,
+          status: "ACTIVE",
+        })
+        .returning()
+
+      if (newBeneficiary) {
+        // Update the purchase with the beneficiary ID
+        await db.update(purchases).set({ beneficiarioId: newBeneficiary.id }).where(eq(purchases.id, purchase.id))
+      }
+    }
+
+    // Update bundle stats if this is a bundle purchase and not a draft
+    if (data.bundleId && !data.isDraft) {
+      await db
+        .update(bundles)
+        .set({
+          totalSales: sql`COALESCE(${bundles.totalSales}, 0) + 1`,
+          lastSaleDate: new Date(),
+          totalRevenue: sql`COALESCE(${bundles.totalRevenue}, 0) + ${totalAmount}`,
+        })
+        .where(eq(bundles.id, data.bundleId))
+    }
+
+    // Get the full purchase details with relations for the response
+    const purchaseDetails = await db
+      .select({
+        purchase: purchases,
+        client: clients,
+        beneficiary: beneficiarios,
+        organization: organizations,
+        bundle: bundles,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiaries.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+      .where(eq(purchases.id, purchase.id))
+      .limit(1)
+
+    if (!purchaseDetails.length) {
+      throw new Error("Error al recuperar detalles de la compra")
+    }
+
+    // Get purchase items
+    const items = await db
+      .select({
+        item: purchaseItems,
+        inventoryItem: inventoryItems,
+      })
+      .from(purchaseItems)
+      .leftJoin(inventoryItems, eq(purchaseItems.itemId, inventoryItems.id))
+      .where(eq(purchaseItems.purchaseId, purchase.id))
+
+    // Revalidate paths
     revalidatePath("/sales")
+    revalidatePath("/inventory")
 
     return {
       success: true,
-      data: purchase,
+      data: {
+        ...purchaseDetails[0],
+        items,
+        saleType: data.saleType,
+      },
     }
   } catch (error) {
-    console.error("Error creating sale:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Failed to create sale",
-    }
+    console.error("Error al crear compra:", error)
+    return { success: false, error: error instanceof Error ? error.message : "Error desconocido" }
   }
 }
 
@@ -355,3 +547,95 @@ export async function getBeneficiariesByClient(clientId: string) {
     }
   }
 }
+
+// Get current BCV rate
+export async function getCurrentBCVRate() {
+  try {
+    const rateInfo = await getBCVRate()
+
+    return {
+      success: true,
+      data: {
+        rate: rateInfo.rate,
+        lastUpdate: rateInfo.lastUpdate,
+        isError: rateInfo.isError,
+      },
+    }
+  } catch (error) {
+    console.error("Error fetching BCV rate:", error)
+    return {
+      success: false,
+      error: "Failed to fetch BCV rate",
+    }
+  }
+}
+
+// Search for bundles with currency filtering
+export async function searchBundlesWithCurrency(query: string, currencyType?: string) {
+  try {
+    // Base query
+    let bundlesQuery = db
+      .select({
+        id: bundles.id,
+        name: bundles.name,
+        basePrice: bundles.basePrice,
+        type: bundles.type,
+        currencyType: bundles.currencyType,
+        conversionRate: bundles.conversionRate,
+      })
+      .from(bundles)
+      .where(and(eq(bundles.status, "ACTIVE"), sql`LOWER(${bundles.name}) LIKE ${"%" + query.toLowerCase() + "%"}`))
+
+    // Add currency filter if specified
+    if (currencyType) {
+      bundlesQuery = bundlesQuery.where(sql`COALESCE(${bundles.currencyType}, 'USD') = ${currencyType}`)
+    }
+
+    const bundlesResult = await bundlesQuery.limit(10)
+
+    // Para cada bundle, obtenemos sus items
+    const bundlesWithItems = await Promise.all(
+      bundlesResult.map(async (bundle) => {
+        const bundleItemsResult = await db
+          .select({
+            id: bundleItems.id,
+            quantity: bundleItems.quantity,
+            overridePrice: bundleItems.overridePrice,
+            item: {
+              id: inventoryItems.id,
+              name: inventoryItems.name,
+              currentStock: inventoryItems.currentStock,
+              basePrice: inventoryItems.basePrice,
+              metadata: inventoryItems.metadata,
+              allowPresale: inventoryItems.allowPresale,
+            },
+          })
+          .from(bundleItems)
+          .innerJoin(inventoryItems, eq(bundleItems.itemId, inventoryItems.id))
+          .where(eq(bundleItems.bundleId, bundle.id))
+
+        // Procesar los resultados para extraer allowPreSale de metadata
+        const processedItems = bundleItemsResult.map((item) => {
+          return {
+            ...item,
+            item: {
+              ...item.item,
+              allowPreSale: item.item.allowPresale || false,
+            },
+          }
+        })
+
+        return {
+          ...bundle,
+          items: processedItems,
+        }
+      }),
+    )
+
+    return { success: true, data: bundlesWithItems }
+  } catch (error) {
+    console.error("Error al buscar paquetes:", error)
+    return { success: false, error: "Error al buscar paquetes" }
+  }
+}
+

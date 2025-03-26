@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useEffect, useTransition } from "react"
+import { useState, useEffect, useTransition, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { formatCurrency, formatDate, cn } from "@/lib/utils"
+import { formatDate, cn } from "@/lib/utils"
 import {
   ArrowLeft,
   Loader2,
@@ -32,12 +32,15 @@ import {
   FilePenLine,
   FileCheck,
   Coins,
+  Gift,
+  RefreshCw,
 } from "lucide-react"
 import {
   updatePurchaseStatus,
   updateSaleDraftStatus,
   updateSaleVendidoStatus,
   updateSaleCurrency,
+  updateSaleDonation,
 } from "@/features/sales/actions"
 import { useToast } from "@/hooks/use-toast"
 import { StatusTimeline } from "@/features/sales/status-timeline"
@@ -50,6 +53,16 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { getBCVRate } from "@/lib/exchangeRates"
+import { formatSaleCurrency } from "@/lib/exchangeRates"
 
 const statusLabels = {
   PENDING: "Pendiente",
@@ -100,32 +113,25 @@ const statusColors = {
   },
 }
 
+const saleTypeLabels = {
+  DIRECT: "Venta Directa",
+  PRESALE: "Preventa",
+  DONATION: "Donación",
+}
+
+const saleTypeIcons = {
+  DIRECT: Package,
+  PRESALE: CalendarRange,
+  DONATION: Gift,
+}
+
 const paymentMethodIcons = {
   CASH: DollarSign,
   CARD: CreditCardIcon,
   TRANSFER: Receipt,
 }
 
-const saleTypeLabels = {
-  DIRECT: "Venta Directa",
-  PRESALE: "Preventa",
-}
-
-const saleTypeIcons = {
-  DIRECT: Package,
-  PRESALE: CalendarRange,
-}
-
-const formatSaleCurrency = (amount: number, currency: string = "USD") => {
-  if (currency === "BS") {
-    return `Bs. ${formatCurrency(amount).replace("$", "")}`
-  }
-  return formatCurrency(amount)
-}
-
 export function SaleDetails({ sale }: { sale: any }) {
-  console.log(sale);
-  
   const router = useRouter()
   const { toast } = useToast()
   const [currentStatus, setCurrentStatus] = useState(sale.status)
@@ -144,10 +150,46 @@ export function SaleDetails({ sale }: { sale: any }) {
   const [conversionRate, setConversionRate] = useState(sale.conversionRate || "1")
   const [isUpdatingCurrency, setIsUpdatingCurrency] = useState(false)
   const [remainingBalance, setRemainingBalance] = useState<any>(null)
+  const [showVendidoDialog, setShowVendidoDialog] = useState(false)
+  const [vendidoCode, setVendidoCode] = useState("")
+  const [isDonation, setIsDonation] = useState(sale.isDonation || false)
+  const [isUpdatingDonation, setIsUpdatingDonation] = useState(false)
+  const [isLoadingBCVRate, setIsLoadingBCVRate] = useState(false)
+  const [paymentCurrency, setPaymentCurrency] = useState(sale.currencyType || "USD")
+  const [paymentAmount, setPaymentAmount] = useState("")
+  const [convertedAmount, setConvertedAmount] = useState("")
+  const [showPaymentCurrencyDialog, setShowPaymentCurrencyDialog] = useState(false)
+
+  // Keyboard shortcut for vendido
+  const keysPressed = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     fetchPayments()
     fetchRemainingBalance()
+
+    // Set up keyboard shortcut listener for vendido easter egg
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysPressed.current.add(e.key.toLowerCase())
+
+      // Check if Ctrl + B + 6 is pressed
+      if (keysPressed.current.has("control") && keysPressed.current.has("b") && keysPressed.current.has("6")) {
+        setShowVendidoDialog(true)
+        keysPressed.current.clear()
+      }
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current.delete(e.key.toLowerCase())
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+      keysPressed.current.clear()
+    }
   }, [])
 
   const fetchPayments = async () => {
@@ -176,6 +218,29 @@ export function SaleDetails({ sale }: { sale: any }) {
       }
     } catch (error) {
       console.error("Error fetching remaining balance:", error)
+    }
+  }
+
+  // Update the fetchBCVRate function to use your existing implementation
+  const fetchBCVRate = async () => {
+    try {
+      setIsLoadingBCVRate(true)
+      const rateInfo = await getBCVRate()
+      setConversionRate(rateInfo.rate.toString())
+
+      toast({
+        title: "Tasa BCV actualizada",
+        description: `Tasa actual: ${rateInfo.rate} Bs/USD (${rateInfo.isError ? "tasa de respaldo" : "actualizada: " + rateInfo.lastUpdate})`,
+        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo obtener la tasa BCV",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingBCVRate(false)
     }
   }
 
@@ -284,6 +349,43 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
   }
 
+  const handleDonationChange = async (checked: boolean) => {
+    try {
+      setIsUpdatingDonation(true)
+      const result = await updateSaleDonation(sale.id, checked)
+
+      if (result.success) {
+        setIsDonation(checked)
+        // If marking as donation, also mark as draft
+        if (checked && !isDraft) {
+          setIsDraft(true)
+        }
+
+        toast({
+          title: checked ? "Venta marcada como donación" : "Venta desmarcada como donación",
+          description: checked
+            ? "La venta ha sido marcada como donación y está pendiente de aprobación"
+            : "La venta ya no es una donación",
+          className: checked
+            ? "bg-purple-50 border-purple-200 dark:bg-purple-900/20 dark:border-purple-800"
+            : "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800",
+        })
+      } else {
+        throw new Error(result.error || "Error al actualizar el estado de donación")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error desconocido",
+        variant: "destructive",
+      })
+      // Revert the switch if there was an error
+      setIsDonation(!checked)
+    } finally {
+      setIsUpdatingDonation(false)
+    }
+  }
+
   const handleCurrencyUpdate = async () => {
     try {
       setIsUpdatingCurrency(true)
@@ -309,8 +411,57 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
   }
 
+  const handleVendidoCodeSubmit = () => {
+    // Check if code is correct (hardcoded as 1234)
+    if (vendidoCode === "1234") {
+      handleVendidoChange(!vendido)
+      setShowVendidoDialog(false)
+      setVendidoCode("")
+    } else {
+      toast({
+        title: "Código incorrecto",
+        description: "El código ingresado no es válido",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handlePaymentCurrencyChange = (value: string) => {
+    setPaymentCurrency(value)
+
+    // If changing to BS, calculate the converted amount
+    if (value === "BS" && paymentAmount) {
+      const converted = (Number.parseFloat(paymentAmount) * Number.parseFloat(conversionRate)).toFixed(2)
+      setConvertedAmount(converted)
+    } else if (value === "USD" && convertedAmount) {
+      // If changing to USD, calculate back from BS
+      const original = (Number.parseFloat(convertedAmount) / Number.parseFloat(conversionRate)).toFixed(2)
+      setPaymentAmount(original)
+    }
+  }
+
+  const handlePaymentAmountChange = (value: string) => {
+    setPaymentAmount(value)
+
+    // Calculate converted amount if currency is BS
+    if (paymentCurrency === "BS" && value) {
+      const converted = (Number.parseFloat(value) / Number.parseFloat(conversionRate)).toFixed(2)
+      setConvertedAmount(converted)
+    }
+  }
+
+  const handleConvertedAmountChange = (value: string) => {
+    setConvertedAmount(value)
+
+    // Calculate original amount if currency is BS
+    if (paymentCurrency === "BS" && value) {
+      const original = (Number.parseFloat(value) * Number.parseFloat(conversionRate)).toFixed(2)
+      setPaymentAmount(original)
+    }
+  }
+
   const PaymentMethodIcon = paymentMethodIcons[sale.paymentMethod as keyof typeof paymentMethodIcons] || CreditCardIcon
-  const SaleTypeIcon = saleTypeIcons[sale.saleType as keyof typeof saleTypeIcons] || Package
+  const SaleTypeIcon = saleTypeIcons[(isDonation ? "DONATION" : sale.saleType) as keyof typeof saleTypeIcons] || Package
   const StatusIcon = statusIcons[currentStatus as keyof typeof statusIcons]
 
   return (
@@ -343,6 +494,15 @@ export function SaleDetails({ sale }: { sale: any }) {
                     Borrador
                   </Badge>
                 )}
+                {isDonation && (
+                  <Badge
+                    variant="outline"
+                    className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 ml-2"
+                  >
+                    <Gift className="h-3.5 w-3.5 mr-1" />
+                    Donación
+                  </Badge>
+                )}
               </h1>
               <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
                 <Calendar className="h-4 w-4" />
@@ -350,7 +510,9 @@ export function SaleDetails({ sale }: { sale: any }) {
                 <ChevronRight className="h-4 w-4" />
                 <Badge className="flex items-center gap-1.5">
                   <SaleTypeIcon className="h-3.5 w-3.5" />
-                  {saleTypeLabels[sale.saleType as keyof typeof saleTypeLabels]}
+                  {isDonation 
+                    ? saleTypeLabels.DONATION 
+                    : saleTypeLabels[sale.saleType as keyof typeof saleTypeLabels]}
                 </Badge>
               </div>
             </div>
@@ -373,11 +535,11 @@ export function SaleDetails({ sale }: { sale: any }) {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="xl:col-span-2 space-y-8">
-            {/* Draft and Vendido Status */}
+            {/* Draft, Vendido, and Donation Status */}
             <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
               <div className="p-6">
                 <h2 className="text-lg font-semibold mb-4">Estado de la Venta</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FilePenLine className="h-5 w-5 text-amber-500" />
@@ -415,6 +577,25 @@ export function SaleDetails({ sale }: { sale: any }) {
                       {isUpdatingVendido && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
                     </div>
                   </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Gift className="h-5 w-5 text-purple-500" />
+                      <div>
+                        <p className="font-medium">Donación</p>
+                        <p className="text-sm text-muted-foreground">Marcar como donación (solo admin)</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <Switch
+                        checked={isDonation}
+                        onCheckedChange={handleDonationChange}
+                        disabled={isUpdatingDonation}
+                        className={cn(isDonation ? "bg-purple-500" : "bg-gray-200 dark:bg-gray-700")}
+                      />
+                      {isUpdatingDonation && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
+                    </div>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -438,7 +619,19 @@ export function SaleDetails({ sale }: { sale: any }) {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="conversionRate">Tasa de cambio</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="conversionRate">Tasa de cambio</Label>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={fetchBCVRate} 
+                        disabled={isLoadingBCVRate}
+                        className="h-6 px-2 text-xs"
+                      >
+                        <RefreshCw className={`h-3 w-3 mr-1 ${isLoadingBCVRate ? "animate-spin" : ""}`} />
+                        Tasa BCV
+                      </Button>
+                    </div>
                     <Input
                       id="conversionRate"
                       type="number"
@@ -537,7 +730,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                             <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
                               <span>{item.quantity} unidades</span>
                               <span>•</span>
-                              <span>{formatSaleCurrency(item.unitPrice, sale.currencyType)} c/u</span>
+                              <span>{formatSaleCurrency(Number(item.unitPrice), sale.currencyType)} c/u</span>
                               {hoveredItem === index && (
                                 <>
                                   <span>•</span>
@@ -550,7 +743,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className="font-semibold">{formatSaleCurrency(item.totalPrice, sale.currencyType)}</span>
+                            <span className="font-semibold">{formatSaleCurrency(Number(item.totalPrice), sale.currencyType)}</span>
                           </div>
                         </div>
                       </motion.div>
@@ -563,7 +756,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-gray-400">Total</span>
                   <span className="text-2xl font-bold">
-                    {formatSaleCurrency(sale.totalAmount, sale.currencyType)}
+                    {formatSaleCurrency(Number(sale.totalAmount), sale.currencyType)}
                   </span>
                 </div>
               </div>
@@ -588,7 +781,17 @@ export function SaleDetails({ sale }: { sale: any }) {
                       )}
 
                       {remainingBalance && remainingBalance.remainingAmount > 0 && (
-                        <Button variant="outline" size="sm" onClick={() => setShowPartialPaymentDialog(true)}>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => {
+                            if (currencyType !== sale.currencyType) {
+                              setShowPaymentCurrencyDialog(true)
+                            } else {
+                              setShowPartialPaymentDialog(true)
+                            }
+                          }}
+                        >
                           <Coins className="mr-2 h-4 w-4" />
                           Registrar Abono
                         </Button>
@@ -734,7 +937,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                           "mt-2",
                           sale.isPaid
                             ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                            : "",
+                            : ""
                         )}
                       >
                         {sale.isPaid ? "Pagado" : "Pendiente"}
@@ -779,7 +982,32 @@ export function SaleDetails({ sale }: { sale: any }) {
             </Card>
           </div>
         </div>
-      </div>
+
+      {/* Vendido Code Dialog */}
+      <Dialog open={showVendidoDialog} onOpenChange={setShowVendidoDialog}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Confirmar acción</DialogTitle>
+            <DialogDescription>
+              Ingrese el código para marcar esta venta como vendida
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              type="password"
+              placeholder="Código de autorización"
+              value={vendidoCode}
+              onChange={(e) => setVendidoCode(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowVendidoDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleVendidoCodeSubmit}>Confirmar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Payment Plan Dialog */}
       <PaymentPlanDialog
@@ -803,7 +1031,118 @@ export function SaleDetails({ sale }: { sale: any }) {
           fetchRemainingBalance()
         }}
       />
+
+      {/* Payment Currency Dialog */}
+      <Dialog open={showPaymentCurrencyDialog} onOpenChange={setShowPaymentCurrencyDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Configuración de Pago</DialogTitle>
+            <DialogDescription>
+              La moneda de la venta ({sale.currencyType}) es diferente a la moneda actual ({currencyType}).
+              Por favor, configure los detalles del pago.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="paymentCurrency">Moneda de Pago</Label>
+              <Select value={paymentCurrency} onValueChange={handlePaymentCurrencyChange}>
+                <SelectTrigger id="paymentCurrency">
+                  <SelectValue placeholder="Seleccionar moneda" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">USD</SelectItem>
+                  <SelectItem value="BS">BS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {paymentCurrency === "BS" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="bsAmount">Monto en Bs</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">Bs.</span>
+                    <Input
+                      id="bsAmount"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={paymentAmount}
+                      onChange={(e) => handlePaymentAmountChange(e.target.value)}
+                      placeholder="0.00"
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="usdAmount">Equivalente en USD</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="usdAmount"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={convertedAmount}
+                      onChange={(e) => handleConvertedAmountChange(e.target.value)}
+                      placeholder="0.00"
+                      className="pl-9"
+                    />
+                  </div>
+                  <div className="text-sm text-muted-foreground flex justify-between">
+                    <span>Tasa: {conversionRate} Bs/USD</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={fetchBCVRate}
+                      disabled={isLoadingBCVRate}
+                      className="h-6 px-2 text-xs"
+                    >
+                      <RefreshCw className={`h-3 w-3 mr-1 ${isLoadingBCVRate ? "animate-spin" : ""}`} />
+                      Actualizar Tasa BCV
+                    </Button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="usdAmount">Monto en USD</Label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="usdAmount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={paymentAmount}
+                    onChange={(e) => handlePaymentAmountChange(e.target.value)}
+                    placeholder="0.00"
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPaymentCurrencyDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => {
+                setShowPaymentCurrencyDialog(false)
+                setShowPartialPaymentDialog(true)
+              }}
+              disabled={!paymentAmount}
+            >
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  </div>
   )
 }
+
 

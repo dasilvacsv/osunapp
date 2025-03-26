@@ -309,6 +309,8 @@ export const bundles = pgTable("bundles", {
   totalSales: integer("total_sales").notNull().default(0),
   lastSaleDate: timestamp("last_sale_date", { withTimezone: true }),
   totalRevenue: decimal("total_revenue", { precision: 10, scale: 2 }).notNull().default("0"),
+  currencyType: text("currency_type").default("USD"),
+  conversionRate: text("conversion_rate"),
 })
 
 export const bundlesRelations = relations(bundles, ({ one, many }) => ({

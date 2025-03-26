@@ -2,8 +2,17 @@
 import { db } from "@/db"
 import { eq, sql } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
-import { purchases, purchaseItems, bundleItems, bundles, inventoryItems, inventoryTransactions } from "@/db/schema"
-import { unstable_noStore as noStore } from 'next/cache';
+import {
+  purchases,
+  purchaseItems,
+  bundleItems,
+  bundles,
+  inventoryItems,
+  inventoryTransactions,
+  payments,
+} from "@/db/schema"
+import { unstable_noStore as noStore } from "next/cache"
+import { getBCVRate } from "@/lib/exchangeRates"
 
 export async function getAllBundlesAndItems() {
   try {
@@ -92,6 +101,8 @@ export async function createSale(data: {
   saleType: "DIRECT" | "PRESALE"
   paymentMethod: "CASH" | "CARD" | "TRANSFER" | "OTHER"
   transactionReference?: string
+  currencyType?: string
+  conversionRate?: number
   cart: Array<{
     itemId: string
     name: string
@@ -102,6 +113,7 @@ export async function createSale(data: {
     allowPreSale?: boolean
   }>
   total: number
+  isPaid?: boolean
 }) {
   try {
     console.log("Creando venta con datos:", data)
@@ -117,6 +129,12 @@ export async function createSale(data: {
 
     if (!data.cart.length) {
       throw new Error("El carrito no puede estar vacío")
+    }
+
+    // If currency is BS but no conversion rate provided, fetch it
+    if (data.currencyType === "BS" && !data.conversionRate) {
+      const rateInfo = await getBCVRate()
+      data.conversionRate = rateInfo.rate
     }
 
     // Check stock availability and automatically switch to PRESALE if needed
@@ -151,12 +169,15 @@ export async function createSale(data: {
         totalAmount: totalAmount.toString(),
         paymentMethod: data.paymentMethod,
         transactionReference: data.transactionReference || null,
-        paymentStatus: "PAID",
-        isPaid: true,
-        paymentMetadata: { 
+        paymentStatus: data.isPaid ? "PAID" : "PENDING",
+        isPaid: data.isPaid || false,
+        currencyType: data.currencyType || "USD",
+        conversionRate: data.conversionRate ? data.conversionRate.toString() : "1",
+        paymentMetadata: {
           saleType: shouldBePresale ? "PRESALE" : "DIRECT",
           originalSaleType: data.saleType,
-          automaticPresale: shouldBePresale && data.saleType === "DIRECT"
+          automaticPresale: shouldBePresale && data.saleType === "DIRECT",
+          notes: data.notes,
         },
       })
       .returning()
@@ -179,6 +200,21 @@ export async function createSale(data: {
     }))
 
     await db.insert(purchaseItems).values(purchaseItemsData)
+
+    // Create payment if the purchase is paid
+    if (data.isPaid) {
+      await db.insert(payments).values({
+        purchaseId: purchaseResult.id,
+        amount: totalAmount.toString(),
+        status: "PAID",
+        paymentDate: new Date(),
+        paymentMethod: data.paymentMethod,
+        transactionReference: data.transactionReference || null,
+        currencyType: data.currencyType || "USD",
+        originalAmount: totalAmount.toString(),
+        conversionRate: data.conversionRate ? data.conversionRate.toString() : "1",
+      })
+    }
 
     // Update inventory stock for each item
     for (const item of data.cart) {
@@ -242,7 +278,7 @@ export async function createSale(data: {
       data: {
         ...purchaseResult,
         items: data.cart,
-        automaticPresale: shouldBePresale && data.saleType === "DIRECT"
+        automaticPresale: shouldBePresale && data.saleType === "DIRECT",
       },
     }
   } catch (error) {
@@ -253,3 +289,4 @@ export async function createSale(data: {
     }
   }
 }
+

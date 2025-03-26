@@ -19,17 +19,28 @@ interface PartialPaymentDialogProps {
   onOpenChange: (open: boolean) => void
   purchaseId: string
   onSuccess?: () => void
+  initialCurrency?: string
+  initialAmount?: string
+  initialConvertedAmount?: string
 }
 
-export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess }: PartialPaymentDialogProps) {
+export function PartialPaymentDialog({
+  open,
+  onOpenChange,
+  purchaseId,
+  onSuccess,
+  initialCurrency,
+  initialAmount,
+  initialConvertedAmount,
+}: PartialPaymentDialogProps) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [loadingBalance, setLoadingBalance] = useState(false)
   const [loadingBCV, setLoadingBCV] = useState(false)
-  const [amount, setAmount] = useState("")
-  const [bsAmount, setBsAmount] = useState("")
+  const [amount, setAmount] = useState(initialAmount || "")
+  const [bsAmount, setBsAmount] = useState(initialConvertedAmount || "")
   const [paymentMethod, setPaymentMethod] = useState("CASH")
-  const [currencyType, setCurrencyType] = useState("USD")
+  const [currencyType, setCurrencyType] = useState(initialCurrency || "USD")
   const [conversionRate, setConversionRate] = useState("1")
   const [transactionReference, setTransactionReference] = useState("")
   const [notes, setNotes] = useState("")
@@ -54,7 +65,7 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
     try {
       setLoadingBalance(true)
       setError(null)
-      
+
       const result = await getRemainingBalance(purchaseId)
       console.log("Balance result:", result)
 
@@ -71,10 +82,15 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
           currencyType: String(result.data.currencyType || "USD"),
           conversionRate: Number(result.data.conversionRate || 1),
         }
-        
+
         console.log("Processed balance data:", data)
         setRemainingBalance(data)
-        setCurrencyType(data.currencyType)
+
+        // Only set currency type if not already set from props
+        if (!initialCurrency) {
+          setCurrencyType(data.currencyType)
+        }
+
         setConversionRate(data.conversionRate.toString())
       } else {
         throw new Error(result.error || "Error al obtener el saldo")
@@ -93,21 +109,25 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
     }
   }
 
+  // Update the fetchBCVRate function to use your existing implementation
   const fetchBCVRate = async () => {
     try {
       setLoadingBCV(true)
       const rateInfo = await getBCVRate()
       setConversionRate(rateInfo.rate.toString())
-      
-      // Update USD amount if BS amount exists
-      if (bsAmount) {
-        const usdAmount = (Number(bsAmount) / rateInfo.rate).toFixed(2)
-        setAmount(usdAmount)
+
+      // Update amounts based on new rate
+      if (currencyType === "BS" && amount) {
+        const bsValue = (Number(amount) * rateInfo.rate).toFixed(2)
+        setBsAmount(bsValue)
+      } else if (currencyType === "BS" && bsAmount) {
+        const usdValue = (Number(bsAmount) / rateInfo.rate).toFixed(2)
+        setAmount(usdValue)
       }
 
       toast({
         title: "Tasa BCV actualizada",
-        description: `Tasa actual: ${rateInfo.rate} Bs/USD`,
+        description: `Tasa actual: ${rateInfo.rate} Bs/USD (${rateInfo.isError ? "tasa de respaldo" : "actualizada: " + rateInfo.lastUpdate})`,
         className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
       })
     } catch (error) {
@@ -124,9 +144,13 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
   useEffect(() => {
     if (!open) {
       setError(null)
-      setAmount("")
-      setPaymentMethod("CASH")
-      setCurrencyType("USD")
+      if (!initialAmount) {
+        setAmount("")
+      }
+      if (!initialCurrency) {
+        setPaymentMethod("CASH")
+        setCurrencyType("USD")
+      }
       setConversionRate("1")
       setTransactionReference("")
       setNotes("")
@@ -135,13 +159,13 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
       console.log("Dialog opened with purchaseId:", purchaseId)
       fetchRemainingBalance()
     }
-  }, [open, purchaseId])
+  }, [open, purchaseId, initialAmount, initialCurrency])
 
   useEffect(() => {
-    if (currencyType === "BS") {
+    if (currencyType === "BS" && open) {
       fetchBCVRate()
     }
-  }, [currencyType])
+  }, [currencyType, open])
 
   const handleDialogOpenChange = (open: boolean) => {
     onOpenChange(open)
@@ -154,20 +178,39 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
       }
 
       setLoading(true)
+
+      // Determine which amount to use based on currency
+      const paymentAmount = Number(amount)
+      let originalAmount = paymentAmount
+
+      // Handle currency conversion if payment currency differs from sale currency
+      if (currencyType !== remainingBalance?.currencyType) {
+        if (currencyType === "BS" && remainingBalance?.currencyType === "USD") {
+          // Converting from BS to USD
+          originalAmount = Number(amount) / Number(conversionRate)
+        } else if (currencyType === "USD" && remainingBalance?.currencyType === "BS") {
+          // Converting from USD to BS
+          originalAmount = Number(amount) * Number(conversionRate)
+        }
+      }
+
       const result = await addPartialPayment({
         purchaseId,
-        amount: Number(amount),
+        amount: paymentAmount,
         paymentMethod,
         currencyType,
         conversionRate: Number(conversionRate),
         transactionReference: transactionReference || undefined,
         notes: notes || undefined,
+        originalAmount: originalAmount,
       })
 
       if (result.success) {
         toast({
           title: "Pago registrado",
-          description: `Se ha registrado el pago de ${formatCurrency(Number(amount))} ${currencyType}`,
+          description: `Se ha registrado el pago de ${
+            currencyType === "BS" ? `Bs. ${paymentAmount}` : formatCurrency(paymentAmount)
+          }`,
           className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
         })
         onOpenChange(false)
@@ -195,6 +238,14 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
       setAmount(usdAmount)
     } else {
       setAmount("")
+    }
+  }
+
+  const handleAmountChange = (value: string) => {
+    setAmount(value)
+    if (value && conversionRate && currencyType === "BS") {
+      const bsValue = (Number(value) * Number(conversionRate)).toFixed(2)
+      setBsAmount(bsValue)
     }
   }
 
@@ -259,10 +310,26 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
           )}
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="amount">Monto del abono</Label>
-              {currencyType === "BS" ? (
+            {/* Only show currency selection if sale is in USD */}
+            {(!remainingBalance || remainingBalance.currencyType === "USD") && (
+              <div className="space-y-2">
+                <Label htmlFor="currencyType">Moneda de Pago</Label>
+                <Select value={currencyType} onValueChange={handleCurrencyChange}>
+                  <SelectTrigger id="currencyType">
+                    <SelectValue placeholder="Seleccionar moneda" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="BS">BS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {currencyType === "BS" ? (
+              <>
                 <div className="space-y-2">
+                  <Label htmlFor="bsAmount">Monto en Bs</Label>
                   <div className="relative">
                     <span className="absolute left-3 top-2.5 text-muted-foreground">Bs.</span>
                     <Input
@@ -276,9 +343,24 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
                       className="pl-9"
                     />
                   </div>
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>≈ ${amount} USD</span>
-                    <div className="flex items-center gap-2">
+                </div>
+                {remainingBalance?.currencyType === "USD" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Equivalente en USD</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="amount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={amount}
+                        onChange={(e) => handleAmountChange(e.target.value)}
+                        placeholder="0.00"
+                        className="pl-9"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
                       <span>Tasa: {conversionRate} Bs/USD</span>
                       <Button
                         type="button"
@@ -292,8 +374,11 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
                       </Button>
                     </div>
                   </div>
-                </div>
-              ) : (
+                )}
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="amount">Monto en USD</Label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -302,43 +387,13 @@ export function PartialPaymentDialog({ open, onOpenChange, purchaseId, onSuccess
                     step="0.01"
                     min="0.01"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => handleAmountChange(e.target.value)}
                     placeholder="0.00"
                     className="pl-9"
                   />
                 </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="currencyType">Moneda</Label>
-                <Select value={currencyType} onValueChange={handleCurrencyChange}>
-                  <SelectTrigger id="currencyType">
-                    <SelectValue placeholder="Seleccionar moneda" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="BS">BS</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
-
-              {currencyType === "BS" && (
-                <div className="space-y-2">
-                  <Label htmlFor="conversionRate">Tasa de cambio</Label>
-                  <Input
-                    id="conversionRate"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={conversionRate}
-                    onChange={(e) => setConversionRate(e.target.value)}
-                    placeholder="Tasa BS/USD"
-                  />
-                </div>
-              )}
-            </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="paymentMethod">Método de pago</Label>

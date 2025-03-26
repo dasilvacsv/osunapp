@@ -13,9 +13,8 @@ import {
   organizations,
   payments,
   paymentPlans,
-  dailySalesReports,
 } from "@/db/schema"
-import { and, eq, sql, or, gte, lte } from "drizzle-orm"
+import { and, eq, sql, or } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { formatCurrency } from "@/lib/utils"
 import * as XLSX from "xlsx"
@@ -161,6 +160,7 @@ export async function exportSaleToExcel(id: string, download = false) {
       // Add new fields
       isDraft: purchase.isDraft || false,
       vendido: purchase.vendido || false,
+      isDonation: purchase.isDonation || false,
       currencyType: purchase.currencyType || "USD",
       conversionRate: purchase.conversionRate || "1",
     }
@@ -183,12 +183,9 @@ export async function exportSaleToExcel(id: string, download = false) {
           Pagado: exportData.isPaid ? "Sí" : "No",
           Borrador: exportData.isDraft ? "Sí" : "No",
           Vendido: exportData.vendido ? "Sí" : "No",
+          Donación: exportData.isDonation ? "Sí" : "No",
           "Tipo de Venta":
-            exportData.saleType === "DIRECT"
-              ? "Directa"
-              : exportData.saleType === "PRESALE"
-                ? "Preventa"
-                : exportData.saleType,
+            exportData.saleType === "DIRECT" ? "Directa" : exportData.saleType === "PRESALE" ? "Preventa" : "Donación",
         },
       ])
       XLSX.utils.book_append_sheet(workbook, saleDetailsSheet, "Detalles de Venta")
@@ -767,6 +764,36 @@ export async function updateSaleVendidoStatus(id: string, vendido: boolean) {
   }
 }
 
+// Update sale donation status
+export async function updateSaleDonation(id: string, isDonation: boolean) {
+  try {
+    const [updatedSale] = await db
+      .update(purchases)
+      .set({
+        isDonation: isDonation,
+        // If marking as donation, also mark as draft for approval
+        isDraft: isDonation ? true : undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(purchases.id, id))
+      .returning()
+
+    revalidatePath("/sales")
+    revalidatePath(`/sales/${id}`)
+
+    return {
+      success: true,
+      data: updatedSale,
+    }
+  } catch (error) {
+    console.error("Error updating donation status:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error updating donation status",
+    }
+  }
+}
+
 // Update sale currency
 export async function updateSaleCurrency(id: string, currencyType: string, conversionRate: number) {
   try {
@@ -796,109 +823,15 @@ export async function updateSaleCurrency(id: string, currencyType: string, conve
   }
 }
 
-// Get daily sales report
+// Update the getDailySalesReport function to use the new server action
+// This is just to maintain backward compatibility
 export async function getDailySalesReport(date: Date) {
   try {
-    // Format date to YYYY-MM-DD
-    const formattedDate = date.toISOString().split("T")[0]
-    const startDate = new Date(`${formattedDate}T00:00:00.000Z`)
-    const endDate = new Date(`${formattedDate}T23:59:59.999Z`)
+    // Import the new server action
+    const { getSalesSummaryForDate } = await import("@/features/reports/actions")
 
-    // Get direct sales for the day
-    const directSales = await db
-      .select({
-        totalAmount: sql`SUM(CAST(${purchases.totalAmount} AS DECIMAL))`,
-        totalUSD: sql`SUM(CASE WHEN ${purchases.currencyType} = 'USD' THEN CAST(${purchases.totalAmount} AS DECIMAL) ELSE CAST(${purchases.totalAmount} AS DECIMAL) / CAST(${purchases.conversionRate} AS DECIMAL) END)`,
-        totalBS: sql`SUM(CASE WHEN ${purchases.currencyType} = 'BS' THEN CAST(${purchases.totalAmount} AS DECIMAL) ELSE CAST(${purchases.totalAmount} AS DECIMAL) * CAST(${purchases.conversionRate} AS DECIMAL) END)`,
-        count: sql`COUNT(*)`,
-      })
-      .from(purchases)
-      .where(
-        and(
-          gte(purchases.purchaseDate, startDate),
-          lte(purchases.purchaseDate, endDate),
-          eq(purchases.isDraft, false),
-          eq(sql`(${purchases.paymentMetadata}->>'saleType')::text`, "DIRECT"),
-        ),
-      )
-
-    // Get payments for the day
-    const paymentsData = await db
-      .select({
-        totalAmount: sql`SUM(CAST(${payments.amount} AS DECIMAL))`,
-        totalUSD: sql`SUM(CASE WHEN ${payments.currencyType} = 'USD' THEN CAST(${payments.amount} AS DECIMAL) ELSE CAST(${payments.amount} AS DECIMAL) / CAST(${payments.conversionRate} AS DECIMAL) END)`,
-        totalBS: sql`SUM(CASE WHEN ${payments.currencyType} = 'BS' THEN CAST(${payments.amount} AS DECIMAL) ELSE CAST(${payments.amount} AS DECIMAL) * CAST(${payments.conversionRate} AS DECIMAL) END)`,
-        count: sql`COUNT(*)`,
-      })
-      .from(payments)
-      .where(and(gte(payments.paymentDate, startDate), lte(payments.paymentDate, endDate), eq(payments.status, "PAID")))
-
-    // Check if a report already exists for this date
-    const existingReport = await db
-      .select()
-      .from(dailySalesReports)
-      .where(eq(dailySalesReports.date, startDate))
-      .limit(1)
-
-    let report
-
-    if (existingReport.length > 0) {
-      // Update existing report
-      ;[report] = await db
-        .update(dailySalesReports)
-        .set({
-          totalDirectSales: directSales[0]?.totalAmount?.toString() || "0",
-          totalPayments: paymentsData[0]?.totalAmount?.toString() || "0",
-          totalSalesUSD: directSales[0]?.totalUSD?.toString() || "0",
-          totalSalesBS: directSales[0]?.totalBS?.toString() || "0",
-          updatedAt: new Date(),
-          metadata: {
-            directSalesCount: directSales[0]?.count || 0,
-            paymentsCount: paymentsData[0]?.count || 0,
-            paymentsUSD: paymentsData[0]?.totalUSD || 0,
-            paymentsBS: paymentsData[0]?.totalBS || 0,
-          },
-        })
-        .where(eq(dailySalesReports.id, existingReport[0].id))
-        .returning()
-    } else {
-      // Create new report
-      ;[report] = await db
-        .insert(dailySalesReports)
-        .values({
-          date: startDate,
-          totalDirectSales: directSales[0]?.totalAmount?.toString() || "0",
-          totalPayments: paymentsData[0]?.totalAmount?.toString() || "0",
-          totalSalesUSD: directSales[0]?.totalUSD?.toString() || "0",
-          totalSalesBS: directSales[0]?.totalBS?.toString() || "0",
-          metadata: {
-            directSalesCount: directSales[0]?.count || 0,
-            paymentsCount: paymentsData[0]?.count || 0,
-            paymentsUSD: paymentsData[0]?.totalUSD || 0,
-            paymentsBS: paymentsData[0]?.totalBS || 0,
-          },
-        })
-        .returning()
-    }
-
-    return {
-      success: true,
-      data: {
-        report,
-        directSales: {
-          total: directSales[0]?.totalAmount || 0,
-          totalUSD: directSales[0]?.totalUSD || 0,
-          totalBS: directSales[0]?.totalBS || 0,
-          count: directSales[0]?.count || 0,
-        },
-        payments: {
-          total: paymentsData[0]?.totalAmount || 0,
-          totalUSD: paymentsData[0]?.totalUSD || 0,
-          totalBS: paymentsData[0]?.totalBS || 0,
-          count: paymentsData[0]?.count || 0,
-        },
-      },
-    }
+    // Call the new server action
+    return await getSalesSummaryForDate(date)
   } catch (error) {
     console.error("Error generating daily sales report:", error)
     return {

@@ -71,6 +71,13 @@
       "when": 1742099510320,
       "tag": "0009_sharp_jack_power",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1743010160746,
+      "tag": "0010_open_spencer_smythe",
+      "breakpoints": true
     }
   ]
 }
