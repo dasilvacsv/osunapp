@@ -260,78 +260,75 @@ export async function addPartialPayment({
   originalAmount?: number
 }) {
   try {
-    // Get the purchase to check remaining amount
-    const [purchase] = await db.select().from(purchases).where(eq(purchases.id, purchaseId))
+    // Start a transaction
+    return await db.transaction(async (tx) => {
+      // Get the purchase to check remaining amount
+      const [purchase] = await tx.select().from(purchases).where(eq(purchases.id, purchaseId))
 
-    if (!purchase) {
-      return { success: false, error: "Compra no encontrada" }
-    }
-
-    // Get existing payments
-    const existingPayments = await db
-      .select({
-        totalPaid: sql`SUM(CAST(${payments.amount} AS DECIMAL))`,
-      })
-      .from(payments)
-      .where(and(eq(payments.purchaseId, purchaseId), eq(payments.status, "PAID")))
-
-    const totalPaid = existingPayments[0]?.totalPaid || 0
-    const totalAmount = Number(purchase.totalAmount)
-    const remainingAmount = totalAmount - Number(totalPaid)
-
-    // Validate payment amount
-    if (amount > remainingAmount) {
-      return {
-        success: false,
-        error: `El monto del pago (${amount}) excede el monto pendiente (${remainingAmount})`,
+      if (!purchase) {
+        return { success: false, error: "Compra no encontrada" }
       }
-    }
 
-    // Calculate original amount based on currency
-    let finalOriginalAmount = originalAmount || amount
-    if (!originalAmount && currencyType !== purchase.currencyType) {
-      // If paying in different currency, convert to purchase currency
-      if (currencyType === "BS" && purchase.currencyType === "USD") {
-        finalOriginalAmount = amount / conversionRate
-      } else if (currencyType === "USD" && purchase.currencyType === "BS") {
-        finalOriginalAmount = amount * conversionRate
-      }
-    }
-
-    // Create the payment
-    const [newPayment] = await db
-      .insert(payments)
-      .values({
-        purchaseId,
-        amount: amount.toString(),
-        originalAmount: finalOriginalAmount.toString(),
-        status: "PAID",
-        paymentDate,
-        paymentMethod,
-        currencyType,
-        conversionRate: conversionRate.toString(),
-        transactionReference,
-        notes: notes || `Pago parcial de ${amount} ${currencyType}`,
-      })
-      .returning()
-
-    // Check if this payment completes the purchase
-    const newTotalPaid = Number(totalPaid) + finalOriginalAmount
-    if (newTotalPaid >= totalAmount) {
-      await db
-        .update(purchases)
-        .set({
-          isPaid: true,
-          updatedAt: new Date(),
+      // Get existing payments
+      const existingPayments = await tx
+        .select({
+          totalPaid: sql`SUM(CAST(${payments.amount} AS DECIMAL))`,
         })
-        .where(eq(purchases.id, purchaseId))
+        .from(payments)
+        .where(and(eq(payments.purchaseId, purchaseId), eq(payments.status, "PAID")))
 
-      // Auto-purge any pending payments
-      await db.delete(payments).where(and(eq(payments.purchaseId, purchaseId), eq(payments.status, "PENDING")))
-    }
+      const totalPaid = existingPayments[0]?.totalPaid || 0
+      const totalAmount = Number(purchase.totalAmount)
+      const remainingAmount = totalAmount - Number(totalPaid)
 
-    revalidatePath(`/sales/${purchaseId}`)
-    return { success: true, data: newPayment }
+      // Calculate original amount based on currency
+      let finalOriginalAmount = originalAmount || amount
+      if (!originalAmount && currencyType !== purchase.currencyType) {
+        // If paying in different currency, convert to purchase currency
+        if (currencyType === "BS" && purchase.currencyType === "USD") {
+          finalOriginalAmount = amount / conversionRate
+        } else if (currencyType === "USD" && purchase.currencyType === "BS") {
+          finalOriginalAmount = amount * conversionRate
+        }
+      }
+
+      // Create the payment
+      const [newPayment] = await tx
+        .insert(payments)
+        .values({
+          purchaseId,
+          amount: amount.toString(),
+          originalAmount: finalOriginalAmount.toString(),
+          status: "PAID",
+          paymentDate,
+          paymentMethod,
+          currencyType,
+          conversionRate: conversionRate.toString(),
+          transactionReference,
+          notes: notes || `Pago parcial de ${amount} ${currencyType}`,
+        })
+        .returning()
+
+      // Check if this payment completes the purchase (with a small tolerance for rounding errors)
+      const newTotalPaid = Number(totalPaid) + finalOriginalAmount
+      const isFullyPaid = newTotalPaid >= totalAmount - 0.01
+
+      if (isFullyPaid) {
+        // Update purchase to paid
+        await tx
+          .update(purchases)
+          .set({
+            isPaid: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(purchases.id, purchaseId))
+
+        // Auto-purge any pending payments
+        await tx.delete(payments).where(and(eq(payments.purchaseId, purchaseId), eq(payments.status, "PENDING")))
+      }
+
+      return { success: true, data: newPayment, isFullyPaid }
+    })
   } catch (error) {
     console.error("Error adding partial payment:", error)
     return {

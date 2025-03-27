@@ -14,8 +14,10 @@ import {
   paymentPlans,
   dailySalesReports,
 } from "@/db/schema"
-import { and, eq, sql, gte, lte } from "drizzle-orm"
+import { and, eq, sql, gte, lte, desc } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
+
+
 
 // Get a single purchase by ID
 export async function getPurchaseById(id: string) {
@@ -380,39 +382,30 @@ export async function getSalesData2() {
 // Get draft sales
 export async function getDraftSalesData() {
   try {
-    const sales = await db
+    const draftSales = await db
       .select({
         id: purchases.id,
         clientId: purchases.clientId,
-        bundleId: purchases.bundleId,
-        status: purchases.status,
-        totalAmount: purchases.totalAmount,
-        paymentMethod: purchases.paymentMethod,
-        purchaseDate: purchases.purchaseDate,
-        transactionReference: purchases.transactionReference,
-        isPaid: sql`COALESCE(${purchases.isPaid}, false)`,
-        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
-        vendido: sql`COALESCE(${purchases.vendido}, false)`,
-        isDonation: sql`COALESCE(${purchases.isDonation}, false)`,
-        currencyType: purchases.currencyType,
-        conversionRate: purchases.conversionRate,
         client: clients,
-        organization: organizations,
-        saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
+        totalAmount: purchases.totalAmount,
+        currencyType: purchases.currencyType,
+        purchaseDate: purchases.purchaseDate,
+        status: purchases.status,
+        isDraft: purchases.isDraft,
+        isDonation: purchases.isDonation,
       })
       .from(purchases)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
-      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
       .where(eq(purchases.isDraft, true))
-      .orderBy(sql`${purchases.purchaseDate} DESC`)
+      .orderBy(desc(purchases.purchaseDate))
 
-    return {
-      success: true,
-      data: sales,
-    }
+    return { success: true, data: draftSales }
   } catch (error) {
-    console.error("Error al obtener datos de ventas en borrador:", error)
-    return { success: false, error: "Error al obtener datos de ventas en borrador" }
+    console.error("Error fetching draft sales:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error fetching draft sales",
+    }
   }
 }
 
@@ -538,6 +531,44 @@ export async function getDailySalesReport(date: Date) {
       .from(payments)
       .where(and(gte(payments.paymentDate, startDate), lte(payments.paymentDate, endDate), eq(payments.status, "PAID")))
 
+    // Get detailed payment information with client names
+    const paymentsDetails = await db
+      .select({
+        id: payments.id,
+        purchaseId: payments.purchaseId,
+        amount: payments.amount,
+        paymentMethod: payments.paymentMethod,
+        paymentDate: payments.paymentDate,
+        transactionReference: payments.transactionReference,
+        currencyType: payments.currencyType,
+        clientName: clients.name,
+      })
+      .from(payments)
+      .leftJoin(purchases, eq(payments.purchaseId, purchases.id))
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .where(and(gte(payments.paymentDate, startDate), lte(payments.paymentDate, endDate), eq(payments.status, "PAID")))
+      .orderBy(sql`${payments.paymentDate} DESC`)
+
+    // Get detailed sales information
+    const salesDetails = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        clientName: clients.name,
+        totalAmount: purchases.totalAmount,
+        currencyType: purchases.currencyType,
+        paymentMethod: purchases.paymentMethod,
+        isPaid: purchases.isPaid,
+        purchaseDate: purchases.purchaseDate,
+        status: purchases.status,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .where(
+        and(gte(purchases.purchaseDate, startDate), lte(purchases.purchaseDate, endDate), eq(purchases.isDraft, false)),
+      )
+      .orderBy(sql`${purchases.purchaseDate} DESC`)
+
     // Check if a report already exists for this date
     const existingReport = await db
       .select()
@@ -602,6 +633,8 @@ export async function getDailySalesReport(date: Date) {
           totalBS: paymentsData[0]?.totalBS || 0,
           count: paymentsData[0]?.count || 0,
         },
+        paymentsDetails,
+        salesDetails,
       },
     }
   } catch (error) {
@@ -722,6 +755,35 @@ export async function getSalesStatistics(period: "day" | "week" | "month" | "yea
     return {
       success: false,
       error: error instanceof Error ? error.message : "Error fetching sales statistics",
+    }
+  }
+}
+
+export async function getDonationSalesData() {
+  try {
+    const donationSales = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        client: clients,
+        totalAmount: purchases.totalAmount,
+        currencyType: purchases.currencyType,
+        purchaseDate: purchases.purchaseDate,
+        status: purchases.status,
+        isDraft: purchases.isDraft,
+        isDonation: purchases.isDonation,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .where(eq(purchases.isDonation, true))
+      .orderBy(desc(purchases.purchaseDate))
+
+    return { success: true, data: donationSales }
+  } catch (error) {
+    console.error("Error fetching donation sales:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error fetching donation sales",
     }
   }
 }

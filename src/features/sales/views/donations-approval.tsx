@@ -1,0 +1,208 @@
+"use client"
+
+import { useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { formatCurrency, formatDate } from "@/lib/utils"
+import { Gift, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { updateSaleDonation, updateSaleDraftStatus } from "@/features/sales/actions"
+import { useRouter } from "next/navigation"
+
+interface DonationsApprovalProps {
+  donations: any[]
+  onRefresh: () => void
+  isLoading: boolean
+}
+
+export function DonationsApproval({ donations, onRefresh, isLoading }: DonationsApprovalProps) {
+  const router = useRouter()
+  const { toast } = useToast()
+  const [processingId, setProcessingId] = useState<string | null>(null)
+
+  const handleApprove = async (id: string) => {
+    try {
+      setProcessingId(id)
+
+      // First, keep it as a donation
+      await updateSaleDonation(id, true)
+
+      // Then, approve it (remove draft status)
+      const result = await updateSaleDraftStatus(id, false)
+
+      if (result.success) {
+        toast({
+          title: "Donación aprobada",
+          description: "La donación ha sido aprobada exitosamente",
+          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+        })
+        onRefresh()
+      } else {
+        throw new Error(result.error || "Error al aprobar la donación")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al aprobar la donación",
+        variant: "destructive",
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleReject = async (id: string) => {
+    try {
+      setProcessingId(id)
+
+      // Remove donation status
+      const result = await updateSaleDonation(id, false)
+
+      if (result.success) {
+        toast({
+          title: "Donación rechazada",
+          description: "La donación ha sido rechazada",
+          className: "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800",
+        })
+        onRefresh()
+      } else {
+        throw new Error(result.error || "Error al rechazar la donación")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al rechazar la donación",
+        variant: "destructive",
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const navigateToSale = (id: string) => {
+    router.push(`/sales/${id}`)
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex justify-center items-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (donations.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Gift className="h-5 w-5" />
+            Aprobación de Donaciones
+          </CardTitle>
+          <CardDescription>No hay donaciones pendientes de aprobación</CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center py-4">
+          <Button variant="outline" onClick={onRefresh} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Actualizar
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <Gift className="h-5 w-5" />
+            Aprobación de Donaciones
+          </span>
+          <Button variant="outline" size="sm" onClick={onRefresh} className="gap-1">
+            <RefreshCw className="h-3.5 w-3.5" />
+            Actualizar
+          </Button>
+        </CardTitle>
+        <CardDescription>Donaciones pendientes de aprobación</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Fecha</TableHead>
+                <TableHead>Monto</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {donations.map((donation) => (
+                <TableRow key={donation.id}>
+                  <TableCell className="font-medium">
+                    <Button
+                      variant="link"
+                      onClick={() => navigateToSale(donation.id)}
+                      className="p-0 h-auto font-medium"
+                    >
+                      #{donation.id.slice(0, 8)}
+                    </Button>
+                  </TableCell>
+                  <TableCell>{donation.client?.name || "N/A"}</TableCell>
+                  <TableCell>{formatDate(donation.purchaseDate)}</TableCell>
+                  <TableCell>
+                    {formatCurrency(Number(donation.totalAmount))} {donation.currencyType}
+                  </TableCell>
+                  <TableCell>
+                    <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                      Pendiente
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleApprove(donation.id)}
+                        disabled={processingId === donation.id}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {processingId === donation.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                        )}
+                        Aprobar
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleReject(donation.id)}
+                        disabled={processingId === donation.id}
+                      >
+                        {processingId === donation.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                        ) : (
+                          <XCircle className="h-4 w-4 mr-1" />
+                        )}
+                        Rechazar
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+

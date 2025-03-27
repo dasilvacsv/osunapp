@@ -81,7 +81,7 @@ export async function getBCVRate(): Promise<{ rate: number; lastUpdate: string; 
         isError: true,
       }
     }
-  }
+}
 
 /**
  * Formats a USD amount to VES using the current BCV rate
@@ -126,31 +126,49 @@ export async function formatUsdToVes(usdAmount: number) {
     }
 } 
 
-export function formatSaleCurrency(amount: number, currencyType = "USD", conversionRate?: number | string) {
-    const rate = typeof conversionRate === "string" ? Number.parseFloat(conversionRate) : conversionRate || 1
+export function formatSaleCurrency(
+  amount: number,
+  currencyType: "USD" | "BS" = "USD",
+  conversionRate: number = 1
+) {
+  // Validar y convertir parámetros
+  const numericAmount = Number(amount) || 0;
+  const numericRate = Number(conversionRate) || 1;
   
-    if (currencyType === "BS") {
-      return `${amount.toFixed(2)} Bs`
-    } else {
-      return `$${amount.toFixed(2)}`
-    }
+  const formatter = new Intl.NumberFormat("es-VE", {
+    style: "currency",
+    currency: "USD", // Solo para formato, luego reemplazamos símbolo
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  if (currencyType === "BS") {
+    const total = numericAmount * numericRate;
+    return formatter.format(total)
+      .replace("$", "") // Eliminar símbolo USD
+      .trim() + " Bs";
   }
   
-  // Convert between currencies
-  export function convertCurrency(
-    amount: number,
-    fromCurrency: string,
-    toCurrency: string,
-    conversionRate: number,
-  ): number {
-    if (fromCurrency === toCurrency) return amount
+  return formatter.format(numericAmount)
+    .replace("$", "Bs ") // Convertir símbolo a Bs si es necesario
+    .replace("USD", "$")
+    .trim();
+}
   
-    if (fromCurrency === "USD" && toCurrency === "BS") {
-      return amount * conversionRate
-    } else if (fromCurrency === "BS" && toCurrency === "USD") {
-      return amount / conversionRate
-    }
-  
-    return amount
+// Convert between currencies
+export function convertCurrency(
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string,
+  conversionRate: number,
+): number {
+  if (fromCurrency === toCurrency) return amount
+
+  if (fromCurrency === "USD" && toCurrency === "BS") {
+    return amount * conversionRate
+  } else if (fromCurrency === "BS" && toCurrency === "USD") {
+    return amount / conversionRate
   }
-  
+
+  return amount
+}

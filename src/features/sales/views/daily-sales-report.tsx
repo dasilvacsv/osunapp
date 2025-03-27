@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CalendarIcon, Download, RefreshCw, DollarSign, CreditCard } from "lucide-react"
+import { CalendarIcon, Download, RefreshCw, DollarSign, CreditCard, ExternalLink } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn, formatCurrency, formatDate } from "@/lib/utils"
@@ -11,17 +11,26 @@ import { getDailySalesReport } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { useRouter } from "next/navigation"
 
 export function DailySalesReport() {
+  const router = useRouter()
   const [date, setDate] = useState<Date>(new Date())
   const [isLoading, setIsLoading] = useState(false)
   const [reportData, setReportData] = useState<any>(null)
   const { toast } = useToast()
+  // Inside the component, add a state for payments
+  const [dailyPayments, setDailyPayments] = useState<any[]>([])
+  // Add state for sales details
+  const [salesDetails, setSalesDetails] = useState<any[]>([])
 
   useEffect(() => {
     fetchReport()
   }, [date])
 
+  // Update the fetchReport function to get payments and sales details
   const fetchReport = async () => {
     try {
       setIsLoading(true)
@@ -29,6 +38,20 @@ export function DailySalesReport() {
 
       if (result.success) {
         setReportData(result.data)
+
+        // If there are payments, set them
+        if (result.data.paymentsDetails && result.data.paymentsDetails.length > 0) {
+          setDailyPayments(result.data.paymentsDetails)
+        } else {
+          setDailyPayments([])
+        }
+
+        // If there are sales details, set them
+        if (result.data.salesDetails && result.data.salesDetails.length > 0) {
+          setSalesDetails(result.data.salesDetails)
+        } else {
+          setSalesDetails([])
+        }
       } else {
         throw new Error(result.error)
       }
@@ -49,6 +72,10 @@ export function DailySalesReport() {
       title: "Exportando reporte",
       description: "El reporte se está exportando...",
     })
+  }
+
+  const navigateToSale = (id: string) => {
+    router.push(`/sales/${id}`)
   }
 
   return (
@@ -229,6 +256,117 @@ export function DailySalesReport() {
               </>
             )}
           </div>
+        </Card>
+      )}
+
+      {/* Sales Details Table */}
+      {salesDetails.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Detalle de Ventas</CardTitle>
+            <CardDescription>Ventas realizadas el {formatDate(date)}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>ID</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Monto</TableHead>
+                    <TableHead>Método</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Hora</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {salesDetails.map((sale) => (
+                    <TableRow key={sale.id}>
+                      <TableCell className="font-medium">#{sale.id.slice(0, 8)}</TableCell>
+                      <TableCell>{sale.clientName || "N/A"}</TableCell>
+                      <TableCell>
+                        {formatCurrency(Number(sale.totalAmount))} {sale.currencyType}
+                      </TableCell>
+                      <TableCell>{sale.paymentMethod || "N/A"}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={cn(
+                            sale.isPaid
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                              : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+                          )}
+                        >
+                          {sale.isPaid ? "Pagado" : "Pendiente"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {sale.purchaseDate ? new Date(sale.purchaseDate).toLocaleTimeString() : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => navigateToSale(sale.id)} className="h-8 w-8">
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment Details Table */}
+      {dailyPayments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Detalle de Pagos</CardTitle>
+            <CardDescription>Pagos recibidos el {formatDate(date)}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Venta</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Monto</TableHead>
+                    <TableHead>Método</TableHead>
+                    <TableHead>Referencia</TableHead>
+                    <TableHead>Hora</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dailyPayments.map((payment) => (
+                    <TableRow key={payment.id}>
+                      <TableCell className="font-medium">#{payment.purchaseId.slice(0, 8)}</TableCell>
+                      <TableCell>{payment.clientName || "N/A"}</TableCell>
+                      <TableCell>
+                        {formatCurrency(Number(payment.amount))} {payment.currencyType}
+                      </TableCell>
+                      <TableCell>{payment.paymentMethod || "N/A"}</TableCell>
+                      <TableCell>{payment.transactionReference || "-"}</TableCell>
+                      <TableCell>
+                        {payment.paymentDate ? new Date(payment.paymentDate).toLocaleTimeString() : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => navigateToSale(payment.purchaseId)}
+                          className="h-8 w-8"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
         </Card>
       )}
     </div>

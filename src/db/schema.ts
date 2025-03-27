@@ -363,7 +363,7 @@ export const purchases = pgTable("purchases", {
   bundleId: uuid("bundle_id").references(() => bundles.id),
   organizationId: uuid("organization_id").references(() => organizations.id),
   status: purchaseStatusEnum("status").notNull().default("PENDING"),
-  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  totalAmount: numeric("total_amount", { precision: 10, scale: 2 }),
   paymentStatus: text("payment_status"),
   paymentMetadata: jsonb("payment_metadata"),
   purchaseDate: timestamp("purchase_date", { withTimezone: true }).defaultNow(),
@@ -377,6 +377,7 @@ export const purchases = pgTable("purchases", {
   // New fields
   vendido: boolean("vendido").default(false),
   isDraft: boolean("is_draft").default(false),
+  isDonation: boolean("is_donation").default(false),
   currencyType: varchar("currency_type", { length: 10 }).default("USD"),
   conversionRate: numeric("conversion_rate").default("1"),
 })
@@ -486,8 +487,8 @@ export const purchaseItems = pgTable("purchase_items", {
     .notNull()
     .references(() => inventoryItems.id),
   quantity: integer("quantity").notNull(),
-  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
-  totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
+  unitPrice: numeric("unit_price", { precision: 10, scale: 2 }),
+totalPrice: numeric("total_price", { precision: 10, scale: 2 }),
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),

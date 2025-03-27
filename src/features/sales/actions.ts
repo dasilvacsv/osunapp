@@ -13,8 +13,9 @@ import {
   organizations,
   payments,
   paymentPlans,
+  dailySalesReports,
 } from "@/db/schema"
-import { and, eq, sql, or } from "drizzle-orm"
+import { and, eq, sql, or, gte, lte, desc } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { formatCurrency } from "@/lib/utils"
 import * as XLSX from "xlsx"
@@ -22,6 +23,9 @@ import { writeFile } from "fs/promises"
 import { join } from "path"
 import { existsSync } from "fs"
 import { mkdir } from "fs/promises"
+
+export type InstallmentFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY"
+export type PaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED"
 
 // Helper function to format dates for export
 const formatExportDate = (date: Date | string | null): string => {
@@ -273,8 +277,8 @@ export async function getPurchaseDetails(id: string) {
             'id', ${purchaseItems.id},
             'inventoryItem', ${inventoryItems},
             'quantity', ${purchaseItems.quantity},
-            'unitPrice', ${purchaseItems.unitPrice},
-            'totalPrice', ${purchaseItems.totalPrice}
+            'unitPrice', CAST(${purchaseItems.unitPrice} AS FLOAT),
+        'totalPrice', CAST(${purchaseItems.totalPrice} AS FLOAT),
           ))
         `,
       })
@@ -331,6 +335,7 @@ export async function createPurchase(data: {
   organizationId?: string | null
   isDraft?: boolean
   vendido?: boolean
+  isDonation?: boolean
   currencyType?: string
   conversionRate?: number
 }) {
@@ -374,6 +379,7 @@ export async function createPurchase(data: {
         // Add new fields
         isDraft: data.isDraft || false,
         vendido: data.vendido || false,
+        isDonation: data.isDonation || false,
         currencyType: data.currencyType || "USD",
         conversionRate: data.conversionRate ? data.conversionRate.toString() : "1",
       })
@@ -549,6 +555,7 @@ export async function getSalesData() {
         // Incluir nuevos campos
         isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
         vendido: sql`COALESCE(${purchases.vendido}, false)`,
+        isDonation: sql`COALESCE(${purchases.isDonation}, false)`,
         currencyType: purchases.currencyType,
         conversionRate: purchases.conversionRate,
         client: clients,
@@ -574,38 +581,90 @@ export async function getSalesData() {
 // Get draft sales
 export async function getDraftSalesData() {
   try {
-    const sales = await db
+    const draftSales = await db
       .select({
         id: purchases.id,
         clientId: purchases.clientId,
-        bundleId: purchases.bundleId,
-        status: purchases.status,
-        totalAmount: purchases.totalAmount,
-        paymentMethod: purchases.paymentMethod,
-        purchaseDate: purchases.purchaseDate,
-        transactionReference: purchases.transactionReference,
-        isPaid: sql`COALESCE(${purchases.isPaid}, false)`,
-        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
-        vendido: sql`COALESCE(${purchases.vendido}, false)`,
-        currencyType: purchases.currencyType,
-        conversionRate: purchases.conversionRate,
         client: clients,
+        totalAmount: purchases.totalAmount,
+        currencyType: purchases.currencyType,
+        purchaseDate: purchases.purchaseDate,
+        status: purchases.status,
+        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
+        isDonation: sql`COALESCE(${purchases.isDonation}, false)`,
+        // Include all necessary fields for the table
+        bundleId: purchases.bundleId,
+        beneficiarioId: purchases.beneficiarioId,
+        organizationId: purchases.organizationId,
+        paymentMethod: purchases.paymentMethod,
+        transactionReference: purchases.transactionReference,
+        isPaid: purchases.isPaid,
+        conversionRate: purchases.conversionRate,
+        // Include related data
+        bundle: bundles,
+        beneficiario: beneficiarios,
         organization: organizations,
-        saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
       })
       .from(purchases)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
       .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
       .where(eq(purchases.isDraft, true))
-      .orderBy(sql`${purchases.purchaseDate} DESC`)
+      .orderBy(desc(purchases.purchaseDate))
 
-    return {
-      success: true,
-      data: sales,
-    }
+    return { success: true, data: draftSales }
   } catch (error) {
-    console.error("Error al obtener datos de ventas en borrador:", error)
-    return { success: false, error: "Error al obtener datos de ventas en borrador" }
+    console.error("Error fetching draft sales:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error fetching draft sales",
+    }
+  }
+}
+
+// Get donation sales data
+export async function getDonationSalesData() {
+  try {
+    const donationSales = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        client: clients,
+        totalAmount: purchases.totalAmount,
+        currencyType: purchases.currencyType,
+        purchaseDate: purchases.purchaseDate,
+        status: purchases.status,
+        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
+        isDonation: sql`COALESCE(${purchases.isDonation}, false)`,
+        // Include all necessary fields for the table
+        bundleId: purchases.bundleId,
+        beneficiarioId: purchases.beneficiarioId,
+        organizationId: purchases.organizationId,
+        paymentMethod: purchases.paymentMethod,
+        transactionReference: purchases.transactionReference,
+        isPaid: purchases.isPaid,
+        conversionRate: purchases.conversionRate,
+        // Include related data
+        bundle: bundles,
+        beneficiario: beneficiarios,
+        organization: organizations,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .where(eq(purchases.isDonation, true))
+      .orderBy(desc(purchases.purchaseDate))
+
+    return { success: true, data: donationSales }
+  } catch (error) {
+    console.error("Error fetching donation sales:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error fetching donation sales",
+    }
   }
 }
 
@@ -767,30 +826,35 @@ export async function updateSaleVendidoStatus(id: string, vendido: boolean) {
 // Update sale donation status
 export async function updateSaleDonation(id: string, isDonation: boolean) {
   try {
+    // Actualizar directamente sin transacción
     const [updatedSale] = await db
       .update(purchases)
       .set({
         isDonation: isDonation,
-        // If marking as donation, also mark as draft for approval
-        isDraft: isDonation ? true : undefined,
+        isDraft: isDonation, // Siempre establecer como borrador al marcar como donación
         updatedAt: new Date(),
       })
       .where(eq(purchases.id, id))
-      .returning()
+      .returning();
 
-    revalidatePath("/sales")
-    revalidatePath(`/sales/${id}`)
+    if (!updatedSale) {
+      throw new Error("No se pudo actualizar la venta");
+    }
+
+    revalidatePath("/sales");
+    revalidatePath(`/sales/${id}`);
+    revalidatePath("/admin/donations");
 
     return {
       success: true,
       data: updatedSale,
-    }
+    };
   } catch (error) {
-    console.error("Error updating donation status:", error)
+    console.error("Error updating donation status:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Error updating donation status",
-    }
+    };
   }
 }
 
@@ -824,14 +888,148 @@ export async function updateSaleCurrency(id: string, currencyType: string, conve
 }
 
 // Update the getDailySalesReport function to use the new server action
-// This is just to maintain backward compatibility
 export async function getDailySalesReport(date: Date) {
   try {
-    // Import the new server action
-    const { getSalesSummaryForDate } = await import("@/features/reports/actions")
+    // Format date to YYYY-MM-DD
+    const formattedDate = date.toISOString().split("T")[0]
+    const startDate = new Date(`${formattedDate}T00:00:00.000Z`)
+    const endDate = new Date(`${formattedDate}T23:59:59.999Z`)
 
-    // Call the new server action
-    return await getSalesSummaryForDate(date)
+    // Get direct sales for the day
+    const directSales = await db
+      .select({
+        totalAmount: sql`SUM(CAST(${purchases.totalAmount} AS DECIMAL))`,
+        totalUSD: sql`SUM(CASE WHEN ${purchases.currencyType} = 'USD' THEN CAST(${purchases.totalAmount} AS DECIMAL) ELSE CAST(${purchases.totalAmount} AS DECIMAL) / CAST(${purchases.conversionRate} AS DECIMAL) END)`,
+        totalBS: sql`SUM(CASE WHEN ${purchases.currencyType} = 'BS' THEN CAST(${purchases.totalAmount} AS DECIMAL) ELSE CAST(${purchases.totalAmount} AS DECIMAL) * CAST(${purchases.conversionRate} AS DECIMAL) END)`,
+        count: sql`COUNT(*)`,
+      })
+      .from(purchases)
+      .where(
+        and(
+          gte(purchases.purchaseDate, startDate),
+          lte(purchases.purchaseDate, endDate),
+          eq(purchases.isDraft, false),
+          eq(sql`(${purchases.paymentMetadata}->>'saleType')::text`, "DIRECT"),
+        ),
+      )
+
+    // Get payments for the day
+    const paymentsData = await db
+      .select({
+        totalAmount: sql`SUM(CAST(${payments.amount} AS DECIMAL))`,
+        totalUSD: sql`SUM(CASE WHEN ${payments.currencyType} = 'USD' THEN CAST(${payments.amount} AS DECIMAL) ELSE CAST(${payments.amount} AS DECIMAL) / CAST(${payments.conversionRate} AS DECIMAL) END)`,
+        totalBS: sql`SUM(CASE WHEN ${payments.currencyType} = 'BS' THEN CAST(${payments.amount} AS DECIMAL) ELSE CAST(${payments.amount} AS DECIMAL) * CAST(${payments.conversionRate} AS DECIMAL) END)`,
+        count: sql`COUNT(*)`,
+      })
+      .from(payments)
+      .where(and(gte(payments.paymentDate, startDate), lte(payments.paymentDate, endDate), eq(payments.status, "PAID")))
+
+    // Get detailed payment information with client names
+    const paymentsDetails = await db
+      .select({
+        id: payments.id,
+        purchaseId: payments.purchaseId,
+        amount: payments.amount,
+        paymentMethod: payments.paymentMethod,
+        paymentDate: payments.paymentDate,
+        transactionReference: payments.transactionReference,
+        currencyType: payments.currencyType,
+        clientName: clients.name,
+      })
+      .from(payments)
+      .leftJoin(purchases, eq(payments.purchaseId, purchases.id))
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .where(and(gte(payments.paymentDate, startDate), lte(payments.paymentDate, endDate), eq(payments.status, "PAID")))
+      .orderBy(sql`${payments.paymentDate} DESC`)
+
+    // Get detailed sales information
+    const salesDetails = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        clientName: clients.name,
+        totalAmount: purchases.totalAmount,
+        currencyType: purchases.currencyType,
+        paymentMethod: purchases.paymentMethod,
+        isPaid: purchases.isPaid,
+        purchaseDate: purchases.purchaseDate,
+        status: purchases.status,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .where(
+        and(gte(purchases.purchaseDate, startDate), lte(purchases.purchaseDate, endDate), eq(purchases.isDraft, false)),
+      )
+      .orderBy(sql`${purchases.purchaseDate} DESC`)
+
+    // Check if a report already exists for this date
+    const existingReport = await db
+      .select()
+      .from(dailySalesReports)
+      .where(eq(dailySalesReports.date, startDate))
+      .limit(1)
+
+    let report
+
+    if (existingReport.length > 0) {
+      // Update existing report
+      ;[report] = await db
+        .update(dailySalesReports)
+        .set({
+          totalDirectSales: directSales[0]?.totalAmount?.toString() || "0",
+          totalPayments: paymentsData[0]?.totalAmount?.toString() || "0",
+          totalSalesUSD: directSales[0]?.totalUSD?.toString() || "0",
+          totalSalesBS: directSales[0]?.totalBS?.toString() || "0",
+          updatedAt: new Date(),
+          metadata: {
+            directSalesCount: directSales[0]?.count || 0,
+            paymentsCount: paymentsData[0]?.count || 0,
+            paymentsUSD: paymentsData[0]?.totalUSD || 0,
+            paymentsBS: paymentsData[0]?.totalBS || 0,
+          },
+        })
+        .where(eq(dailySalesReports.id, existingReport[0].id))
+        .returning()
+    } else {
+      // Create new report
+      ;[report] = await db
+        .insert(dailySalesReports)
+        .values({
+          date: startDate,
+          totalDirectSales: directSales[0]?.totalAmount?.toString() || "0",
+          totalPayments: paymentsData[0]?.totalAmount?.toString() || "0",
+          totalSalesUSD: directSales[0]?.totalUSD?.toString() || "0",
+          totalSalesBS: directSales[0]?.totalBS?.toString() || "0",
+          metadata: {
+            directSalesCount: directSales[0]?.count || 0,
+            paymentsCount: paymentsData[0]?.count || 0,
+            paymentsUSD: paymentsData[0]?.totalUSD || 0,
+            paymentsBS: paymentsData[0]?.totalBS || 0,
+          },
+        })
+        .returning()
+    }
+
+    return {
+      success: true,
+      data: {
+        report,
+        directSales: {
+          total: directSales[0]?.totalAmount || 0,
+          totalUSD: directSales[0]?.totalUSD || 0,
+          totalBS: directSales[0]?.totalBS || 0,
+          count: directSales[0]?.count || 0,
+        },
+        payments: {
+          total: paymentsData[0]?.totalAmount || 0,
+          totalUSD: paymentsData[0]?.totalUSD || 0,
+          totalBS: paymentsData[0]?.totalBS || 0,
+          count: paymentsData[0]?.count || 0,
+        },
+        paymentsDetails,
+        salesDetails,
+      },
+    }
   } catch (error) {
     console.error("Error generating daily sales report:", error)
     return {
@@ -1058,5 +1256,56 @@ export async function updateSalePreSaleFlag(saleId: string, allowPresale: boolea
       error: error instanceof Error ? error.message : "Error al actualizar el estado de preventa",
     }
   }
+}
+
+// Delete a sale
+export async function deleteSale(id: string) {
+  try {
+    // First delete related payments
+    await db.delete(payments).where(eq(payments.purchaseId, id))
+
+    // Then delete the purchase
+    const [deletedPurchase] = await db.delete(purchases).where(eq(purchases.id, id)).returning()
+
+    if (!deletedPurchase) {
+      return { success: false, error: "Venta no encontrada" }
+    }
+
+    revalidatePath("/sales")
+    return { success: true, data: deletedPurchase }
+  } catch (error) {
+    console.error("Error deleting sale:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error deleting sale",
+    }
+  }
+}
+
+// Add function to get draft sales data
+// Add function to get donation sales data
+
+// Función auxiliar para generar fechas de vencimiento
+function generateDueDates(startDate: Date, count: number, frequency: InstallmentFrequency): Date[] {
+  const dates: Date[] = []
+  let currentDate = new Date(startDate)
+
+  for (let i = 0; i < count; i++) {
+    const nextDate = new Date(currentDate)
+
+    if (frequency === "WEEKLY") {
+      nextDate.setDate(nextDate.getDate() + 7)
+    } else if (frequency === "BIWEEKLY") {
+      nextDate.setDate(nextDate.getDate() + 14)
+    } else {
+      // MONTHLY
+      nextDate.setMonth(nextDate.getMonth() + 1)
+    }
+
+    dates.push(nextDate)
+    currentDate = nextDate
+  }
+
+  return dates
 }
 

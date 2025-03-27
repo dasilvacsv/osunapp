@@ -206,13 +206,16 @@ export function PartialPaymentDialog({
       })
 
       if (result.success) {
+        const message = result.isFullyPaid
+          ? "Pago completado. La venta ha sido marcada como pagada."
+          : `Se ha registrado el pago de ${currencyType === "BS" ? `Bs. ${paymentAmount}` : formatCurrency(paymentAmount)}`
+
         toast({
-          title: "Pago registrado",
-          description: `Se ha registrado el pago de ${
-            currencyType === "BS" ? `Bs. ${paymentAmount}` : formatCurrency(paymentAmount)
-          }`,
+          title: result.isFullyPaid ? "Pago completado" : "Pago registrado",
+          description: message,
           className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
         })
+
         onOpenChange(false)
         if (onSuccess) {
           onSuccess()

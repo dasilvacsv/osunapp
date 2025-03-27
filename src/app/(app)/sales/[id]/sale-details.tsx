@@ -392,11 +392,17 @@ export function SaleDetails({ sale }: { sale: any }) {
       const result = await updateSaleCurrency(sale.id, currencyType, Number(conversionRate))
 
       if (result.success) {
+        // Update product prices based on new currency and rate
+        const updatedSale = result.data
+
         toast({
           title: "Moneda actualizada",
           description: `La moneda ha sido actualizada a ${currencyType} con tasa de ${conversionRate}`,
           className: "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800",
         })
+
+        // Refresh the page to show updated prices
+        window.location.reload()
       } else {
         throw new Error(result.error || "Error al actualizar la moneda")
       }
@@ -510,9 +516,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                 <ChevronRight className="h-4 w-4" />
                 <Badge className="flex items-center gap-1.5">
                   <SaleTypeIcon className="h-3.5 w-3.5" />
-                  {isDonation 
-                    ? saleTypeLabels.DONATION 
-                    : saleTypeLabels[sale.saleType as keyof typeof saleTypeLabels]}
+                  {isDonation ? saleTypeLabels.DONATION : saleTypeLabels[sale.saleType as keyof typeof saleTypeLabels]}
                 </Badge>
               </div>
             </div>
@@ -621,10 +625,10 @@ export function SaleDetails({ sale }: { sale: any }) {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="conversionRate">Tasa de cambio</Label>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={fetchBCVRate} 
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={fetchBCVRate}
                         disabled={isLoadingBCVRate}
                         className="h-6 px-2 text-xs"
                       >
@@ -730,7 +734,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                             <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
                               <span>{item.quantity} unidades</span>
                               <span>•</span>
-                              <span>{formatSaleCurrency(Number(item.unitPrice), sale.currencyType)} c/u</span>
+                              <span>{formatSaleCurrency(Number(item.unitPrice), sale.currencyType, sale.conversionRate)} c/u</span>
                               {hoveredItem === index && (
                                 <>
                                   <span>•</span>
@@ -743,7 +747,13 @@ export function SaleDetails({ sale }: { sale: any }) {
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className="font-semibold">{formatSaleCurrency(Number(item.totalPrice), sale.currencyType)}</span>
+                          <span className="text-2xl font-bold">
+  {formatSaleCurrency(
+    Number(sale.totalAmount), 
+    sale.currencyType, 
+    sale.conversionRate
+  )}
+</span>
                           </div>
                         </div>
                       </motion.div>
@@ -781,9 +791,9 @@ export function SaleDetails({ sale }: { sale: any }) {
                       )}
 
                       {remainingBalance && remainingBalance.remainingAmount > 0 && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => {
                             if (currencyType !== sale.currencyType) {
                               setShowPaymentCurrencyDialog(true)
@@ -937,7 +947,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                           "mt-2",
                           sale.isPaid
                             ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
-                            : ""
+                            : "",
                         )}
                       >
                         {sale.isPaid ? "Pagado" : "Pendiente"}
@@ -983,87 +993,133 @@ export function SaleDetails({ sale }: { sale: any }) {
           </div>
         </div>
 
-      {/* Vendido Code Dialog */}
-      <Dialog open={showVendidoDialog} onOpenChange={setShowVendidoDialog}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Confirmar acción</DialogTitle>
-            <DialogDescription>
-              Ingrese el código para marcar esta venta como vendida
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              type="password"
-              placeholder="Código de autorización"
-              value={vendidoCode}
-              onChange={(e) => setVendidoCode(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowVendidoDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleVendidoCodeSubmit}>Confirmar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Payment Plan Dialog */}
-      <PaymentPlanDialog
-        open={showPaymentPlanDialog}
-        onOpenChange={setShowPaymentPlanDialog}
-        purchaseId={sale.id}
-        totalAmount={Number.parseFloat(sale.totalAmount)}
-        onSuccess={() => {
-          fetchPayments()
-          fetchRemainingBalance()
-        }}
-      />
-
-      {/* Partial Payment Dialog */}
-      <PartialPaymentDialog
-        open={showPartialPaymentDialog}
-        onOpenChange={setShowPartialPaymentDialog}
-        purchaseId={sale.id}
-        onSuccess={() => {
-          fetchPayments()
-          fetchRemainingBalance()
-        }}
-      />
-
-      {/* Payment Currency Dialog */}
-      <Dialog open={showPaymentCurrencyDialog} onOpenChange={setShowPaymentCurrencyDialog}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Configuración de Pago</DialogTitle>
-            <DialogDescription>
-              La moneda de la venta ({sale.currencyType}) es diferente a la moneda actual ({currencyType}).
-              Por favor, configure los detalles del pago.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="paymentCurrency">Moneda de Pago</Label>
-              <Select value={paymentCurrency} onValueChange={handlePaymentCurrencyChange}>
-                <SelectTrigger id="paymentCurrency">
-                  <SelectValue placeholder="Seleccionar moneda" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="USD">USD</SelectItem>
-                  <SelectItem value="BS">BS</SelectItem>
-                </SelectContent>
-              </Select>
+        {/* Vendido Code Dialog */}
+        <Dialog open={showVendidoDialog} onOpenChange={setShowVendidoDialog}>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Confirmar acción</DialogTitle>
+              <DialogDescription>Ingrese el código para marcar esta venta como vendida</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                type="password"
+                placeholder="Código de autorización"
+                value={vendidoCode}
+                onChange={(e) => setVendidoCode(e.target.value)}
+              />
             </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowVendidoDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleVendidoCodeSubmit}>Confirmar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-            {paymentCurrency === "BS" ? (
-              <>
+        {/* Payment Plan Dialog */}
+        <PaymentPlanDialog
+          open={showPaymentPlanDialog}
+          onOpenChange={setShowPaymentPlanDialog}
+          purchaseId={sale.id}
+          totalAmount={Number.parseFloat(sale.totalAmount)}
+          onSuccess={() => {
+            fetchPayments()
+            fetchRemainingBalance()
+          }}
+        />
+
+        {/* Partial Payment Dialog */}
+        <PartialPaymentDialog
+          open={showPartialPaymentDialog}
+          onOpenChange={setShowPartialPaymentDialog}
+          purchaseId={sale.id}
+          onSuccess={() => {
+            fetchPayments()
+            fetchRemainingBalance()
+          }}
+        />
+
+        {/* Payment Currency Dialog */}
+        <Dialog open={showPaymentCurrencyDialog} onOpenChange={setShowPaymentCurrencyDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Configuración de Pago</DialogTitle>
+              <DialogDescription>
+                La moneda de la venta ({sale.currencyType}) es diferente a la moneda actual ({currencyType}). Por favor,
+                configure los detalles del pago.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="paymentCurrency">Moneda de Pago</Label>
+                <Select value={paymentCurrency} onValueChange={handlePaymentCurrencyChange}>
+                  <SelectTrigger id="paymentCurrency">
+                    <SelectValue placeholder="Seleccionar moneda" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="BS">BS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {paymentCurrency === "BS" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="bsAmount">Monto en Bs</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">Bs.</span>
+                      <Input
+                        id="bsAmount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={paymentAmount}
+                        onChange={(e) => handlePaymentAmountChange(e.target.value)}
+                        placeholder="0.00"
+                        className="pl-9"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="usdAmount">Equivalente en USD</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="usdAmount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={convertedAmount}
+                        onChange={(e) => handleConvertedAmountChange(e.target.value)}
+                        placeholder="0.00"
+                        className="pl-9"
+                      />
+                    </div>
+                    <div className="text-sm text-muted-foreground flex justify-between">
+                      <span>Tasa: {conversionRate} Bs/USD</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={fetchBCVRate}
+                        disabled={isLoadingBCVRate}
+                        className="h-6 px-2 text-xs"
+                      >
+                        <RefreshCw className={`h-3 w-3 mr-1 ${isLoadingBCVRate ? "animate-spin" : ""}`} />
+                        Actualizar Tasa BCV
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div className="space-y-2">
-                  <Label htmlFor="bsAmount">Monto en Bs</Label>
+                  <Label htmlFor="usdAmount">Monto en USD</Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-muted-foreground">Bs.</span>
+                    <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                      id="bsAmount"
+                      id="usdAmount"
                       type="number"
                       step="0.01"
                       min="0.01"
@@ -1074,75 +1130,26 @@ export function SaleDetails({ sale }: { sale: any }) {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="usdAmount">Equivalente en USD</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="usdAmount"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={convertedAmount}
-                      onChange={(e) => handleConvertedAmountChange(e.target.value)}
-                      placeholder="0.00"
-                      className="pl-9"
-                    />
-                  </div>
-                  <div className="text-sm text-muted-foreground flex justify-between">
-                    <span>Tasa: {conversionRate} Bs/USD</span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={fetchBCVRate}
-                      disabled={isLoadingBCVRate}
-                      className="h-6 px-2 text-xs"
-                    >
-                      <RefreshCw className={`h-3 w-3 mr-1 ${isLoadingBCVRate ? "animate-spin" : ""}`} />
-                      Actualizar Tasa BCV
-                    </Button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="usdAmount">Monto en USD</Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="usdAmount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={paymentAmount}
-                    onChange={(e) => handlePaymentAmountChange(e.target.value)}
-                    placeholder="0.00"
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPaymentCurrencyDialog(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              onClick={() => {
-                setShowPaymentCurrencyDialog(false)
-                setShowPartialPaymentDialog(true)
-              }}
-              disabled={!paymentAmount}
-            >
-              Continuar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPaymentCurrencyDialog(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowPaymentCurrencyDialog(false)
+                  setShowPartialPaymentDialog(true)
+                }}
+                disabled={!paymentAmount}
+              >
+                Continuar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
-  </div>
   )
 }
-
 

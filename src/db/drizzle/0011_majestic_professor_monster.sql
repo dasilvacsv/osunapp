@@ -1,0 +1,1 @@
+ALTER TABLE "purchases" ADD COLUMN "is_donation" boolean DEFAULT false;
