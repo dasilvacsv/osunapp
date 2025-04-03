@@ -1,7 +1,7 @@
 "use server"
 
 import { db } from "@/db"
-import { bundleCategories, bundles, bundleItems, inventoryItems } from "@/db/schema"
+import { bundleCategories, bundles, bundleItems, inventoryItems, organizations } from "@/db/schema"
 import { eq } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { unstable_noStore as noStore } from "next/cache"
@@ -27,30 +27,56 @@ export async function getBundleCategories(): Promise<ActionResponse<{ id: string
   }
 }
 
+export async function createBundleCategory(
+  input: { name: string }
+): Promise<ActionResponse<{ id: string; name: string }>> {
+  try {
+    const [category] = await db
+      .insert(bundleCategories)
+      .values({
+        name: input.name,
+        status: "ACTIVE",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning({ 
+        id: bundleCategories.id,
+        name: bundleCategories.name
+      })
+
+    if (!category) {
+      return { success: false, error: "No se pudo crear la categoría" }
+    }
+
+    revalidatePath("/inventario/bundles")
+    return { success: true, data: category }
+  } catch (error) {
+    console.error("Error creating bundle category:", error)
+    return { success: false, error: "Error al crear la categoría" }
+  }
+}
+
 // Crear un nuevo bundle - Modificado para no usar transacciones
 export async function createBundle(input: CreateBundleInput): Promise<ActionResponse<string>> {
   try {
-    // 1. Crear el bundle principal
     const [bundle] = await db
       .insert(bundles)
       .values({
         name: input.name,
         description: input.description || null,
         categoryId: input.categoryId,
-        type: "REGULAR", // Puedes ajustar esto según tus necesidades
+        type: "REGULAR",
         basePrice: input.totalBasePrice.toString(),
         discountPercentage: input.savingsPercentage.toString(),
         bundlePrice: (input.totalBasePrice * (1 - input.savingsPercentage / 100)).toString(),
         currencyType: input.currencyType || "USD",
         conversionRate: input.conversionRate ? input.conversionRate.toString() : null,
+        organizationId: input.organizationId || null,
       })
       .returning({ id: bundles.id })
 
-    if (!bundle) {
-      throw new Error("No se pudo crear el bundle")
-    }
+    if (!bundle) throw new Error("No se pudo crear el bundle")
 
-    // 2. Crear los items del bundle
     for (const item of input.items) {
       await db.insert(bundleItems).values({
         bundleId: bundle.id,
@@ -60,9 +86,7 @@ export async function createBundle(input: CreateBundleInput): Promise<ActionResp
       })
     }
 
-    // Revalidar la ruta para actualizar la UI
     revalidatePath("/inventario/bundles")
-
     return { success: true, data: bundle.id }
   } catch (error) {
     console.error("Error creating bundle:", error)
@@ -70,17 +94,43 @@ export async function createBundle(input: CreateBundleInput): Promise<ActionResp
   }
 }
 
+export async function getOrganizations(): Promise<ActionResponse<{ id: string; name: string }[]>> {
+  try {
+    noStore()
+    const orgs = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name
+      })
+      .from(organizations)
+      .where(eq(organizations.status, "ACTIVE"))
+      .orderBy(organizations.name)
+
+    return { success: true, data: orgs }
+  } catch (error) {
+    console.error("Error fetching organizations:", error)
+    return { success: false, error: "Error al obtener las organizaciones" }
+  }
+}
 // Obtener todos los bundles con sus items
 export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
   try {
     noStore()
+    const bundlesList = await db
+      .select({
+        bundle: bundles,
+        organization: {
+          id: organizations.id,
+          name: organizations.name,
+        },
+      })
+      .from(bundles)
+      .leftJoin(organizations, eq(bundles.organizationId, organizations.id))
+      .where(eq(bundles.status, "ACTIVE"))
+      .orderBy(bundles.createdAt)
 
-    // 1. Obtener todos los bundles
-    const bundlesList = await db.select().from(bundles).where(eq(bundles.status, "ACTIVE")).orderBy(bundles.createdAt)
-
-    // 2. Para cada bundle, obtener sus items
     const bundlesWithItems = await Promise.all(
-      bundlesList.map(async (bundle) => {
+      bundlesList.map(async ({ bundle, organization }) => {
         const bundleItemsWithDetails = await db
           .select({
             bundleItem: bundleItems,
@@ -90,14 +140,12 @@ export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
           .where(eq(bundleItems.bundleId, bundle.id))
           .innerJoin(inventoryItems, eq(bundleItems.itemId, inventoryItems.id))
 
-        // Calcular totales
         const totalBasePrice = Number(bundle.basePrice)
         const discountPercentage = Number(bundle.discountPercentage || 0)
         const totalDiscountedPrice = totalBasePrice * (1 - discountPercentage / 100)
         const savings = totalBasePrice - totalDiscountedPrice
         const savingsPercentage = totalBasePrice > 0 ? (savings / totalBasePrice) * 100 : 0
 
-        // Calcular el costo total estimado (usando el precio base y el margen)
         let totalEstimatedCost = 0
         bundleItemsWithDetails.forEach((i) => {
           const basePrice = Number(i.item.basePrice)
@@ -106,12 +154,12 @@ export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
           totalEstimatedCost += estimatedCost * i.bundleItem.quantity
         })
 
-        // Calcular ganancia y porcentaje de ganancia
         const profit = totalDiscountedPrice - totalEstimatedCost
         const profitPercentage = totalDiscountedPrice > 0 ? (profit / totalDiscountedPrice) * 100 : 0
 
         return {
           ...bundle,
+          organization,
           items: bundleItemsWithDetails.map((i) => ({
             itemId: i.item.id,
             item: i.item,
@@ -128,7 +176,7 @@ export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
           currencyType: bundle.currencyType || "USD",
           conversionRate: bundle.conversionRate || "1",
         }
-      }),
+      })
     )
 
     return { success: true, data: bundlesWithItems }
@@ -137,4 +185,3 @@ export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
     return { success: false, error: "Error al obtener los bundles" }
   }
 }
-

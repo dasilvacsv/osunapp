@@ -13,7 +13,7 @@ import {
   organizationMembers,
   inventoryTransactions,
 } from "@/db/schema"
-import { eq, and, or, isNull, inArray, sql } from "drizzle-orm"
+import { eq, and, or, isNull, inArray, sql, desc } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { getBCVRate } from "@/lib/exchangeRates"
 
@@ -89,88 +89,84 @@ export async function getClients() {
 // Get detailed client information
 export async function getClientDetail(clientId: string) {
   try {
-    // Get client
     const clientResult = await db.select().from(clients).where(eq(clients.id, clientId))
 
-    if (!clientResult || clientResult.length === 0) {
+    if (!clientResult.length) {
       return {
         success: false,
-        error: "Client not found",
+        data: null,
+        error: "Client not found"
       }
     }
 
     const client = clientResult[0]
-
-    // Get organization if it exists
-    let organization: typeof organizations.$inferSelect | undefined
+    
+    // Obtener organización
+    let organization = null
     if (client.organizationId) {
       const orgResult = await db.select().from(organizations).where(eq(organizations.id, client.organizationId))
-      organization = orgResult.length > 0 ? orgResult[0] : undefined
+      organization = orgResult[0] || null
     }
 
-    // Get beneficiaries
-    const beneficiariesData = await db.select().from(beneficiarios).where(eq(beneficiarios.clientId, clientId))
+    // Obtener beneficiarios
+    const beneficiariesData = await db.select()
+      .from(beneficiarios)
+      .where(eq(beneficiarios.clientId, clientId))
 
-    // Get organization memberships
-    const memberships = await db.select().from(organizationMembers).where(eq(organizationMembers.clientId, clientId))
+    // Obtener membresías de organizaciones
+    const memberships = await db.select()
+      .from(organizationMembers)
+      .where(eq(organizationMembers.clientId, clientId))
 
-    let organizationMemberships: OrganizationMembership[] = []
+    let organizationMemberships = []
     if (memberships.length > 0) {
-      const membershipOrgIds = memberships.map((m) => m.organizationId)
-      const membershipOrgs = await db.select().from(organizations).where(inArray(organizations.id, membershipOrgIds))
-
-      organizationMemberships = memberships
-        .map((membership) => {
-          const org = membershipOrgs.find((o) => o.id === membership.organizationId)
-          return org ? { membership, organization: org } : null
-        })
-        .filter((item): item is OrganizationMembership => item !== null)
+      const orgIds = memberships.map(m => m.organizationId)
+      const orgs = await db.select().from(organizations).where(inArray(organizations.id, orgIds))
+      
+      organizationMemberships = memberships.map(m => ({
+        membership: m,
+        organization: orgs.find(o => o.id === m.organizationId)
+      })).filter(m => m.organization)
     }
 
-    // Get purchases with items and bundles
-    const purchasesData = await db.select().from(purchases).where(eq(purchases.clientId, clientId))
+    // Obtener compras
+    const purchasesData = await db.select()
+      .from(purchases)
+      .where(eq(purchases.clientId, clientId))
 
-    let clientPurchases: PurchaseWithDetails[] = []
+    let clientPurchases = []
     if (purchasesData.length > 0) {
-      const purchaseIds = purchasesData.map((p) => p.id)
-      const bundleIds = purchasesData.filter((p) => p.bundleId).map((p) => p.bundleId as string)
-
-      // Get bundles
-      const bundlesData =
-        bundleIds.length > 0 ? await db.select().from(bundles).where(inArray(bundles.id, bundleIds)) : []
-
-      // Get purchase items with inventory items
-      const purchaseItemsData = await db
-        .select()
+      const purchaseIds = purchasesData.map(p => p.id)
+      
+      // Obtener items de compra
+      const purchaseItemsData = await db.select()
         .from(purchaseItems)
         .where(inArray(purchaseItems.purchaseId, purchaseIds))
 
-      const inventoryItemIds = purchaseItemsData.map((pi) => pi.itemId)
-      const inventoryItemsData = await db
-        .select()
+      // Obtener detalles de inventario
+      const itemIds = purchaseItemsData.map(pi => pi.itemId)
+      const inventoryItemsData = await db.select()
         .from(inventoryItems)
-        .where(inArray(inventoryItems.id, inventoryItemIds))
+        .where(inArray(inventoryItems.id, itemIds))
 
-      clientPurchases = purchasesData.map((purchase) => {
-        const bundle = purchase.bundleId ? bundlesData.find((b) => b.id === purchase.bundleId) : undefined
-
+      clientPurchases = purchasesData.map(purchase => {
         const items = purchaseItemsData
-          .filter((pi) => pi.purchaseId === purchase.id)
-          .map((item) => {
-            const inventoryItem = inventoryItemsData.find((ii) => ii.id === item.itemId)
-            return inventoryItem ? { item, inventoryItem } : null
-          })
-          .filter(
-            (
-              item,
-            ): item is { item: typeof purchaseItems.$inferSelect; inventoryItem: typeof inventoryItems.$inferSelect } =>
-              item !== null,
-          )
+          .filter(pi => pi.purchaseId === purchase.id)
+          .map(pi => ({
+            item: pi,
+            inventoryItem: inventoryItemsData.find(ii => ii.id === pi.itemId)
+          }))
+          .filter(i => i.inventoryItem)
 
         return {
           purchase,
-          items,
-          bundle,
+          items: items.map(i => ({
+            ...i,
+            inventoryItem: {
+              ...i.inventoryItem,
+              basePrice: Number(i.inventoryItem.basePrice)
+            }
+          }))
         }
       })
     }
@@ -178,18 +174,24 @@ export async function getClientDetail(clientId: string) {
     return {
       success: true,
       data: {
-        client,
+        ...client,
         organization,
-        children: beneficiariesData,
+        beneficiarios: beneficiariesData.map(b => ({
+          ...b,
+          level: b.level || '',
+          section: b.section || ''
+        })),
         organizationMemberships,
-        purchases: clientPurchases,
+        purchases: clientPurchases
       },
+      error: null
     }
   } catch (error) {
     console.error("Error fetching client detail:", error)
     return {
       success: false,
-      error: "Failed to fetch client detail",
+      data: null,
+      error: "Failed to fetch client detail"
     }
   }
 }
@@ -217,18 +219,30 @@ export async function getProducts() {
       .select()
       .from(inventoryItems)
       .where(
-        and(eq(inventoryItems.status, "ACTIVE"), or(isNull(inventoryItems.type), eq(inventoryItems.type, "PHYSICAL"))),
+        and(eq(inventoryItems.status, "ACTIVE"), 
+        or(isNull(inventoryItems.type), eq(inventoryItems.type, "PHYSICAL")))
       )
+
+    const processedProducts = result.map(item => ({
+      ...item,
+      basePrice: Number(item.basePrice),
+      currentStock: Number(item.currentStock),
+      reservedStock: Number(item.reservedStock),
+      minimumStock: Number(item.minimumStock),
+      allowPresale: Boolean(item.allowPresale)
+    }))
 
     return {
       success: true,
-      data: result,
+      data: processedProducts,
+      error: null
     }
   } catch (error) {
     console.error("Error fetching products:", error)
     return {
       success: false,
-      error: "Failed to fetch products",
+      data: [],
+      error: "Failed to fetch products"
     }
   }
 }
@@ -252,7 +266,17 @@ export async function getBundles() {
 
         return {
           ...bundle,
-          items,
+          basePrice: Number(bundle.basePrice),
+          bundlePrice: bundle.bundlePrice ? Number(bundle.bundlePrice) : null,
+          items: items.map(i => ({
+            ...i,
+            overridePrice: i.overridePrice ? Number(i.overridePrice) : null,
+            item: {
+              ...i.item,
+              basePrice: Number(i.item.basePrice),
+              currentStock: Number(i.item.currentStock)
+            }
+          }))
         }
       }),
     )
@@ -260,12 +284,14 @@ export async function getBundles() {
     return {
       success: true,
       data: bundlesWithItems,
+      error: null
     }
   } catch (error) {
     console.error("Error fetching bundles:", error)
     return {
       success: false,
-      error: "Failed to fetch bundles",
+      data: [],
+      error: "Failed to fetch bundles"
     }
   }
 }
@@ -493,7 +519,7 @@ export async function createSale(data: {
       })
       .from(purchases)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
-      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiaries.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
       .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
       .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
       .where(eq(purchases.id, purchase.id))
@@ -533,17 +559,38 @@ export async function createSale(data: {
 
 export async function getBeneficiariesByClient(clientId: string) {
   try {
-    const result = await db.select().from(beneficiarios).where(eq(beneficiarios.clientId, clientId))
+    const result = await db
+      .select()
+      .from(beneficiarios)
+      .where(and(
+        eq(beneficiarios.clientId, clientId),
+        eq(beneficiarios.status, "ACTIVE")
+      ))
+      .orderBy(desc(beneficiarios.createdAt))
 
     return {
       success: true,
-      data: result,
+      data: result.map(b => ({
+        id: b.id,
+        clientId: b.clientId,
+        organizationId: b.organizationId || null,
+        grade: b.grade || null,
+        section: b.section || null,
+        status: b.status || "ACTIVE",
+        bundleId: b.bundleId || null,
+        firstName: b.firstName || null,
+        lastName: b.lastName || null,
+        school: b.school || null,
+        level: b.level || null,
+        createdAt: b.createdAt || null,
+        updatedAt: b.updatedAt || null
+      }))
     }
   } catch (error) {
     console.error("Error fetching beneficiaries:", error)
     return {
       success: false,
-      error: "Failed to fetch beneficiaries",
+      error: "Failed to fetch beneficiaries"
     }
   }
 }

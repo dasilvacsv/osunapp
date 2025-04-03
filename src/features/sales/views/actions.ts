@@ -17,8 +17,6 @@ import {
 import { and, eq, sql, gte, lte, desc } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
-
-
 // Get a single purchase by ID
 export async function getPurchaseById(id: string) {
   try {
@@ -77,10 +75,16 @@ export async function getPurchaseById(id: string) {
     // Get payments for this purchase
     const paymentsData = await db.select().from(payments).where(eq(payments.purchaseId, id))
 
-    // Get purchase items with inventory item details
+    // Get purchase items with inventory item details - UPDATED QUERY
     const items = await db
       .select({
-        purchaseItem: purchaseItems,
+        id: purchaseItems.id,
+        purchaseId: purchaseItems.purchaseId,
+        itemId: purchaseItems.itemId,
+        quantity: purchaseItems.quantity,
+        unitPrice: purchaseItems.unitPrice,
+        totalPrice: purchaseItems.totalPrice,
+        metadata: purchaseItems.metadata,
         inventoryItem: inventoryItems,
       })
       .from(purchaseItems)
@@ -193,37 +197,117 @@ export async function createPurchase(data: any) {
   }
 }
 
+export async function updatePurchaseItems(purchaseId: string, items: any[]) {
+  try {
+    return await db.transaction(async (tx) => {
+      // Eliminar items existentes
+      await tx.delete(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId));
+
+      // Insertar nuevos items
+      const newItems = items.map(item => ({
+        purchaseId,
+        itemId: item.itemId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice.toString(),
+        totalPrice: (item.quantity * item.unitPrice).toString(),
+        metadata: item.metadata || {}
+      }));
+
+      await tx.insert(purchaseItems).values(newItems);
+
+      // Actualizar total en la compra
+      const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+      
+      const [updatedPurchase] = await tx.update(purchases)
+        .set({ totalAmount: totalAmount.toString() })
+        .where(eq(purchases.id, purchaseId))
+        .returning();
+
+      return { success: true, data: updatedPurchase };
+    });
+  } catch (error) {
+    console.error("Error updating purchase items:", error);
+    return { success: false, error: "Failed to update items" };
+  }
+}
+
+export async function addPurchaseItem(purchaseId: string, item: any) {
+  try {
+    return await db.transaction(async (tx) => {
+      // Insertar nuevo item
+      const [newItem] = await tx.insert(purchaseItems).values({
+        purchaseId,
+        itemId: item.itemId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice.toString(),
+        totalPrice: (item.quantity * item.unitPrice).toString(),
+        metadata: item.metadata || {}
+      }).returning();
+
+      // Actualizar total
+      const purchase = await tx.select()
+        .from(purchases)
+        .where(eq(purchases.id, purchaseId))
+        .limit(1);
+
+      const newTotal = Number(purchase[0].totalAmount) + (item.quantity * item.unitPrice);
+      
+      await tx.update(purchases)
+        .set({ totalAmount: newTotal.toString() })
+        .where(eq(purchases.id, purchaseId));
+
+      return { success: true, data: newItem };
+    });
+  } catch (error) {
+    console.error("Error adding item:", error);
+    return { success: false, error: "Failed to add item" };
+  }
+}
+
 // Update a purchase
 export async function updatePurchase(id: string, data: any) {
   try {
-    const [updatedPurchase] = await db
-      .update(purchases)
-      .set({
-        clientId: data.clientId,
-        beneficiarioId: data.beneficiarioId,
-        bundleId: data.bundleId,
-        organizationId: data.organizationId,
-        status: data.status,
-        totalAmount: data.totalAmount.toString(),
-        paymentMethod: data.paymentMethod,
-        transactionReference: data.transactionReference,
-        paymentMetadata: data.paymentMetadata || {},
-        isPaid: data.isPaid || false,
-        updatedAt: new Date(),
-        isDraft: data.isDraft || false,
-        currencyType: data.currencyType || "USD",
-        conversionRate: data.conversionRate?.toString() || "1",
-      })
-      .where(eq(purchases.id, id))
-      .returning()
+    return await db.transaction(async (tx) => {
+      // Eliminar items existentes
+      await tx.delete(purchaseItems).where(eq(purchaseItems.purchaseId, id))
 
-    revalidatePath("/sales")
-    revalidatePath(`/sales/${id}`)
+      // Crear nuevos items
+      if (data.items && data.items.length > 0) {
+        const purchaseItemsData = data.items.map((item: any) => ({
+          purchaseId: id,
+          itemId: item.itemId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice.toString(),
+          totalPrice: (Number(item.unitPrice) * Number(item.quantity)).toString(),
+        }))
+        
+        await tx.insert(purchaseItems).values(purchaseItemsData)
+      }
 
-    return {
-      success: true,
-      data: updatedPurchase,
-    }
+      // Actualizar la compra
+      const [updatedPurchase] = await tx
+        .update(purchases)
+        .set({
+          totalAmount: data.totalAmount.toString(),
+          currencyType: data.currencyType,
+          conversionRate: data.conversionRate?.toString(),
+          paymentMetadata: {
+            ...data.paymentMetadata,
+            isCustomBundle: data.isCustomBundle
+          },
+          updatedAt: new Date(),
+        })
+        .where(eq(purchases.id, id))
+        .returning()
+
+      revalidatePath("/sales")
+      revalidatePath(`/sales/${id}`)
+
+      return {
+        success: true,
+        data: updatedPurchase,
+      }
+    })
   } catch (error) {
     console.error("Error updating purchase:", error)
     return {
@@ -391,11 +475,30 @@ export async function getDraftSalesData() {
         currencyType: purchases.currencyType,
         purchaseDate: purchases.purchaseDate,
         status: purchases.status,
-        isDraft: purchases.isDraft,
-        isDonation: purchases.isDonation,
+        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
+        isDonation: sql`COALESCE(${purchases.isDonation}, false)`,
+        // Include all necessary fields for the table
+        bundleId: purchases.bundleId,
+        beneficiarioId: purchases.beneficiarioId,
+        organizationId: purchases.organizationId,
+        paymentMethod: purchases.paymentMethod,
+        transactionReference: purchases.transactionReference,
+        isPaid: purchases.isPaid,
+        conversionRate: purchases.conversionRate,
+        vendido: sql`COALESCE(${purchases.vendido}, false)`,
+        paymentMetadata: purchases.paymentMetadata,
+        // Include related data
+        bundle: bundles,
+        beneficiario: beneficiarios,
+        organization: organizations,
+        // Extract saleType from paymentMetadata
+        saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
       })
       .from(purchases)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
       .where(eq(purchases.isDraft, true))
       .orderBy(desc(purchases.purchaseDate))
 
@@ -770,11 +873,30 @@ export async function getDonationSalesData() {
         currencyType: purchases.currencyType,
         purchaseDate: purchases.purchaseDate,
         status: purchases.status,
-        isDraft: purchases.isDraft,
-        isDonation: purchases.isDonation,
+        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
+        isDonation: sql`COALESCE(${purchases.isDonation}, false)`,
+        // Include all necessary fields for the table
+        bundleId: purchases.bundleId,
+        beneficiarioId: purchases.beneficiarioId,
+        organizationId: purchases.organizationId,
+        paymentMethod: purchases.paymentMethod,
+        transactionReference: purchases.transactionReference,
+        isPaid: purchases.isPaid,
+        conversionRate: purchases.conversionRate,
+        vendido: sql`COALESCE(${purchases.vendido}, false)`,
+        paymentMetadata: purchases.paymentMetadata,
+        // Include related data
+        bundle: bundles,
+        beneficiario: beneficiarios,
+        organization: organizations,
+        // Extract saleType from paymentMetadata
+        saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
       })
       .from(purchases)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
       .where(eq(purchases.isDonation, true))
       .orderBy(desc(purchases.purchaseDate))
 
@@ -885,6 +1007,132 @@ export async function getSalesByCurrency(period: "week" | "month" | "year" = "mo
     return {
       success: false,
       error: error instanceof Error ? error.message : "Error fetching sales by currency",
+    }
+  }
+}
+
+export async function getPendingDonations() {
+  try {
+    const pendingDonations = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        client: clients,
+        totalAmount: purchases.totalAmount,
+        currencyType: purchases.currencyType,
+        purchaseDate: purchases.purchaseDate,
+        status: purchases.status,
+        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
+        isDonation: sql`COALESCE(${purchases.isDonation}, false)`,
+        bundleId: purchases.bundleId,
+        beneficiarioId: purchases.beneficiarioId,
+        organizationId: purchases.organizationId,
+        paymentMethod: purchases.paymentMethod,
+        transactionReference: purchases.transactionReference,
+        isPaid: purchases.isPaid,
+        conversionRate: purchases.conversionRate,
+        vendido: sql`COALESCE(${purchases.vendido}, false)`,
+        paymentMetadata: purchases.paymentMetadata,
+        updatedAt: purchases.updatedAt,
+        bundle: bundles,
+        beneficiario: beneficiarios,
+        organization: organizations,
+        saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .where(and(eq(purchases.isDonation, true), eq(purchases.isDraft, true)))
+      .orderBy(desc(purchases.purchaseDate))
+
+    return { success: true, data: pendingDonations }
+  } catch (error) {
+    console.error("Error fetching pending donations:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error fetching pending donations",
+    }
+  }
+}
+
+// Get approved donations (isDonation = true AND isDraft = false)
+export async function getApprovedDonations() {
+  try {
+    const approvedDonations = await db
+      .select({
+        id: purchases.id,
+        clientId: purchases.clientId,
+        client: clients,
+        totalAmount: purchases.totalAmount,
+        currencyType: purchases.currencyType,
+        purchaseDate: purchases.purchaseDate,
+        status: purchases.status,
+        isDraft: sql`COALESCE(${purchases.isDraft}, false)`,
+        isDonation: sql`COALESCE(${purchases.isDonation}, false)`,
+        bundleId: purchases.bundleId,
+        beneficiarioId: purchases.beneficiarioId,
+        organizationId: purchases.organizationId,
+        paymentMethod: purchases.paymentMethod,
+        transactionReference: purchases.transactionReference,
+        isPaid: purchases.isPaid,
+        conversionRate: purchases.conversionRate,
+        vendido: sql`COALESCE(${purchases.vendido}, false)`,
+        paymentMetadata: purchases.paymentMetadata,
+        updatedAt: purchases.updatedAt,
+        bundle: bundles,
+        beneficiario: beneficiarios,
+        organization: organizations,
+        saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
+      })
+      .from(purchases)
+      .leftJoin(clients, eq(purchases.clientId, clients.id))
+      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .where(and(eq(purchases.isDonation, true), eq(purchases.isDraft, false)))
+      .orderBy(desc(purchases.updatedAt))
+
+    return { success: true, data: approvedDonations }
+  } catch (error) {
+    console.error("Error fetching approved donations:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error fetching approved donations",
+    }
+  }
+}
+
+// Update sale donation status
+export async function updateSaleDonation(id: string, isDonation: boolean) {
+  try {
+    const [updatedSale] = await db
+      .update(purchases)
+      .set({
+        isDonation: isDonation,
+        isDraft: isDonation, // Siempre establecer como borrador al marcar como donación
+        updatedAt: new Date(),
+      })
+      .where(eq(purchases.id, id))
+      .returning()
+
+    if (!updatedSale) {
+      throw new Error("No se pudo actualizar la venta")
+    }
+
+    revalidatePath("/sales")
+    revalidatePath(`/sales/${id}`)
+
+    return {
+      success: true,
+      data: updatedSale,
+    }
+  } catch (error) {
+    console.error("Error updating donation status:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error updating donation status",
     }
   }
 }

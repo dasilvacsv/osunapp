@@ -9,11 +9,34 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // Utility function for currency formatting
-export const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
+export const formatCurrency = (
+  amount: number,
+  currency: "USD" | "BS" = "USD",
+  conversionRate: number = 1
+) => {
+  // Si es BS y tenemos tasa de conversión, convertir a USD para el cálculo inverso
+  if (currency === "BS" && conversionRate > 0) {
+    const usdAmount = amount / conversionRate
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(usdAmount)
+  }
+
+  // Formato base para USD
+  const formatter = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(amount)
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
+  // Si es BS sin conversión, mostrar formato personalizado
+  if (currency === "BS") {
+    return `BS ${new Intl.NumberFormat('en-US').format(amount)}`
+  }
+
+  return formatter.format(amount)
 }
 
 export function formatPercentage(value: number): string {

@@ -332,7 +332,7 @@ export const columns: ColumnDef<Sale>[] = [
     cell: ({ row }) => {
       const currencyType = row.original?.currencyType || "USD"
       const conversionRate = row.original?.conversionRate || 1
-
+  
       return (
         <Badge
           variant="outline"
@@ -345,7 +345,9 @@ export const columns: ColumnDef<Sale>[] = [
         >
           <DollarSign className="h-3 w-3 mr-1" />
           {currencyType}
-          {currencyType !== "USD" && <span className="ml-1 text-xs opacity-70">({conversionRate})</span>}
+          <span className="ml-1 text-xs opacity-70">
+            {currencyType === "USD" ? `(Tasa: ${conversionRate})` : `(Tasa: 1/${conversionRate})`}
+          </span>
         </Badge>
       )
     },
@@ -432,13 +434,24 @@ export const columns: ColumnDef<Sale>[] = [
       if (!row || typeof row.getValue !== "function") {
         return <div className="text-muted-foreground text-xs">-</div>
       }
-
-      const amount = row.getValue("totalAmount")
+  
+      const amount = Number(row.getValue("totalAmount"))
       const currencyType = row.original?.currencyType || "USD"
-
+      const conversionRate = row.original?.conversionRate || 1
+  
+      // Calcular conversión
+      const convertedAmount = currencyType === "USD" 
+        ? amount * conversionRate
+        : amount / conversionRate
+  
       return (
-        <div className="text-right font-medium text-sm">
-          {formatCurrency(amount)} {currencyType}
+        <div className="text-right">
+          <div className="font-medium text-sm">
+            {formatCurrency(amount)} {currencyType}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            ≈ {formatCurrency(convertedAmount)} {currencyType === "USD" ? "BS" : "USD"}
+          </div>
         </div>
       )
     },

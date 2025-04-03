@@ -68,8 +68,8 @@ interface CartSectionProps {
 
 export const CartSection = memo(function CartSection({
   control,
-  initialItems,
-  initialBundles,
+  initialItems = [],
+  initialBundles = [],
   onCartChange,
   onTotalChange,
   onSaleTypeChange,
@@ -93,10 +93,14 @@ export const CartSection = memo(function CartSection({
 
   // Get cart value from form
   useEffect(() => {
-    if (control && control.getValues) {
-      const cartValue = control.getValues("cart")
-      if (cartValue && Array.isArray(cartValue) && cartValue.length > 0) {
-        setCart(cartValue)
+    if (control?.getValues) {
+      try {
+        const cartValue = control.getValues("cart")
+        if (cartValue && Array.isArray(cartValue) && cartValue.length > 0) {
+          setCart(cartValue)
+        }
+      } catch (error) {
+        console.error("Error getting cart values:", error)
       }
     }
   }, [control])
@@ -283,9 +287,6 @@ export const CartSection = memo(function CartSection({
     // If parent provided a bundle select handler, use it
     if (onBundleSelect) {
       onBundleSelect(bundleId, bundle)
-
-      // The parent will update the form values, which will trigger our useEffect
-      // to update the cart state
     } else {
       // Otherwise use local handler
       clearCart()
@@ -539,4 +540,3 @@ export const CartSection = memo(function CartSection({
     </div>
   )
 })
-

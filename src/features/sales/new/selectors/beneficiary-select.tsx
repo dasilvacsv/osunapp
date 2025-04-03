@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { BeneficiaryForm } from "@/features/clients/beneficiary-form"
 import { createBeneficiary, BeneficiaryFormData } from "@/app/(app)/clientes/client"
-import { getOrganizations } from "@/features/sales/new/actions"
+import { getBeneficiariesByClient, getOrganizations } from "@/features/sales/new/actions"
 import { PlusIcon } from "lucide-react" 
 import { useToast } from "@/hooks/use-toast"
 import { Organization as LibOrganization } from "@/lib/types"
@@ -59,25 +59,47 @@ export function BeneficiarySelect({
   organizationId,
   beneficiaries = []
 }: BeneficiarySelectProps) {
-  
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [localBeneficiaries, setLocalBeneficiaries] = useState<Beneficiary[]>(beneficiaries)
 
-  // Show loading state when beneficiaries are being loaded
   useEffect(() => {
-    if (clientId) {
+    const loadBeneficiaries = async () => {
+      if (!clientId) return
+      
       setLoading(true)
-      // Small timeout to prevent flickering for fast loads
-      const timeout = setTimeout(() => {
+      try {
+        const result = await getBeneficiariesByClient(clientId)
+        if (result.success) {
+          setLocalBeneficiaries(result.data)
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: result.error || "Failed to load beneficiaries"
+          })
+        }
+      } catch (error) {
+        console.error("Error loading beneficiaries:", error)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load beneficiaries"
+        })
+      } finally {
         setLoading(false)
-      }, 100)
-      return () => clearTimeout(timeout)
+      }
     }
+
+    loadBeneficiaries()
   }, [clientId])
 
-  // Load organizations when dialog opens
+  useEffect(() => {
+    setLocalBeneficiaries(beneficiaries)
+  }, [beneficiaries])
+
   useEffect(() => {
     if (showCreateDialog) {
       const loadOrganizations = async () => {
@@ -88,13 +110,17 @@ export function BeneficiarySelect({
           }
         } catch (error) {
           console.error("Failed to load organizations:", error)
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Failed to load organizations"
+          })
         }
       }
       loadOrganizations()
     }
   }, [showCreateDialog])
 
-  // Convert organizations to the format expected by BeneficiaryForm
   const convertedOrganizations: LibOrganization[] = organizations.map(org => ({
     id: org.id,
     name: org.name,
@@ -109,7 +135,6 @@ export function BeneficiarySelect({
     updatedAt: org.updatedAt || new Date()
   }))
 
-  // Handle beneficiary creation
   const handleCreateBeneficiary = async (data: BeneficiaryFormData) => {
     if (!clientId) {
       toast({
@@ -127,12 +152,11 @@ export function BeneficiarySelect({
       })
       
       if (result.success && result.data) {
-        // Create a new beneficiary object with the correct shape
         const newBeneficiary: Beneficiary = {
           id: result.data.id,
           clientId: result.data.clientId,
           organizationId: result.data.organizationId,
-          grade: result.data.level || null,
+          grade: result.data.grade || null,
           section: result.data.section || null,
           status: result.data.status || "ACTIVE",
           bundleId: result.data.bundleId || null,
@@ -144,8 +168,8 @@ export function BeneficiarySelect({
           updatedAt: result.data.updatedAt || null
         }
 
-        // Notify parent component about the new beneficiary
         onBeneficiaryCreated(newBeneficiary)
+        setLocalBeneficiaries(prev => [...prev, newBeneficiary])
         setShowCreateDialog(false)
         
         toast({
@@ -169,9 +193,8 @@ export function BeneficiarySelect({
     }
   }
 
-  // Handle beneficiary selection
   const handleBeneficiaryChange = (value: string) => {
-    const selectedBeneficiary = beneficiaries.find(ben => ben.id === value)
+    const selectedBeneficiary = localBeneficiaries.find(ben => ben.id === value)
     if (selectedBeneficiary) {
       onBeneficiarySelect(value, selectedBeneficiary)
     }
@@ -196,16 +219,23 @@ export function BeneficiarySelect({
             closeDialog={() => setShowCreateDialog(false)}
             mode="create"
             organizations={convertedOrganizations}
+            onSubmit={handleCreateBeneficiary}
           />
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-4">
+      <div className={className}>
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <PopoverSelect
-              options={beneficiaries.map(ben => ({
-                label: `${ben.firstName || ''} ${ben.lastName || ''}${ben.level ? ` - ${ben.level}${ben.section ? ben.section : ''}` : ''}`.trim(),
+              options={localBeneficiaries.map(ben => ({
+                label: [
+                  ben.firstName,
+                  ben.lastName,
+                  ben.school && `(${ben.school})`,
+                  ben.level && `Grade ${ben.level}`,
+                  ben.section && `Section ${ben.section}`
+                ].filter(Boolean).join(' '),
                 value: ben.id,
                 description: ben.id
               }))}
@@ -229,4 +259,4 @@ export function BeneficiarySelect({
       </div>
     </>
   )
-} 
+}

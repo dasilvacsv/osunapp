@@ -1,6 +1,5 @@
 "use client"
 
-// Add currency type selection to the form
 import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -24,6 +23,7 @@ import {
   ShoppingBag,
   Coins,
   RefreshCw,
+  Building,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { InventoryItemSelector } from "../stock/inventory-item-selector"
@@ -33,8 +33,19 @@ import { createBundle } from "./actions"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { getBCVRate } from "@/lib/exchangeRates"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { createBundleCategory } from "./actions"
 
-// Schema for bundle
+const categorySchema = z.object({
+  name: z.string().min(1, "El nombre es requerido"),
+})
+
 const bundleSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
   description: z.string().optional(),
@@ -42,16 +53,19 @@ const bundleSchema = z.object({
   savingsPercentage: z.coerce.number().min(0).max(100),
   currencyType: z.enum(["USD", "BS"]).default("USD"),
   conversionRate: z.coerce.number().optional(),
+  organizationId: z.string().optional(),
 })
 
 type BundleFormValues = z.infer<typeof bundleSchema>
+type CategoryFormValues = z.infer<typeof categorySchema>
 
 interface BundleCreatorProps {
   categories: { id: string; name: string }[]
+  organizations: { id: string; name: string }[]
   onBundleCreated?: () => void
 }
 
-export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProps) {
+export function BundleCreator({ categories, organizations, onBundleCreated }: BundleCreatorProps) {
   const [selectedItems, setSelectedItems] = useState<BundleItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
@@ -60,7 +74,24 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
   const { toast } = useToast()
   const router = useRouter()
 
-  // Calculations
+  const form = useForm<BundleFormValues>({
+    resolver: zodResolver(bundleSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      categoryId: "",
+      savingsPercentage: 0,
+      currencyType: "USD",
+      conversionRate: undefined,
+      organizationId: undefined,
+    },
+  })
+
+  const categoryForm = useForm<CategoryFormValues>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: { name: "" },
+  })
+
   const totalBasePrice = selectedItems.reduce(
     (sum, item) => sum + (item.overridePrice || Number(item.item.basePrice)) * item.quantity,
     0,
@@ -71,49 +102,29 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
     0,
   )
 
-  // Form for bundle
-  const form = useForm<BundleFormValues>({
-    resolver: zodResolver(bundleSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      categoryId: "",
-      savingsPercentage: 0,
-      currencyType: "USD",
-      conversionRate: undefined,
-    },
-  })
-
   const savingsPercentage = form.watch("savingsPercentage")
   const currencyType = form.watch("currencyType")
   const conversionRate = form.watch("conversionRate")
 
   const discountedPrice = totalBasePrice * (1 - savingsPercentage / 100)
   const savings = totalBasePrice - discountedPrice
-
-  // Calculate profit
   const profit = discountedPrice - totalCostPrice
   const profitPercentage = discountedPrice > 0 ? (profit / discountedPrice) * 100 : 0
 
-  // Load BCV rate on mount and when currency changes
   useEffect(() => {
     if (currencyType === "BS") {
       fetchBCVRate()
     }
   }, [currencyType])
 
-  // Fetch BCV rate
   const fetchBCVRate = async () => {
     try {
       setIsLoadingRate(true)
       const rateInfo = await getBCVRate()
       setBcvRate(rateInfo.rate)
-
-      // Set the conversion rate if not already set
       if (!conversionRate) {
         form.setValue("conversionRate", rateInfo.rate)
       }
-
       toast({
         title: "Tasa BCV actualizada",
         description: `Tasa actual: ${rateInfo.rate} Bs/USD (${rateInfo.isError ? "tasa de respaldo" : "actualizada"})`,
@@ -131,7 +142,6 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
     }
   }
 
-  // Refresh inventory items
   const refreshInventory = async () => {
     try {
       const result = await getInventoryItems()
@@ -143,9 +153,35 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
     }
   }
 
-  // Handle item selection
+  const handleCreateCategory = async (values: CategoryFormValues) => {
+    try {
+      const result = await createBundleCategory({ name: values.name })
+      if (result.success) {
+        toast({
+          title: "✅ Categoría creada",
+          description: "La categoría ha sido creada exitosamente",
+          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+        })
+        router.refresh()
+        categoryForm.reset()
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Error al crear la categoría",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error creating category:", error)
+      toast({
+        title: "Error",
+        description: "Ocurrió un error al crear la categoría",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleItemSelect = (item: InventoryItem) => {
-    // Check if item is already in the list
     if (selectedItems.some((i) => i.item.id === item.id)) {
       toast({
         title: "Item ya agregado",
@@ -167,16 +203,13 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
     ])
   }
 
-  // Handle quantity change for bundle items
   const handleQuantityChange = (index: number, newQuantity: number) => {
     if (newQuantity < 1) return
-
     const newItems = [...selectedItems]
     newItems[index].quantity = newQuantity
     setSelectedItems(newItems)
   }
 
-  // Handle override price change for bundle items
   const handlePriceChange = (index: number, newPrice: string) => {
     const numericValue = newPrice === "" ? undefined : Number.parseFloat(newPrice)
     const newItems = [...selectedItems]
@@ -184,12 +217,10 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
     setSelectedItems(newItems)
   }
 
-  // Remove item from bundle
   const handleRemoveItem = (index: number) => {
     setSelectedItems(selectedItems.filter((_, i) => i !== index))
   }
 
-  // Format currency based on type
   const formatBundleCurrency = (amount: number) => {
     if (currencyType === "BS") {
       const rate = conversionRate || bcvRate
@@ -199,7 +230,6 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
     return formatCurrency(amount)
   }
 
-  // Submit bundle
   const handleSubmit = async (values: BundleFormValues) => {
     try {
       if (selectedItems.length === 0) {
@@ -211,7 +241,6 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
         return
       }
 
-      // Validate conversion rate for BS currency
       if (values.currencyType === "BS" && !values.conversionRate) {
         toast({
           title: "Error",
@@ -223,11 +252,8 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
 
       setIsSubmitting(true)
 
-      // Transform the data for the API
       const bundleData = {
-        name: values.name,
-        description: values.description || "",
-        categoryId: values.categoryId,
+        ...values,
         items: selectedItems.map((item) => ({
           itemId: item.item.id,
           quantity: item.quantity,
@@ -235,12 +261,8 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
         })),
         totalBasePrice,
         totalCostPrice,
-        savingsPercentage: values.savingsPercentage,
-        currencyType: values.currencyType,
-        conversionRate: values.conversionRate,
       }
 
-      // Llamar a la acción del servidor para crear el bundle
       const result = await createBundle(bundleData)
 
       if (result.success) {
@@ -248,16 +270,10 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
           title: "Bundle creado",
           description: "El bundle ha sido creado exitosamente.",
         })
-
         form.reset()
         setSelectedItems([])
-
-        // Refrescar la página para mostrar el nuevo bundle
         router.refresh()
-
-        if (onBundleCreated) {
-          onBundleCreated()
-        }
+        if (onBundleCreated) onBundleCreated()
       } else {
         toast({
           title: "Error",
@@ -277,7 +293,6 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
     }
   }
 
-  // Load inventory items on mount
   useEffect(() => {
     refreshInventory()
   }, [])
@@ -304,7 +319,7 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                         <Tag className="w-4 h-4" /> Nombre
                       </FormLabel>
                       <FormControl>
-                        <Input {...field} id="name" name="name" placeholder="Nombre del bundle" />
+                        <Input {...field} placeholder="Nombre del bundle" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -320,16 +335,81 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                         <ShoppingBag className="w-4 h-4" />
                         Categoría
                       </FormLabel>
+                      <div className="flex gap-2">
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar categoría" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {categories.map((category) => (
+                              <SelectItem key={category.id} value={category.id}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="icon">
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Crear Nueva Categoría</DialogTitle>
+                            </DialogHeader>
+                            <Form {...categoryForm}>
+                              <form
+                                onSubmit={categoryForm.handleSubmit(handleCreateCategory)}
+                                className="space-y-4"
+                              >
+                                <FormField
+                                  control={categoryForm.control}
+                                  name="name"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel>Nombre de la categoría</FormLabel>
+                                      <FormControl>
+                                        <Input {...field} placeholder="Ej: Paquetes escolares" />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                                <Button type="submit" className="w-full">
+                                  Crear Categoría
+                                </Button>
+                              </form>
+                            </Form>
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="organizationId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Building className="w-4 h-4" />
+                        Organización (Opcional)
+                      </FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar categoría" />
+                            <SelectValue placeholder="Seleccionar organización" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name}
+                          {organizations.map((org) => (
+                            <SelectItem key={org.id} value={org.id}>
+                              {org.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -338,30 +418,7 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                     </FormItem>
                   )}
                 />
-              </div>
 
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descripción</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        id="description"
-                        name="description"
-                        placeholder="Descripción del bundle"
-                        className="resize-none"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Currency Settings */}
-              <div className="grid md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
                   name="currencyType"
@@ -424,6 +481,24 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                   />
                 )}
               </div>
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descripción</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder="Descripción del bundle"
+                        className="resize-none"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
@@ -485,8 +560,6 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                               <Input
                                 type="number"
                                 min="1"
-                                id={`quantity-${selectedItem.item.id}`}
-                                name={`quantity-${selectedItem.item.id}`}
                                 value={selectedItem.quantity}
                                 onChange={(e) => handleQuantityChange(index, Number.parseInt(e.target.value) || 1)}
                                 className="w-20 text-center"
@@ -507,8 +580,6 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                                 type="number"
                                 min="0"
                                 step="0.01"
-                                id={`overridePrice-${selectedItem.item.id}`}
-                                name={`overridePrice-${selectedItem.item.id}`}
                                 value={selectedItem.overridePrice !== undefined ? selectedItem.overridePrice : ""}
                                 onChange={(e) => handlePriceChange(index, e.target.value)}
                                 className="w-32"
@@ -520,7 +591,7 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
                               {formatBundleCurrency(
                                 (selectedItem.overridePrice !== undefined
                                   ? selectedItem.overridePrice
-                                  : Number(selectedItem.item.basePrice)) * selectedItem.quantity,
+                                  : Number(selectedItem.item.basePrice)) * selectedItem.quantity
                               )}
                             </div>
 
@@ -669,4 +740,3 @@ export function BundleCreator({ categories, onBundleCreated }: BundleCreatorProp
     </div>
   )
 }
-

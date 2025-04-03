@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { PopoverSelect } from "@/components/popover-select"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -8,167 +8,91 @@ import { ClientForm } from "@/features/clients/create-client-form"
 import { createClient } from "@/app/(app)/clientes/client"
 import { PlusIcon } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { getClientDetail, getClients } from "@/features/sales/new/actions"
+import { getClients } from "@/features/sales/new/actions"
 
 export interface Client {
   id: string
   name: string
-  document: string | null
-  phone: string | null
-  whatsapp: string | null
-  contactInfo: unknown
-  organizationId: string | null
-  role: "PARENT" | "EMPLOYEE" | "INDIVIDUAL"
-  status: "ACTIVE" | "INACTIVE" | null
-  createdAt: Date | null
-  updatedAt: Date | null
+  document?: string | null
+  phone?: string | null
   organization?: {
     id: string
     name: string
-    type: "SCHOOL" | "COMPANY" | "OTHER"
-    address: string | null
-    contactInfo: unknown
-    status: "ACTIVE" | "INACTIVE" | null
-    nature: "PUBLIC" | "PRIVATE" | null
-    cityId: string | null
-    createdAt: Date | null
-    updatedAt: Date | null
   }
-  beneficiarios?: {
-    id: string
-    name: string
-    clientId: string
-    organizationId: string | null
-    grade: string | null
-    section: string | null
-    status: "ACTIVE" | "INACTIVE" | null
-    bundleId: string | null
-    firstName: string | null
-    lastName: string | null
-    school: string | null
-    level: string | null
-    createdAt: Date | null
-    updatedAt: Date | null
-  }[]
+  status: "ACTIVE" | "INACTIVE"
+  role: "PARENT" | "EMPLOYEE" | "INDIVIDUAL"
 }
 
 interface ClientSelectProps {
-  organizationId?: string
   selectedClientId: string
   onClientSelect: (clientId: string, client: Client) => void
-  className?: string
-  initialClients: Client[]
+  initialClients?: Client[]
 }
 
 export function ClientSelect({
-  organizationId,
   selectedClientId,
   onClientSelect,
-  className,
-  initialClients
+  initialClients = []
 }: ClientSelectProps) {
   const { toast } = useToast()
   const [clients, setClients] = useState<Client[]>(initialClients)
   const [loading, setLoading] = useState(false)
-  const [selectionLoading, setSelectionLoading] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
-  // Refresh clients list
-  const refreshClients = async () => {
-    setLoading(true)
-    try {
-      const result = await getClients()
-      if (result.data) {
-        setClients(result.data)
-      } else if (result.error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.error
-        })
-      }
-    } catch (error) {
-      console.error("Failed to load clients:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to load clients"
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Handle client selection
-  const handleClientChange = async (value: string) => {
-    // Optimistically update the selection
-    const selectedClient = clients.find(c => c.id === value)
-    if (selectedClient) {
-      onClientSelect(value, selectedClient)
-    }
-    
-    setSelectionLoading(true)
-    // Fetch complete client data when selected
-    try {
-      const result = await getClientDetail(value)
-      if (result.data) {
-        // Map children to beneficiarios
-        const clientWithBeneficiarios = {
-          ...result.data.client,
-          beneficiarios: result.data.children || []
+  useEffect(() => {
+    const loadClients = async () => {
+      setLoading(true)
+      try {
+        const result = await getClients()
+        if (result.success && result.data) {
+          setClients(result.data
+            .filter(c => c.status !== null) // Ensure status is not null
+            .map(c => ({
+              id: c.id,
+              name: c.name,
+              document: c.document,
+              phone: c.phone,
+              status: c.status as "ACTIVE" | "INACTIVE", // Assert non-null status
+              role: c.role,
+              organization: c.organization
+            }))
+          )
         }
-        onClientSelect(value, clientWithBeneficiarios)
-      } else if (result.error) {
+      } catch (error) {
+        console.error("Error loading clients:", error)
         toast({
           variant: "destructive",
           title: "Error",
-          description: result.error
+          description: "Failed to load clients"
         })
+      } finally {
+        setLoading(false)
       }
-    } catch (error) {
-      console.error("Failed to fetch client details:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to fetch client details"
-      })
-    } finally {
-      setSelectionLoading(false)
     }
-  }
 
-  // Handle client creation
+    if (initialClients.length === 0) loadClients()
+  }, [initialClients, toast])
+
   const handleCreateClient = async (data: any) => {
     try {
-      // Add organization ID to client data if provided
-      const clientData = {
-        ...data,
-        ...(organizationId && { organizationId })
-      }
-      
-      const result = await createClient(clientData)
+      const result = await createClient(data)
       if (result.success && result.data) {
-        await refreshClients()
-        // Get full client details including beneficiaries
-        const detailResult = await getClientDetail(result.data.id)
-        if (detailResult.data) {
-          // Map children to beneficiarios
-          const clientWithBeneficiarios = {
-            ...detailResult.data.client,
-            beneficiarios: detailResult.data.children || []
-          }
-          onClientSelect(result.data.id, clientWithBeneficiarios)
+        const newClient: Client = {
+          id: result.data.id,
+          name: result.data.name,
+          document: result.data.document,
+          phone: result.data.phone,
+          status: "ACTIVE",
+          role: result.data.role
         }
+        
+        setClients(prev => [...prev, newClient])
+        onClientSelect(newClient.id, newClient)
         setShowCreateDialog(false)
+        
         toast({
           title: "Success",
-          description: result.success
-        })
-      } else if (result.error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.error
+          description: "Client created successfully"
         })
       }
     } catch (error) {
@@ -184,14 +108,7 @@ export function ClientSelect({
   return (
     <>
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent 
-          className="sm:max-w-[500px]" 
-          onClick={(e) => e.stopPropagation()}
-          onSubmit={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-        >
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Create New Client</DialogTitle>
           </DialogHeader>
@@ -203,31 +120,38 @@ export function ClientSelect({
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-4">
-        <div className="flex items-end gap-2">
-          <div className="flex-1 space-y-2">
-            <PopoverSelect
-              options={clients.map(client => ({
-                label: `${client.name}${client.document ? ` (${client.document})` : ''}${selectionLoading && client.id === selectedClientId ? ' (Loading...)' : ''}`,
-                value: client.id
-              }))}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <PopoverSelect
+            options={clients.map(client => ({
+              label: [
+                client.name,
+                client.document && `CI: ${client.document}`,
+                client.organization?.name && `Org: ${client.organization.name}`
+              ].filter(Boolean).join(" - "),
+              value: client.id,
+              }))
+            }
               value={selectedClientId}
-              onValueChange={handleClientChange}
-              placeholder={loading ? "Loading clients..." : "Select a client"}
-              disabled={loading}
-              emptyMessage="No clients found"
-            />
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => setShowCreateDialog(true)}
-          >
-            <PlusIcon className="h-4 w-4" />
-          </Button>
+            onValueChange={(value) => {
+              const client = clients.find(c => c.id === value)
+              if (client) onClientSelect(value, client)
+            }}
+            placeholder={loading ? "Loading clients..." : "Select a client"}
+            disabled={loading}
+            emptyMessage="No clients found"
+          />
         </div>
+        
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => setShowCreateDialog(true)}
+        >
+          <PlusIcon className="h-4 w-4" />
+        </Button>
       </div>
     </>
   )
-} 
+}

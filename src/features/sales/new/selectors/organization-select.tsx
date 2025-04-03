@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { PopoverSelect } from "@/components/popover-select"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -14,77 +14,74 @@ export interface Organization {
   id: string
   name: string
   type: "SCHOOL" | "COMPANY" | "OTHER"
-  status: "ACTIVE" | "INACTIVE" | null
-  address: string | null
-  contactInfo: unknown
-  nature: "PUBLIC" | "PRIVATE" | null
-  createdAt: Date | null
-  updatedAt: Date | null
-  cityId: string | null
+  status: "ACTIVE" | "INACTIVE"
+  nature?: "PUBLIC" | "PRIVATE"
 }
 
 interface OrganizationSelectProps {
-  initialOrganizations: Organization[]
   selectedOrganizationId: string
-  onOrganizationSelect: (organizationId: string, organization: Organization) => void
-  className?: string
+  onOrganizationSelect: (orgId: string, org: Organization) => void
+  initialOrganizations?: Organization[]
 }
 
 export function OrganizationSelect({
-  initialOrganizations,
   selectedOrganizationId,
   onOrganizationSelect,
-  className
+  initialOrganizations = []
 }: OrganizationSelectProps) {
   const { toast } = useToast()
   const [organizations, setOrganizations] = useState<Organization[]>(initialOrganizations)
   const [loading, setLoading] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
-  // Refresh organizations list
-  const refreshOrganizations = useCallback(async () => {
-    setLoading(true)
-    try {
-      const result = await getOrganizations()
-      if (result.data) {
-        setOrganizations(result.data)
-      } else if (result.error) {
+  useEffect(() => {
+    const loadOrganizations = async () => {
+      setLoading(true)
+      try {
+        const result = await getOrganizations()
+        if (result.success && result.data) {
+          setOrganizations(result.data.map(o => ({
+            id: o.id,
+            name: o.name,
+            type: o.type,
+            status: o.status,
+            nature: o.nature
+          })))
+        }
+      } catch (error) {
+        console.error("Error loading organizations:", error)
         toast({
           variant: "destructive",
           title: "Error",
-          description: result.error
+          description: "Failed to load organizations"
         })
+      } finally {
+        setLoading(false)
       }
-    } catch (error) {
-      console.error("Failed to load organizations:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to load organizations"
-      })
-    } finally {
-      setLoading(false)
     }
-  }, [toast])
 
-  // Handle organization creation
+    if (initialOrganizations.length === 0) loadOrganizations()
+  }, [initialOrganizations, toast])
+
   const handleCreateOrganization = async (data: any) => {
     try {
       const result = await createOrganization(data)
       if (result.success && result.data) {
-        await refreshOrganizations()
-        // Select the newly created organization
-        onOrganizationSelect(result.data.id, result.data)
+        const newOrg: Organization = {
+          id: result.data.id,
+          name: result.data.name,
+          type: result.data.type,
+          status: "ACTIVE",
+          nature: result.data.nature
+        }
+        
+        setOrganizations(prev => [...prev, newOrg])
+        onOrganizationSelect(newOrg.id, newOrg)
         setShowCreateDialog(false)
+        
         toast({
           title: "Success",
-          description: result.success
-        })
-      } else if (result.error) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.error
+          description: "Organization created successfully"
         })
       }
     } catch (error) {
@@ -97,25 +94,10 @@ export function OrganizationSelect({
     }
   }
 
-  // Handle organization selection
-  const handleOrganizationChange = (value: string) => {
-    const selectedOrg = organizations.find(org => org.id === value)
-    if (selectedOrg) {
-      onOrganizationSelect(value, selectedOrg)
-    }
-  }
-
   return (
     <>
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent 
-          className="sm:max-w-[500px]" 
-          onClick={(e) => e.stopPropagation()}
-          onSubmit={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-        >
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Create New Organization</DialogTitle>
           </DialogHeader>
@@ -127,31 +109,33 @@ export function OrganizationSelect({
         </DialogContent>
       </Dialog>
 
-      <div className="space-y-4">
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <PopoverSelect
-              options={organizations.map(org => ({
-                label: `${org.name} (${org.type})`,
-                value: org.id
-              }))}
-              value={selectedOrganizationId}
-              onValueChange={handleOrganizationChange}
-              placeholder={loading ? "Loading organizations..." : "Select an organization"}
-              disabled={loading}
-              emptyMessage="No organizations found"
-            />
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => setShowCreateDialog(true)}
-          >
-            <PlusIcon className="h-4 w-4" />
-          </Button>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <PopoverSelect
+            options={organizations.map(org => ({
+              label: `${org.name} (${org.type})${org.nature ? ` - ${org.nature}` : ''}`,
+              value: org.id
+            }))}
+            value={selectedOrganizationId}
+            onValueChange={(value) => {
+              const org = organizations.find(o => o.id === value)
+              if (org) onOrganizationSelect(value, org)
+            }}
+            placeholder={loading ? "Loading organizations..." : "Select an organization"}
+            disabled={loading}
+            emptyMessage="No organizations found"
+          />
         </div>
+        
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => setShowCreateDialog(true)}
+        >
+          <PlusIcon className="h-4 w-4" />
+        </Button>
       </div>
     </>
   )
-} 
+}

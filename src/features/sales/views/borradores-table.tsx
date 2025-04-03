@@ -1,13 +1,14 @@
 "use client"
 
+// Update the component to properly handle the beneficiary and bundle data
 import { useState, useEffect } from "react"
-import { DataTable } from "./data-table"
-import { columns } from "./columns"
-import { getDraftSalesData } from "./actions"
-import { useToast } from "@/hooks/use-toast"
-import { Loader2, FilePenLine } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Loader2, FilePenLine } from "lucide-react"
+import { useToast } from "@/components/ui/use-toast"
+import { DataTable } from "@/components/data-table"
+import { columns } from "./columns"
+import { getDraftSalesData } from "@/lib/data"
 
 interface BorradoresTableProps {
   initialData?: any[]
@@ -30,7 +31,18 @@ export function BorradoresTable({ initialData = [] }: BorradoresTableProps) {
       const result = await getDraftSalesData()
 
       if (result.success) {
-        setSales(result.data || [])
+        // Format the data to ensure it has the expected structure
+        const formattedSales = (result.data || []).map((sale: any) => ({
+          ...sale,
+          client: sale.client,
+          beneficiario: sale.beneficiario,
+          bundle: sale.bundle,
+          bundleName: sale.bundle?.name || "N/A",
+          organization: sale.organization,
+          totalAmount: typeof sale.totalAmount === "string" ? Number.parseFloat(sale.totalAmount) : sale.totalAmount,
+          purchaseDate: sale.purchaseDate ? new Date(sale.purchaseDate) : null,
+        }))
+        setSales(formattedSales)
       } else {
         throw new Error(result.error || "Error fetching draft sales")
       }

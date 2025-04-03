@@ -25,7 +25,7 @@ interface BeneficiaryFormProps {
   closeDialog: () => void;
   initialData?: any;
   mode: "create" | "edit";
-  organizations: Organization[];
+  organizations?: Organization[]; // Hacer opcional
 }
 
 export function BeneficiaryForm({
@@ -33,7 +33,7 @@ export function BeneficiaryForm({
   closeDialog,
   initialData,
   mode,
-  organizations,
+  organizations = [],
 }: BeneficiaryFormProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -186,11 +186,11 @@ export function BeneficiaryForm({
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="none">Ninguna</SelectItem>
-                    {organizations.map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        {org.name}
-                      </SelectItem>
-                    ))}
+                    {organizations?.map((org) => ( // Añadir operador opcional
+  <SelectItem key={org.id} value={org.id}>
+    {org.name}
+  </SelectItem>
+))}
                   </SelectContent>
                 </Select>
                 <FormMessage />

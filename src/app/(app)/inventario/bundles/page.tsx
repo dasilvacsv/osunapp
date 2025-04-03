@@ -1,5 +1,5 @@
 import { BundleCreator } from "@/features/inventory/bundles/bundle-creator"
-import { getBundleCategories } from "@/features/inventory/bundles/actions"
+import { getBundleCategories, getOrganizations } from "@/features/inventory/bundles/actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Package, List } from "lucide-react"
@@ -8,9 +8,14 @@ import { BundlesList } from "@/features/inventory/bundles/bundles-list"
 export const dynamic = "force-dynamic"
 
 export default async function BundlesPage() {
-  // Obtener categorías reales de la base de datos
-  const categoriesResult = await getBundleCategories()
+  // Obtener datos en paralelo
+  const [categoriesResult, organizationsResult] = await Promise.all([
+    getBundleCategories(),
+    getOrganizations()
+  ])
+
   const categories = categoriesResult.success ? categoriesResult.data : []
+  const organizations = organizationsResult.success ? organizationsResult.data : []
 
   return (
     <div className="container mx-auto py-6">
@@ -43,10 +48,12 @@ export default async function BundlesPage() {
         </TabsContent>
 
         <TabsContent value="create">
-          <BundleCreator categories={categories} />
+          <BundleCreator 
+            categories={categories} 
+            organizations={organizations}
+          />
         </TabsContent>
       </Tabs>
     </div>
   )
 }
-

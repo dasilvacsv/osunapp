@@ -83,6 +83,22 @@ export interface PurchasePayment {
   createdAt: Date
 }
 
+export interface Bundle {
+  id: string
+  name: string
+  description?: string
+  categoryId: string
+  type: "SCHOOL_PACKAGE" | "ORGANIZATION_PACKAGE" | "REGULAR"
+  basePrice: number
+  discountPercentage?: number
+  status: "ACTIVE" | "INACTIVE"
+  createdAt: Date
+  updatedAt: Date
+  currencyType?: string
+  conversionRate?: string
+  organizationId?: string // Nuevo campo
+}
+
 // Interfaces para bundles
 export interface BundleItem {
   itemId: string
@@ -101,6 +117,10 @@ export interface BundleWithItems extends Bundle {
   totalEstimatedCost: number
   profit: number
   profitPercentage: number
+  organization?: { // Nueva relación
+    id: string
+    name: string
+  }
 }
 
 export interface Bundle {
@@ -133,5 +153,6 @@ export type CreateBundleInput = {
   totalCostPrice?: number
   currencyType?: string
   conversionRate?: number
+  organizationId?: string // Nuevo campo
 }
 

@@ -3,12 +3,12 @@
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { formatCurrency, formatDate } from "@/lib/utils"
-import { Gift, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react"
+import { Loader2, CheckCircle, XCircle, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { updateSaleDonation, updateSaleDraftStatus } from "@/features/sales/actions"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
+import { updateSaleDraftStatus } from "@/features/sales/actions"
 import { useRouter } from "next/navigation"
 
 interface DonationsApprovalProps {
@@ -18,18 +18,25 @@ interface DonationsApprovalProps {
 }
 
 export function DonationsApproval({ donations, onRefresh, isLoading }: DonationsApprovalProps) {
-  const router = useRouter()
-  const { toast } = useToast()
   const [processingId, setProcessingId] = useState<string | null>(null)
+  const { toast } = useToast()
+  const router = useRouter()
+
+  const formatDate = (date: Date | string) => {
+    if (!date) return "N/A"
+    return format(new Date(date), "dd/MM/yyyy", { locale: es })
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("es-VE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+  }
 
   const handleApprove = async (id: string) => {
     try {
       setProcessingId(id)
-
-      // First, keep it as a donation
-      await updateSaleDonation(id, true)
-
-      // Then, approve it (remove draft status)
       const result = await updateSaleDraftStatus(id, false)
 
       if (result.success) {
@@ -56,9 +63,9 @@ export function DonationsApproval({ donations, onRefresh, isLoading }: Donations
   const handleReject = async (id: string) => {
     try {
       setProcessingId(id)
-
-      // Remove donation status
-      const result = await updateSaleDonation(id, false)
+      // Here we're just removing the donation flag, not the draft status
+      // You might want to implement a specific rejection action if needed
+      const result = await updateSaleDraftStatus(id, true)
 
       if (result.success) {
         toast({
@@ -100,8 +107,8 @@ export function DonationsApproval({ donations, onRefresh, isLoading }: Donations
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Gift className="h-5 w-5" />
-            Aprobación de Donaciones
+            <Loader2 className="h-5 w-5 text-amber-500" />
+            Donaciones Pendientes
           </CardTitle>
           <CardDescription>No hay donaciones pendientes de aprobación</CardDescription>
         </CardHeader>
@@ -120,15 +127,15 @@ export function DonationsApproval({ donations, onRefresh, isLoading }: Donations
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <Gift className="h-5 w-5" />
-            Aprobación de Donaciones
+            <Loader2 className="h-5 w-5 text-amber-500" />
+            Donaciones Pendientes
           </span>
           <Button variant="outline" size="sm" onClick={onRefresh} className="gap-1">
             <RefreshCw className="h-3.5 w-3.5" />
             Actualizar
           </Button>
         </CardTitle>
-        <CardDescription>Donaciones pendientes de aprobación</CardDescription>
+        <CardDescription>Donaciones que requieren aprobación</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="rounded-md border">
@@ -139,8 +146,8 @@ export function DonationsApproval({ donations, onRefresh, isLoading }: Donations
                 <TableHead>Cliente</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead>Monto</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead>Beneficiario</TableHead>
+                <TableHead>Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -160,37 +167,34 @@ export function DonationsApproval({ donations, onRefresh, isLoading }: Donations
                   <TableCell>
                     {formatCurrency(Number(donation.totalAmount))} {donation.currencyType}
                   </TableCell>
+                  <TableCell>{donation.beneficiario?.firstName || "N/A"}</TableCell>
                   <TableCell>
-                    <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                      Pendiente
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex items-center gap-2">
                       <Button
-                        variant="default"
+                        variant="outline"
                         size="sm"
                         onClick={() => handleApprove(donation.id)}
                         disabled={processingId === donation.id}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900/40"
                       >
                         {processingId === donation.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                         ) : (
-                          <CheckCircle className="h-4 w-4 mr-1" />
+                          <CheckCircle className="h-3.5 w-3.5 mr-1" />
                         )}
                         Aprobar
                       </Button>
                       <Button
-                        variant="destructive"
+                        variant="outline"
                         size="sm"
                         onClick={() => handleReject(donation.id)}
                         disabled={processingId === donation.id}
+                        className="bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 hover:text-rose-800 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800 dark:hover:bg-rose-900/40"
                       >
                         {processingId === donation.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                         ) : (
-                          <XCircle className="h-4 w-4 mr-1" />
+                          <XCircle className="h-3.5 w-3.5 mr-1" />
                         )}
                         Rechazar
                       </Button>

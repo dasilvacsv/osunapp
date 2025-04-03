@@ -34,6 +34,9 @@ import {
   Coins,
   Gift,
   RefreshCw,
+  Pencil,
+  PlusCircle,
+  Trash2,
 } from "lucide-react"
 import {
   updatePurchaseStatus,
@@ -42,6 +45,7 @@ import {
   updateSaleCurrency,
   updateSaleDonation,
 } from "@/features/sales/actions"
+import { updatePurchaseItems, addPurchaseItem } from "@/features/sales/views/actions"
 import { useToast } from "@/hooks/use-toast"
 import { StatusTimeline } from "@/features/sales/status-timeline"
 import { PaymentsTable } from "@/features/sales/views/plan/payments-table"
@@ -61,8 +65,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { getBCVRate } from "@/lib/exchangeRates"
-import { formatSaleCurrency } from "@/lib/exchangeRates"
+import { getBCVRate, formatSaleCurrency } from "@/lib/exchangeRates"
 
 const statusLabels = {
   PENDING: "Pendiente",
@@ -79,6 +82,8 @@ const statusIcons = {
   COMPLETED: CheckCircle2,
   CANCELLED: XCircle,
 }
+
+
 
 const statusColors = {
   PENDING: {
@@ -152,13 +157,54 @@ export function SaleDetails({ sale }: { sale: any }) {
   const [remainingBalance, setRemainingBalance] = useState<any>(null)
   const [showVendidoDialog, setShowVendidoDialog] = useState(false)
   const [vendidoCode, setVendidoCode] = useState("")
-  const [isDonation, setIsDonation] = useState(sale.isDonation || false)
+  const [isDonation, setIsDonation] = useState(Boolean(sale.isDonation))
   const [isUpdatingDonation, setIsUpdatingDonation] = useState(false)
   const [isLoadingBCVRate, setIsLoadingBCVRate] = useState(false)
   const [paymentCurrency, setPaymentCurrency] = useState(sale.currencyType || "USD")
   const [paymentAmount, setPaymentAmount] = useState("")
   const [convertedAmount, setConvertedAmount] = useState("")
   const [showPaymentCurrencyDialog, setShowPaymentCurrencyDialog] = useState(false)
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+const [newItem, setNewItem] = useState<any>(null);
+const [currentItems, setCurrentItems] = useState(sale.items || []);
+const [isAddingItem, setIsAddingItem] = useState(false);
+
+// Función para manejar cambios en items
+const handleItemUpdate = async (itemId: string, field: string, value: any) => {
+  const updatedItems = currentItems.map(item => 
+    item.id === itemId ? { ...item, [field]: value } : item
+  );
+  
+  try {
+    const result = await updatePurchaseItems(sale.id, updatedItems);
+    if (result.success) {
+      setCurrentItems(updatedItems);
+      toast({ title: "Producto actualizado", variant: "success" });
+    }
+  } catch (error) {
+    toast({ title: "Error actualizando", variant: "destructive" });
+  }
+};
+
+const handleAddItem = async () => {
+  if (!newItem?.itemId || !newItem.quantity || !newItem.unitPrice) return;
+
+  try {
+    const result = await addPurchaseItem(sale.id, {
+      itemId: newItem.itemId,
+      quantity: Number(newItem.quantity),
+      unitPrice: Number(newItem.unitPrice)
+    });
+    
+    if (result.success) {
+      setCurrentItems([...currentItems, result.data]);
+      setNewItem(null);
+      setIsAddingItem(false);
+    }
+  } catch (error) {
+    toast({ title: "Error agregando producto", variant: "destructive" });
+  }
+};
 
   // Keyboard shortcut for vendido
   const keysPressed = useRef<Set<string>>(new Set())
@@ -166,6 +212,12 @@ export function SaleDetails({ sale }: { sale: any }) {
   useEffect(() => {
     fetchPayments()
     fetchRemainingBalance()
+
+    // Add this console log to debug the donation status
+    console.log("Sale donation status:", {
+      isDonationFromSale: Boolean(sale.isDonation),
+      isDonationState: isDonation,
+    })
 
     // Set up keyboard shortcut listener for vendido easter egg
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -466,6 +518,39 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
   }
 
+  const handleItemChange = (itemId: string, field: string, value: string) => {
+    setCurrentItems(items =>
+      items.map(item =>
+        item.id === itemId ? { ...item, [field]: Number(value) } : item
+      )
+    );
+  };
+  
+  const handleSaveItem = async (item: any) => {
+    try {
+      const result = await updatePurchaseItems(sale.id, currentItems);
+      if (result.success) {
+        setEditingItemId(null);
+        toast({ title: "Producto actualizado", variant: "success" });
+      }
+    } catch (error) {
+      toast({ title: "Error actualizando producto", variant: "destructive" });
+    }
+  };
+  
+  const handleDeleteItem = async (itemId: string) => {
+    try {
+      const updatedItems = currentItems.filter(item => item.id !== itemId);
+      const result = await updatePurchaseItems(sale.id, updatedItems);
+      if (result.success) {
+        setCurrentItems(updatedItems);
+        toast({ title: "Producto eliminado", variant: "success" });
+      }
+    } catch (error) {
+      toast({ title: "Error eliminando producto", variant: "destructive" });
+    }
+  };
+  
   const PaymentMethodIcon = paymentMethodIcons[sale.paymentMethod as keyof typeof paymentMethodIcons] || CreditCardIcon
   const SaleTypeIcon = saleTypeIcons[(isDonation ? "DONATION" : sale.saleType) as keyof typeof saleTypeIcons] || Package
   const StatusIcon = statusIcons[currentStatus as keyof typeof statusIcons]
@@ -705,72 +790,291 @@ export function SaleDetails({ sale }: { sale: any }) {
             </Card>
 
             {/* Products */}
-            <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
-              <div className="p-6">
-                <h2 className="text-lg font-semibold mb-4">Productos</h2>
-                <div className="space-y-4">
-                  <AnimatePresence>
-                    {sale.items.map((item: any, index: number) => (
-                      <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        className={cn(
-                          "group p-4 rounded-xl transition-all duration-300",
-                          "bg-gray-50/50 dark:bg-gray-950/50",
-                          "hover:bg-gray-100/50 dark:hover:bg-gray-900/50",
-                          hoveredItem === index && "ring-2 ring-primary/10",
-                        )}
-                        onMouseEnter={() => setHoveredItem(index)}
-                        onMouseLeave={() => setHoveredItem(null)}
-                      >
-                        <div className="flex items-center gap-6">
-                          <div className="h-16 w-16 rounded-lg bg-white dark:bg-gray-800 flex items-center justify-center shadow-sm">
-                            <Package className="h-8 w-8 text-gray-400 dark:text-gray-500" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium truncate">{item.inventoryItem?.name || "Producto eliminado"}</h3>
-                            <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 dark:text-gray-400">
-                              <span>{item.quantity} unidades</span>
-                              <span>•</span>
-                              <span>{formatSaleCurrency(Number(item.unitPrice), sale.currencyType, sale.conversionRate)} c/u</span>
-                              {hoveredItem === index && (
-                                <>
-                                  <span>•</span>
-                                  <span className="flex items-center gap-1">
-                                    <Tag className="h-3.5 w-3.5" />
-                                    SKU: {item.inventoryItem?.sku || "N/A"}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                          <span className="text-2xl font-bold">
-  {formatSaleCurrency(
-    Number(sale.totalAmount), 
-    sale.currencyType, 
-    sale.conversionRate
-  )}
-</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
+<Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+  <div className="p-6">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-lg font-semibold">Productos</h2>
+      <Button 
+        size="sm" 
+        onClick={() => setIsAddingItem(true)}
+        disabled={isAddingItem || isPending}
+      >
+        <PlusCircle className="mr-2 h-4 w-4" />
+        Agregar Producto
+      </Button>
+    </div>
+    
+    {/* Formulario para agregar nuevo producto */}
+    <AnimatePresence>
+      {isAddingItem && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg"
+        >
+          <div className="flex gap-4 items-end">
+            <div className="flex-1 space-y-2">
+              <Label>Producto</Label>
+              <Select
+                value={newItem?.itemId || ''}
+                onValueChange={value => setNewItem(prev => ({ ...prev, itemId: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar producto" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sale.inventoryItems?.map((item: any) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name} ({item.sku})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Cantidad</Label>
+              <Input
+                type="number"
+                min="1"
+                placeholder="Cantidad"
+                value={newItem?.quantity || ''}
+                onChange={e => setNewItem(prev => ({ ...prev, quantity: e.target.value }))}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Precio Unitario</Label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="Precio"
+                value={newItem?.unitPrice || ''}
+                onChange={e => setNewItem(prev => ({ ...prev, unitPrice: e.target.value }))}
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleAddItem}
+                disabled={!newItem?.itemId || !newItem?.quantity || !newItem?.unitPrice}
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Agregar
+              </Button>
+              <Button 
+                variant="ghost" 
+                onClick={() => {
+                  setIsAddingItem(false);
+                  setNewItem(null);
+                }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    <div className="space-y-4">
+      <AnimatePresence>
+        {currentItems.map((item: any, index: number) => {
+          const numericRate = Number(sale.conversionRate) || 1;
+          const altCurrencyType = sale.currencyType === "USD" ? "BS" : "USD";
+          
+          return (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className={cn(
+                "group p-4 rounded-xl transition-all duration-300",
+                "bg-gray-50/50 dark:bg-gray-950/50",
+                "hover:bg-gray-100/50 dark:hover:bg-gray-900/50",
+                hoveredItem === index && "ring-2 ring-primary/10"
+              )}
+              onMouseEnter={() => setHoveredItem(index)}
+              onMouseLeave={() => setHoveredItem(null)}
+            >
+              <div className="flex items-center gap-6">
+                <div className="h-16 w-16 rounded-lg bg-white dark:bg-gray-800 flex items-center justify-center shadow-sm">
+                  <Package className="h-8 w-8 text-gray-400 dark:text-gray-500" />
                 </div>
-              </div>
-              <Separator />
-              <div className="p-6 bg-gray-50/50 dark:bg-gray-950/50">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Total</span>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium truncate">
+                      {item.inventoryItem?.name || "Producto eliminado"}
+                    </h3>
+                    <div className="flex items-center gap-2 ml-4">
+                      {editingItemId === item.id ? (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveItem(item)}
+                            disabled={isPending}
+                          >
+                            {isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Guardar"
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingItemId(null)}
+                          >
+                            Cancelar
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingItemId(item.id)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteItem(item.id)}
+                            disabled={isPending}
+                          >
+                            {isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            )}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-2 mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {editingItemId === item.id ? (
+                      <>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => handleItemChange(item.id, 'quantity', e.target.value)}
+                          className="w-24"
+                        />
+                        <span>•</span>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={item.unitPrice}
+                            onChange={(e) => handleItemChange(item.id, 'unitPrice', e.target.value)}
+                            className="w-32"
+                          />
+                          <span className="text-xs">
+                            ({sale.currencyType})
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium">{item.quantity} unidades</span>
+                        <span>•</span>
+                        <div>
+                          <span className="font-medium">
+                            {formatSaleCurrency(
+                              item.unitPrice,
+                              sale.currencyType,
+                              numericRate
+                            )}{" "}
+                            c/u
+                          </span>
+                          <span className="text-xs ml-1 text-gray-400">
+                            (
+                            {formatSaleCurrency(
+                              sale.currencyType === "USD"
+                                ? item.unitPrice * numericRate
+                                : item.unitPrice / numericRate,
+                              altCurrencyType,
+                              1
+                            )}
+                            )
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    
+                    {hoveredItem === index && (
+                      <>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Tag className="h-3.5 w-3.5" />
+                          SKU: {item.inventoryItem?.sku || "N/A"}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="text-right flex flex-col">
                   <span className="text-2xl font-bold">
-                    {formatSaleCurrency(Number(sale.totalAmount), sale.currencyType)}
+                    {formatSaleCurrency(
+                      item.quantity * item.unitPrice,
+                      sale.currencyType,
+                      numericRate
+                    )}
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    {formatSaleCurrency(
+                      sale.currencyType === "USD"
+                        ? item.quantity * item.unitPrice * numericRate
+                        : (item.quantity * item.unitPrice) / numericRate,
+                      altCurrencyType,
+                      1
+                    )}
                   </span>
                 </div>
               </div>
-            </Card>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </div>
+  </div>
+  
+  <Separator />
+  
+  <div className="p-6 bg-gray-50/50 dark:bg-gray-950/50">
+    <div className="flex justify-between items-center">
+      <span className="text-gray-600 dark:text-gray-400">Total</span>
+      <div className="text-right">
+        <span className="text-2xl font-bold">
+          {formatSaleCurrency(
+            currentItems.reduce((sum: number, item: any) => sum + (item.quantity * item.unitPrice), 0),
+            sale.currencyType,
+            Number(sale.conversionRate)
+          )}
+        </span>
+        <div className="text-sm text-gray-500">
+          {formatSaleCurrency(
+            sale.currencyType === "USD"
+              ? currentItems.reduce((sum: number, item: any) => sum + (item.quantity * item.unitPrice), 0) * Number(sale.conversionRate || 1)
+              : currentItems.reduce((sum: number, item: any) => sum + (item.quantity * item.unitPrice), 0) / Number(sale.conversionRate || 1),
+            sale.currencyType === "USD" ? "BS" : "USD",
+            1
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+</Card>
 
             {/* Payments */}
             {(payments.length > 0 || sale.saleType === "PRESALE" || remainingBalance) && (
@@ -814,19 +1118,58 @@ export function SaleDetails({ sale }: { sale: any }) {
                       <div>
                         <p className="text-sm text-muted-foreground">Total</p>
                         <p className="text-lg font-bold">
-                          {formatSaleCurrency(remainingBalance.totalAmount, remainingBalance.currencyType)}
+                          {formatSaleCurrency(
+                            remainingBalance.totalAmount,
+                            remainingBalance.currencyType,
+                            Number(remainingBalance.conversionRate),
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatSaleCurrency(
+                            remainingBalance.currencyType === "USD"
+                              ? remainingBalance.totalAmount * Number(remainingBalance.conversionRate || 1)
+                              : remainingBalance.totalAmount / Number(remainingBalance.conversionRate || 1),
+                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
+                            1,
+                          )}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Pagado</p>
                         <p className="text-lg font-bold">
-                          {formatSaleCurrency(remainingBalance.totalPaid, remainingBalance.currencyType)}
+                          {formatSaleCurrency(
+                            remainingBalance.totalPaid,
+                            remainingBalance.currencyType,
+                            Number(remainingBalance.conversionRate),
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatSaleCurrency(
+                            remainingBalance.currencyType === "USD"
+                              ? remainingBalance.totalPaid * Number(remainingBalance.conversionRate || 1)
+                              : remainingBalance.totalPaid / Number(remainingBalance.conversionRate || 1),
+                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
+                            1,
+                          )}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Pendiente</p>
                         <p className="text-lg font-bold">
-                          {formatSaleCurrency(remainingBalance.remainingAmount, remainingBalance.currencyType)}
+                          {formatSaleCurrency(
+                            remainingBalance.remainingAmount,
+                            remainingBalance.currencyType,
+                            Number(remainingBalance.conversionRate),
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatSaleCurrency(
+                            remainingBalance.currencyType === "USD"
+                              ? remainingBalance.remainingAmount * Number(remainingBalance.conversionRate || 1)
+                              : remainingBalance.remainingAmount / Number(remainingBalance.conversionRate || 1),
+                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
+                            1,
+                          )}
                         </p>
                       </div>
                     </div>
