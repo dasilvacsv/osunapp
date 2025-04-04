@@ -26,6 +26,8 @@ import {
   BookOpen,
   FileCheck,
   FilePenLine,
+  Loader2,
+  Gift,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -35,10 +37,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { Switch } from "@/components/ui/switch"
-import { updateSaleVendidoStatus, updateSaleDraftStatus } from "@/features/sales/actions"
+import { updateSaleVendidoStatus, updateSaleDraftStatus, updateSaleDonation } from "@/features/sales/actions"
+import { useSession } from "next-auth/react"
+import { useToast } from "@/hooks/use-toast"
 
 export type Sale = {
   id: string
@@ -73,6 +77,7 @@ export type Sale = {
   saleType: "DIRECT" | "PRESALE"
   isPaid: boolean
   isDraft?: boolean
+  isDonation?: boolean
   vendido?: boolean
   currencyType?: string
   conversionRate?: number
@@ -98,6 +103,130 @@ const StatusColors = {
   APPROVED: "text-blue-500 dark:text-blue-400",
   PENDING: "text-yellow-500 dark:text-yellow-400",
   CANCELLED: "text-red-500 dark:text-red-400",
+}
+
+// Donation Approval Component
+function DonationApprovalActions({ sale }: { sale: Sale }) {
+  const [isProcessing, setIsProcessing] = useState(false)
+  const { data: session, status } = useSession()
+  const { toast } = useToast()
+
+  // Add more detailed logging
+  useEffect(() => {
+    console.log("DonationApproval - Session status:", status)
+    console.log("DonationApproval - Session data:", session)
+    console.log("DonationApproval - User role:", session?.user?.role)
+  }, [session, status])
+
+  const isAdmin = session?.user?.role === "ADMIN"
+
+  console.log("DonationApproval - Is admin:", isAdmin)
+  console.log("DonationApproval - Sale:", sale)
+
+  // Only show for admin users and donations that are drafts
+  if (!isAdmin || !sale.isDonation || !sale.isDraft) {
+    console.log("DonationApproval - Not showing buttons because:", {
+      isAdmin,
+      isDonation: sale.isDonation,
+      isDraft: sale.isDraft,
+    })
+    return null
+  }
+
+  const handleApprove = async () => {
+    try {
+      setIsProcessing(true)
+      const result = await updateSaleDraftStatus(sale.id, false)
+
+      if (result.success) {
+        toast({
+          title: "Donación aprobada",
+          description: "La donación ha sido aprobada exitosamente",
+          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+        })
+
+        // Dispatch a custom event to refresh the table
+        const event = new CustomEvent("sales-updated", {
+          detail: { id: sale.id, action: "approve-donation" },
+        })
+        window.dispatchEvent(event)
+      } else {
+        throw new Error(result.error || "Error al aprobar la donación")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al aprobar la donación",
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleReject = async () => {
+    try {
+      setIsProcessing(true)
+      const result = await updateSaleDonation(sale.id, false)
+
+      if (result.success) {
+        toast({
+          title: "Donación rechazada",
+          description: "La donación ha sido rechazada",
+          className: "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800",
+        })
+
+        // Dispatch a custom event to refresh the table
+        const event = new CustomEvent("sales-updated", {
+          detail: { id: sale.id, action: "reject-donation" },
+        })
+        window.dispatchEvent(event)
+      } else {
+        throw new Error(result.error || "Error al rechazar la donación")
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Error al rechazar la donación",
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleApprove}
+        disabled={isProcessing}
+        className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:text-green-800 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800 dark:hover:bg-green-900/40"
+      >
+        {isProcessing ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+        ) : (
+          <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+        )}
+        Aprobar
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleReject}
+        disabled={isProcessing}
+        className="bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100 hover:text-rose-800 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800 dark:hover:bg-rose-900/40"
+      >
+        {isProcessing ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+        ) : (
+          <XCircle className="h-3.5 w-3.5 mr-1" />
+        )}
+        Rechazar
+      </Button>
+    </div>
+  )
 }
 
 export const columns: ColumnDef<Sale>[] = [
@@ -126,6 +255,7 @@ export const columns: ColumnDef<Sale>[] = [
 
       // Add draft badge if it's a draft
       const isDraft = row.original.isDraft
+      const isDonation = row.original.isDonation
 
       return (
         <Link
@@ -138,6 +268,7 @@ export const columns: ColumnDef<Sale>[] = [
             <FileText className="h-4 w-4 transition-transform group-hover:scale-110" />
           )}
           <span className="font-mono">#{id.slice(0, 8).toUpperCase()}</span>
+          {isDonation && <Gift className="h-4 w-4 text-purple-500" />}
           <ArrowRight className="h-4 w-4 opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
         </Link>
       )
@@ -281,6 +412,7 @@ export const columns: ColumnDef<Sale>[] = [
       const saleType = row.getValue("saleType") as string
       const allowPreSale = row.original?.allowPreSale || false
       const isDraft = row.original?.isDraft || false
+      const isDonation = row.original?.isDonation || false
 
       return (
         <div className="flex items-center gap-1.5">
@@ -291,6 +423,16 @@ export const columns: ColumnDef<Sale>[] = [
             >
               <FilePenLine className="h-3 w-3" />
               <span>Borrador</span>
+            </Badge>
+          )}
+
+          {isDonation && (
+            <Badge
+              variant="outline"
+              className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 flex items-center gap-1 py-0.5 h-5 text-xs"
+            >
+              <Gift className="h-3 w-3" />
+              <span>Donación</span>
             </Badge>
           )}
 
@@ -332,7 +474,7 @@ export const columns: ColumnDef<Sale>[] = [
     cell: ({ row }) => {
       const currencyType = row.original?.currencyType || "USD"
       const conversionRate = row.original?.conversionRate || 1
-  
+
       return (
         <Badge
           variant="outline"
@@ -434,16 +576,14 @@ export const columns: ColumnDef<Sale>[] = [
       if (!row || typeof row.getValue !== "function") {
         return <div className="text-muted-foreground text-xs">-</div>
       }
-  
+
       const amount = Number(row.getValue("totalAmount"))
       const currencyType = row.original?.currencyType || "USD"
       const conversionRate = row.original?.conversionRate || 1
-  
+
       // Calcular conversión
-      const convertedAmount = currencyType === "USD" 
-        ? amount * conversionRate
-        : amount / conversionRate
-  
+      const convertedAmount = currencyType === "USD" ? amount * conversionRate : amount / conversionRate
+
       return (
         <div className="text-right">
           <div className="font-medium text-sm">
@@ -497,6 +637,23 @@ export const columns: ColumnDef<Sale>[] = [
       )
     },
   },
+
+  // Add a new column for donation approval actions
+  {
+    id: "donationApproval",
+    header: () => <span className="text-xs">Aprobación</span>,
+    cell: ({ row }) => {
+      const sale = row.original
+
+      // Only show for donations that are drafts
+      if (!sale.isDonation || !sale.isDraft) {
+        return null
+      }
+
+      return <DonationApprovalActions sale={sale} />
+    },
+  },
+
   {
     id: "actions",
     cell: ({ row }) => {

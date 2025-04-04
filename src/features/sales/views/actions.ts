@@ -14,6 +14,7 @@ import {
   paymentPlans,
   dailySalesReports,
 } from "@/db/schema"
+import { auth } from "@/features/auth"
 import { and, eq, sql, gte, lte, desc } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
@@ -196,6 +197,8 @@ export async function createPurchase(data: any) {
     }
   }
 }
+
+
 
 export async function updatePurchaseItems(purchaseId: string, items: any[]) {
   try {
@@ -1013,6 +1016,18 @@ export async function getSalesByCurrency(period: "week" | "month" | "year" = "mo
 
 export async function getPendingDonations() {
   try {
+    // Get the current session to verify admin role
+    const session = await auth()
+
+    // Check if user is authenticated and has admin role
+    if (!session || !session.user || session.user.role !== "ADMIN") {
+      return {
+        success: false,
+        error: "Unauthorized: Only administrators can view pending donations",
+        data: [],
+      }
+    }
+
     const pendingDonations = await db
       .select({
         id: purchases.id,
@@ -1031,13 +1046,9 @@ export async function getPendingDonations() {
         transactionReference: purchases.transactionReference,
         isPaid: purchases.isPaid,
         conversionRate: purchases.conversionRate,
-        vendido: sql`COALESCE(${purchases.vendido}, false)`,
-        paymentMetadata: purchases.paymentMetadata,
-        updatedAt: purchases.updatedAt,
         bundle: bundles,
         beneficiario: beneficiarios,
         organization: organizations,
-        saleType: sql`COALESCE((${purchases.paymentMetadata}->>'saleType')::text, 'DIRECT')`,
       })
       .from(purchases)
       .leftJoin(clients, eq(purchases.clientId, clients.id))
@@ -1053,6 +1064,7 @@ export async function getPendingDonations() {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Error fetching pending donations",
+      data: [],
     }
   }
 }

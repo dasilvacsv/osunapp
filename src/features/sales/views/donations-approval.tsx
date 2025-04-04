@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { updateSaleDraftStatus } from "@/features/sales/actions"
+import { updateSaleDraftStatus, updateSaleDonation } from "@/features/sales/actions"
 import { useRouter } from "next/navigation"
 
 interface DonationsApprovalProps {
@@ -37,6 +37,7 @@ export function DonationsApproval({ donations, onRefresh, isLoading }: Donations
   const handleApprove = async (id: string) => {
     try {
       setProcessingId(id)
+      // First, set isDraft to false to approve the donation
       const result = await updateSaleDraftStatus(id, false)
 
       if (result.success) {
@@ -63,9 +64,8 @@ export function DonationsApproval({ donations, onRefresh, isLoading }: Donations
   const handleReject = async (id: string) => {
     try {
       setProcessingId(id)
-      // Here we're just removing the donation flag, not the draft status
-      // You might want to implement a specific rejection action if needed
-      const result = await updateSaleDraftStatus(id, true)
+      // Remove the donation flag
+      const result = await updateSaleDonation(id, false)
 
       if (result.success) {
         toast({
@@ -107,7 +107,7 @@ export function DonationsApproval({ donations, onRefresh, isLoading }: Donations
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Loader2 className="h-5 w-5 text-amber-500" />
+            <CheckCircle className="h-5 w-5 text-green-500" />
             Donaciones Pendientes
           </CardTitle>
           <CardDescription>No hay donaciones pendientes de aprobación</CardDescription>

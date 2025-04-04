@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import { useState, useCallback, useEffect } from "react"
 import { DataTable } from "@/features/sales/views/data-table"
@@ -14,8 +14,15 @@ import { getSalesData2, getDraftSalesData, getDonationSalesData } from "@/featur
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { DailySalesReport } from "@/features/sales/views/daily-sales-report"
+import { useSession } from "next-auth/react"
 
-export default function SalesPageContent({ initialSales, viewType = "sales" }: { initialSales: any[], viewType?: "sales" | "drafts" | "donations" }) {
+// Update the type definition to include "payments" and "reports"
+type TabType = "sales" | "drafts" | "donations" | "payments" | "reports"
+
+export default function SalesPageContent({
+  initialSales,
+  viewType = "sales",
+}: { initialSales: any[]; viewType?: TabType }) {
   const [sales, setSales] = useState<any[]>(initialSales)
   const [showDialog, setShowDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -24,24 +31,29 @@ export default function SalesPageContent({ initialSales, viewType = "sales" }: {
   const [selectedSale, setSelectedSale] = useState<{ id: string; amount: number } | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  const [activeTab, setActiveTab] = useState(viewType)
+  const [activeTab, setActiveTab] = useState<TabType>(viewType)
 
   const router = useRouter()
   const { toast } = useToast()
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === "ADMIN"
+
+  console.log("Current session:", session) // Debug log to check session data
+  console.log("Is admin:", isAdmin) // Debug log to check admin status
 
   const refreshSales = useCallback(async () => {
     setIsRefreshing(true)
     try {
-      let result;
+      let result
       switch (activeTab) {
         case "drafts":
-          result = await getDraftSalesData();
-          break;
+          result = await getDraftSalesData()
+          break
         case "donations":
-          result = await getDonationSalesData();
-          break;
+          result = await getDonationSalesData()
+          break
         default:
-          result = await getSalesData2();
+          result = await getSalesData2()
       }
 
       if (result.success && result.data) {
@@ -80,6 +92,24 @@ export default function SalesPageContent({ initialSales, viewType = "sales" }: {
   useEffect(() => {
     refreshSales()
   }, [activeTab, refreshSales])
+
+  // Listen for sales-updated events
+  useEffect(() => {
+    const handleSalesUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent
+      console.log("Sale updated:", customEvent.detail)
+
+      // Refresh the sales data when a donation is approved or rejected
+      if (customEvent.detail.action === "approve-donation" || customEvent.detail.action === "reject-donation") {
+        refreshSales()
+      }
+    }
+
+    window.addEventListener("sales-updated", handleSalesUpdated)
+    return () => {
+      window.removeEventListener("sales-updated", handleSalesUpdated)
+    }
+  }, [refreshSales])
 
   const handleSaleSuccess = (newSale: any) => {
     setSales((prev) => [newSale, ...prev])
@@ -130,7 +160,7 @@ export default function SalesPageContent({ initialSales, viewType = "sales" }: {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
         <div className="space-y-4">
-          <TabsList>
+          <TabsList className="flex flex-wrap">
             <TabsTrigger value="sales" className="flex items-center gap-2 px-6 py-2">
               <ShoppingCart className="h-4 w-4" />
               Ventas
@@ -159,10 +189,10 @@ export default function SalesPageContent({ initialSales, viewType = "sales" }: {
         </div>
 
         <TabsContent value="sales" className="space-y-6">
-          <DataTable 
-            columns={columns} 
-            data={sales} 
-            searchKey="client.name" 
+          <DataTable
+            columns={columns}
+            data={sales}
+            searchKey="client.name"
             onSaleSelect={handleSaleSelect}
             title="Ventas"
             description="Lista completa de ventas"
@@ -170,10 +200,10 @@ export default function SalesPageContent({ initialSales, viewType = "sales" }: {
         </TabsContent>
 
         <TabsContent value="drafts" className="space-y-6">
-          <DataTable 
-            columns={columns} 
-            data={sales} 
-            searchKey="client.name" 
+          <DataTable
+            columns={columns}
+            data={sales}
+            searchKey="client.name"
             onSaleSelect={handleSaleSelect}
             title="Borradores"
             description="Ventas en estado de borrador pendientes de aprobación"
@@ -181,10 +211,10 @@ export default function SalesPageContent({ initialSales, viewType = "sales" }: {
         </TabsContent>
 
         <TabsContent value="donations" className="space-y-6">
-          <DataTable 
-            columns={columns} 
-            data={sales} 
-            searchKey="client.name" 
+          <DataTable
+            columns={columns}
+            data={sales}
+            searchKey="client.name"
             onSaleSelect={handleSaleSelect}
             title="Donaciones"
             description="Lista de ventas marcadas como donación"
@@ -233,3 +263,4 @@ export default function SalesPageContent({ initialSales, viewType = "sales" }: {
     </motion.div>
   )
 }
+

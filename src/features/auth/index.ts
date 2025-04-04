@@ -1,10 +1,9 @@
-import NextAuth, { User } from "next-auth";
-import { compare } from "bcryptjs";
-import CredentialsProvider from "next-auth/providers/credentials";
-
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { users } from "@/db/schema";
+import NextAuth, { type User } from "next-auth"
+import CredentialsProvider from "next-auth/providers/credentials"
+import { compare } from "bcryptjs"
+import { db } from "@/db"
+import { users } from "@/db/schema"
+import { eq } from "drizzle-orm"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
@@ -14,29 +13,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     CredentialsProvider({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          return null;
+          return null
         }
 
-        const user = await db
-          .select()
-          .from(users)
-          .where(eq(users.email, credentials.email.toString()))
-          .limit(1);
+        const user = await db.select().from(users).where(eq(users.email, credentials.email.toString())).limit(1)
 
-        if (user.length === 0) return null;
+        if (user.length === 0) return null
 
-        const isPasswordValid = await compare(
-          credentials.password.toString(),
-          user[0].password,
-        );
+        const isPasswordValid = await compare(credentials.password.toString(), user[0].password)
 
-        if (!isPasswordValid) return null;
+        if (!isPasswordValid) return null
 
         return {
           id: user[0].id.toString(),
           email: user[0].email,
           name: user[0].fullName,
-        } as User;
+          role: user[0].role, // Include the user role
+        } as User
       },
     }),
   ],
@@ -46,19 +39,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.name = user.name;
+        token.id = user.id
+        token.name = user.name
+        token.role = user.role // Add role to the token
       }
 
-      return token;
+      return token
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
-        session.user.name = token.name as string;
+        session.user.id = token.id as string
+        session.user.name = token.name as string
+        session.user.role = token.role as string // Add role to the session
       }
 
-      return session;
+      return session
     },
   },
-});
+})
+

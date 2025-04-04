@@ -23,6 +23,7 @@ import { writeFile } from "fs/promises"
 import { join } from "path"
 import { existsSync } from "fs"
 import { mkdir } from "fs/promises"
+import { auth } from "../auth"
 
 export type InstallmentFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY"
 export type PaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED"
@@ -705,14 +706,123 @@ export async function updatePurchaseStatus(id: string, newStatus: string) {
   }
 }
 
+export async function approveDonation(id: string) {
+  try {
+    // Get the current session to verify admin role
+    const session = await auth()
+
+    // Check if user is authenticated and has admin role
+    if (!session || !session.user || session.user.role !== "ADMIN") {
+      return {
+        success: false,
+        error: "Unauthorized: Only administrators can approve donations",
+      }
+    }
+
+    const [updatedSale] = await db
+      .update(purchases)
+      .set({
+        isDraft: false, // Change from draft to approved
+        isPaid: true, // Mark as paid since it's a donation
+        updatedAt: new Date(),
+      })
+      .where(and(eq(purchases.id, id), eq(purchases.isDonation, true)))
+      .returning()
+
+    if (!updatedSale) {
+      throw new Error("No se pudo aprobar la donación")
+    }
+
+    revalidatePath("/sales")
+    revalidatePath(`/sales/${id}`)
+
+    return {
+      success: true,
+      data: updatedSale,
+    }
+  } catch (error) {
+    console.error("Error approving donation:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error approving donation",
+    }
+  }
+}
+
+// Reject donation (remove isDonation flag)
+export async function rejectDonation(id: string) {
+  try {
+    // Get the current session to verify admin role
+    const session = await auth()
+
+    // Check if user is authenticated and has admin role
+    if (!session || !session.user || session.user.role !== "ADMIN") {
+      return {
+        success: false,
+        error: "Unauthorized: Only administrators can reject donations",
+      }
+    }
+
+    const [updatedSale] = await db
+      .update(purchases)
+      .set({
+        isDonation: false, // Remove donation flag
+        updatedAt: new Date(),
+      })
+      .where(eq(purchases.id, id))
+      .returning()
+
+    if (!updatedSale) {
+      throw new Error("No se pudo rechazar la donación")
+    }
+
+    revalidatePath("/sales")
+    revalidatePath(`/sales/${id}`)
+
+    return {
+      success: true,
+      data: updatedSale,
+    }
+  } catch (error) {
+    console.error("Error rejecting donation:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error rejecting donation",
+    }
+  }
+}
+
+
 // Update sale draft status
 export async function updateSaleDraftStatus(id: string, isDraft: boolean) {
   try {
+    // Get the current session
+    const session = await auth()
+
+    // If this is a donation and we're trying to approve it (set isDraft to false),
+    // only admins can do it
+    const purchaseData = await db
+      .select({ isDonation: purchases.isDonation })
+      .from(purchases)
+      .where(eq(purchases.id, id))
+      .limit(1)
+
+    const isDonation = purchaseData.length > 0 ? purchaseData[0].isDonation : false
+
+    if (isDonation && !isDraft && (!session || !session.user || session.user.role !== "ADMIN")) {
+      return {
+        success: false,
+        error: "Unauthorized: Only administrators can approve donations",
+      }
+    }
+
     const [updatedSale] = await db
       .update(purchases)
       .set({
         isDraft: isDraft,
         updatedAt: new Date(),
+        // If approving a donation, also mark it as paid
+        ...(isDonation && !isDraft ? { isPaid: true } : {}),
       })
       .where(eq(purchases.id, id))
       .returning()
@@ -795,6 +905,7 @@ export async function updateSaleDraftStatus(id: string, isDraft: boolean) {
   }
 }
 
+
 // Update sale vendido status
 export async function updateSaleVendidoStatus(id: string, vendido: boolean) {
   try {
@@ -823,10 +934,63 @@ export async function updateSaleVendidoStatus(id: string, vendido: boolean) {
   }
 }
 
+export async function getPendingDonations() {
+  try {
+    // Get the current session to verify admin role
+    const session = await auth()
+
+    console.log("Session in getPendingDonations:", session) // Debug log
+
+    // Check if user is authenticated and has admin role
+    if (!session || !session.user || session.user.role !== "ADMIN") {
+      console.log("User is not admin, returning empty array") // Debug log
+      return {
+        success: false,
+        error: "Unauthorized: Only administrators can view pending donations",
+        data: [],
+      }
+    }
+
+    // Query for pending donations (donations that are drafts)
+    const pendingDonations = await db.query.purchases.findMany({
+      where: and(eq(purchases.isDonation, true), eq(purchases.isDraft, true)),
+      with: {
+        client: true,
+        beneficiario: true,
+      },
+    })
+
+    console.log("Found pending donations:", pendingDonations.length) // Debug log
+
+    return {
+      success: true,
+      data: pendingDonations,
+    }
+  } catch (error) {
+    console.error("Error fetching pending donations:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error fetching pending donations",
+      data: [],
+    }
+  }
+}
+
 // Update sale donation status
 export async function updateSaleDonation(id: string, isDonation: boolean) {
   try {
-    // Actualizar directamente sin transacción
+    // Get the current session to verify user role
+    const session = await auth()
+
+    // If trying to approve a donation (setting isDonation to true), any user can do it
+    // But if trying to reject a donation (setting isDonation to false), only admins can do it
+    if (!isDonation && (!session || !session.user || session.user.role !== "ADMIN")) {
+      return {
+        success: false,
+        error: "Unauthorized: Only administrators can reject donations",
+      }
+    }
+
     const [updatedSale] = await db
       .update(purchases)
       .set({
@@ -835,26 +999,25 @@ export async function updateSaleDonation(id: string, isDonation: boolean) {
         updatedAt: new Date(),
       })
       .where(eq(purchases.id, id))
-      .returning();
+      .returning()
 
     if (!updatedSale) {
-      throw new Error("No se pudo actualizar la venta");
+      throw new Error("No se pudo actualizar la venta")
     }
 
-    revalidatePath("/sales");
-    revalidatePath(`/sales/${id}`);
-    revalidatePath("/admin/donations");
+    revalidatePath("/sales")
+    revalidatePath(`/sales/${id}`)
 
     return {
       success: true,
       data: updatedSale,
-    };
+    }
   } catch (error) {
-    console.error("Error updating donation status:", error);
+    console.error("Error updating donation status:", error)
     return {
       success: false,
       error: error instanceof Error ? error.message : "Error updating donation status",
-    };
+    }
   }
 }
 
