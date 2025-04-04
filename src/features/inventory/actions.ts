@@ -3,7 +3,7 @@
 import { db } from "@/db"
 import { inventoryItems, inventoryTransactions, inventoryPurchases, inventoryPurchaseItems } from "@/db/schema"
 import { eq, desc, sql } from "drizzle-orm"
-import type { ActionResponse, InventoryItem, InventoryTransaction } from "./types"
+import type { ActionResponse, InventoryItem, InventoryTransaction } from "@/features/inventory/types"
 import { revalidatePath } from "next/cache"
 import { unstable_noStore as noStore } from "next/cache"
 
@@ -207,12 +207,12 @@ export async function decreaseInventoryForSale(
 export type CreateInventoryItemInput = {
   name: string
   sku: string
-  type: string
+  type: "PHYSICAL" | "DIGITAL" | "SERVICE"
   basePrice: number
   currentStock: number
   reservedStock?: number
   minimumStock?: number
-  status?: string
+  status?: "ACTIVE" | "INACTIVE"
   description?: string
   initialInventoryCost?: number
 }

@@ -202,71 +202,107 @@ export async function createPurchase(data: any) {
 
 export async function updatePurchaseItems(purchaseId: string, items: any[]) {
   try {
-    return await db.transaction(async (tx) => {
-      // Eliminar items existentes
-      await tx.delete(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId));
+    // Delete existing items
+    await db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId))
 
-      // Insertar nuevos items
-      const newItems = items.map(item => ({
+    // Insert new items with proper data validation
+    if (items.length > 0) {
+      const newItems = items.map((item) => ({
         purchaseId,
         itemId: item.itemId,
-        quantity: item.quantity,
+        quantity: Number(item.quantity),
         unitPrice: item.unitPrice.toString(),
-        totalPrice: (item.quantity * item.unitPrice).toString(),
-        metadata: item.metadata || {}
-      }));
+        totalPrice: (Number(item.quantity) * Number(item.unitPrice)).toString(),
+        metadata: item.metadata || {},
+      }))
 
-      await tx.insert(purchaseItems).values(newItems);
+      await db.insert(purchaseItems).values(newItems)
+    }
 
-      // Actualizar total en la compra
-      const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-      
-      const [updatedPurchase] = await tx.update(purchases)
-        .set({ totalAmount: totalAmount.toString() })
-        .where(eq(purchases.id, purchaseId))
-        .returning();
+    // Calculate and update the total amount in the purchase
+    const totalAmount = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0)
 
-      return { success: true, data: updatedPurchase };
-    });
+    const [updatedPurchase] = await db
+      .update(purchases)
+      .set({
+        totalAmount: totalAmount.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(purchases.id, purchaseId))
+      .returning()
+
+    // Revalidate paths to update UI
+    revalidatePath(`/sales/${purchaseId}`)
+    revalidatePath("/sales")
+
+    return {
+      success: true,
+      data: {
+        ...updatedPurchase,
+        items: items.length > 0 ? items : [],
+      },
+    }
   } catch (error) {
-    console.error("Error updating purchase items:", error);
-    return { success: false, error: "Failed to update items" };
+    console.error("Error updating purchase items:", error)
+    return { success: false, error: "Failed to update items" }
   }
 }
 
 export async function addPurchaseItem(purchaseId: string, item: any) {
   try {
-    return await db.transaction(async (tx) => {
-      // Insertar nuevo item
-      const [newItem] = await tx.insert(purchaseItems).values({
+    // Get the current purchase to calculate the new total
+    const [purchase] = await db.select().from(purchases).where(eq(purchases.id, purchaseId)).limit(1)
+
+    if (!purchase) {
+      throw new Error("Purchase not found")
+    }
+
+    // Calculate the total price for the new item
+    const totalPrice = (Number(item.quantity) * Number(item.unitPrice)).toString()
+
+    // Insert the new item
+    const [newItem] = await db
+      .insert(purchaseItems)
+      .values({
         purchaseId,
         itemId: item.itemId,
-        quantity: item.quantity,
+        quantity: Number(item.quantity),
         unitPrice: item.unitPrice.toString(),
-        totalPrice: (item.quantity * item.unitPrice).toString(),
-        metadata: item.metadata || {}
-      }).returning();
+        totalPrice: totalPrice,
+      })
+      .returning()
 
-      // Actualizar total
-      const purchase = await tx.select()
-        .from(purchases)
-        .where(eq(purchases.id, purchaseId))
-        .limit(1);
+    // Get the inventory item details for the response
+    const [inventoryItem] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId)).limit(1)
 
-      const newTotal = Number(purchase[0].totalAmount) + (item.quantity * item.unitPrice);
-      
-      await tx.update(purchases)
-        .set({ totalAmount: newTotal.toString() })
-        .where(eq(purchases.id, purchaseId));
+    // Calculate the new total for the purchase
+    const newTotal = Number(purchase.totalAmount || 0) + Number(item.quantity) * Number(item.unitPrice)
 
-      return { success: true, data: newItem };
-    });
+    // Update the purchase total
+    await db
+      .update(purchases)
+      .set({
+        totalAmount: newTotal.toString(),
+        updatedAt: new Date(),
+      })
+      .where(eq(purchases.id, purchaseId))
+
+    // Revalidate paths to update UI
+    revalidatePath(`/sales/${purchaseId}`)
+    revalidatePath("/sales")
+
+    return {
+      success: true,
+      data: {
+        ...newItem,
+        inventoryItem,
+      },
+    }
   } catch (error) {
-    console.error("Error adding item:", error);
-    return { success: false, error: "Failed to add item" };
+    console.error("Error adding item:", error)
+    return { success: false, error: "Failed to add item" }
   }
 }
-
 // Update a purchase
 export async function updatePurchase(id: string, data: any) {
   try {
@@ -572,31 +608,82 @@ export async function updateSaleVendidoStatus(id: string, vendido: boolean) {
 }
 
 // Update sale currency
-export async function updateSaleCurrency(id: string, currencyType: string, conversionRate: number) {
+export async function updateSaleCurrency(
+  purchaseId: string,
+  currencyType: "USD" | "BS",
+  conversionRate: number,
+): Promise<ActionResponse<any>> {
   try {
+    // Primero obtenemos la venta actual para conocer su moneda y tasa actuales
+    const [currentSale] = await db.select().from(purchases).where(eq(purchases.id, purchaseId)).limit(1)
+
+    if (!currentSale) {
+      return { success: false, error: "Venta no encontrada" }
+    }
+
+    // Obtenemos los items actuales
+    const currentItems = await db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId))
+
+    // Si estamos cambiando de moneda, necesitamos convertir los precios
+    if (currentSale.currencyType !== currencyType) {
+      // Convertimos cada item
+      for (const item of currentItems) {
+        let newUnitPrice: number
+
+        // Convertir de USD a BS
+        if (currentSale.currencyType === "USD" && currencyType === "BS") {
+          newUnitPrice = Number(item.unitPrice) * conversionRate
+        }
+        // Convertir de BS a USD
+        else if (currentSale.currencyType === "BS" && currencyType === "USD") {
+          newUnitPrice = Number(item.unitPrice) / conversionRate
+        } else {
+          newUnitPrice = Number(item.unitPrice)
+        }
+
+        // Actualizar el precio unitario y el precio total
+        await db
+          .update(purchaseItems)
+          .set({
+            unitPrice: newUnitPrice.toString(),
+            totalPrice: (newUnitPrice * Number(item.quantity)).toString(),
+            updatedAt: new Date(),
+          })
+          .where(eq(purchaseItems.id, item.id))
+      }
+    }
+
+    // Recalculamos el total de la venta
+    const updatedItems = await db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId))
+
+    const totalAmount = updatedItems.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0)
+
+    // Actualizamos la moneda y la tasa de conversión en la venta
     const [updatedSale] = await db
       .update(purchases)
       .set({
-        currencyType: currencyType,
-        conversionRate: conversionRate.toString(),
+        currencyType,
+        conversionRate,
+        totalAmount: totalAmount.toString(),
         updatedAt: new Date(),
       })
-      .where(eq(purchases.id, id))
+      .where(eq(purchases.id, purchaseId))
       .returning()
 
+    // Revalidamos las rutas
+    revalidatePath(`/sales/${purchaseId}`)
     revalidatePath("/sales")
-    revalidatePath(`/sales/${id}`)
 
     return {
       success: true,
-      data: updatedSale,
+      data: {
+        ...updatedSale,
+        items: updatedItems,
+      },
     }
   } catch (error) {
     console.error("Error updating currency:", error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Error updating currency",
-    }
+    return { success: false, error: "Error al actualizar la moneda" }
   }
 }
 
