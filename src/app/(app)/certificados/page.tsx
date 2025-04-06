@@ -5,6 +5,7 @@ import { Plus, Download, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { ExportButton } from "@/features/certificados/export-button";
 
+export const dynamic = "force-dynamic"
 
 export default async function CertificadosPage() {
   const result = await getCertificadoSales();

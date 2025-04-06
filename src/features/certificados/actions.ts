@@ -27,9 +27,14 @@ import * as XLSX from "xlsx";
 import { join } from "path";
 import { mkdir, writeFile } from "fs/promises";
 import { existsSync } from "fs";
+import { unstable_noStore as noStore } from "next/cache"
+
 
 export async function getCertificadoSales(): Promise<CertificadoResponse> {
+
   try {
+    noStore()
+
     console.log("Starting getCertificadoSales...");
     
     // Debug: First try a simple query to see if we can access purchases at all

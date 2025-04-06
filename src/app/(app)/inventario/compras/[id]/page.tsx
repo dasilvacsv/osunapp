@@ -11,6 +11,8 @@ import { notFound } from "next/navigation"
 import { PurchasePaymentButton } from "@/features/inventory/purchases/purchase-payment-button"
 import { Suspense } from "react"
 
+export const dynamic = 'force-dynamic';
+
 export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
   return {
     title: `Detalles de Compra #${params.id.slice(0, 8)}`,

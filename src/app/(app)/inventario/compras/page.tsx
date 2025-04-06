@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { PendingPurchasesTable } from "@/features/inventory/purchases/pending-purchases-table"
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Gestión de Compras",
   description: "Administra las compras de inventario",

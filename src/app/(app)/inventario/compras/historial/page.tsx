@@ -6,6 +6,8 @@ import { ArrowLeft, ShoppingBag, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { PurchaseHistoryTable } from "@/features/inventory/purchases/purchase-history-table"
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: "Historial de Compras",
   description: "Visualiza el historial completo de compras",
