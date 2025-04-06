@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +48,18 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
   const [initialCost, setInitialCost] = useState("")
   const [description, setDescription] = useState("")
   const { toast } = useToast()
+
+  const generateSKU = () => {
+    const typePrefix = type.substring(0, 2).toUpperCase()
+    const year = new Date().getFullYear().toString().slice(-2)
+    const random = Math.floor(1000 + Math.random() * 9000) // 4-digit number
+    return `${typePrefix}${year}-${random}`
+  }
+
+  // Generate SKU when type changes or component mounts
+  useEffect(() => {
+    setSku(generateSKU())
+  }, [type])
 
   // Calcular margen de ganancia
   const profitMargin =
@@ -166,9 +178,14 @@ export function AddProductDialog({ open, onOpenChange, onProductAdded }: AddProd
                   <div className="space-y-2">
                     <Label htmlFor="sku" className="flex items-center gap-2">
                       <Archive className="w-4 h-4 text-gray-500" />
-                      SKU
+                      SKU (Auto-generado)
                     </Label>
-                    <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} className="w-full" required />
+                    <Input 
+                      id="sku" 
+                      value={sku} 
+                      className="w-full bg-muted/50" 
+                      readOnly 
+                    />
                   </div>
                 </div>
 
