@@ -71,7 +71,7 @@ const AuthForm = <T extends FieldValues>({
                         : "You have successfully signed up.",
                 });
         
-                router.push("/");
+                router.push("/clientes");
             } else {
                 toast({
                     title: `Error ${isSignIn ? "signing in" : "signing up"}`,
@@ -88,12 +88,12 @@ const AuthForm = <T extends FieldValues>({
         <Card className="border-none shadow-none">
             <CardHeader className="space-y-4">
                 <CardTitle className="text-2xl font-bold">
-                    {isSignIn ? "Welcome back to BookWise" : "Create your library account"}
+                    {isSignIn ? "Bienvenido de nuevo al sistema" : "Crea tu cuenta"}
                 </CardTitle>
                 <CardDescription>
                     {isSignIn
-                        ? "Access the vast collection of resources, and stay updated"
-                        : "Please complete all fields to gain access to the library"}
+                        ? "Accede a todos los recursos y mantente actualizado"
+                        : "Por favor completa todos los campos para obtener acceso al sistema"}
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -161,17 +161,17 @@ const AuthForm = <T extends FieldValues>({
                                     disabled={isSubmitting}
                                 >
                                     {isSubmitting 
-                                        ? (isSignIn ? "Signing in..." : "Signing up...") 
-                                        : (isSignIn ? "Sign In" : "Sign Up")}
+                                        ? (isSignIn ? "Iniciando sesión..." : "Registrando...") 
+                                        : (isSignIn ? "Iniciar Sesión" : "Registrarse")}
                                 </Button>
 
                                 <p className="text-center text-sm">
-                                    {isSignIn ? "New to BookWise? " : "Already have an account? "}
+                                    {isSignIn ? "¿Nuevo en el sistema? " : "¿Ya tienes una cuenta? "}
                                     <Link
-                                        href={isSignIn ? "/sign-up" : "/sign-in"}
+                                        href={isSignIn ? "#" : "/sign-in"}
                                         className="font-bold text-primary hover:underline"
                                     >
-                                        {isSignIn ? "Create an account" : "Sign in"}
+                                        {isSignIn ? "Crear una cuenta" : "Iniciar sesión"}
                                     </Link>
                                 </p>
                             </form>
