@@ -45,6 +45,7 @@ export interface AuthCredentials {
   fullName: string
   email: string
   password: string
+  role?: "ADMIN" | "USER" | "OPERADOR"
 }
 
 export interface InventoryItem {

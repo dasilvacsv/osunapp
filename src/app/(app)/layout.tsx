@@ -1,6 +1,4 @@
-'use client'
-
-import MainSidebar from "@/components/MainSidebar";
+import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Separator } from "@/components/ui/separator";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -13,7 +11,7 @@ export default function MainLayout({
 }) {
   return (
     <SidebarProvider defaultOpen={false}>
-      <MainSidebar />
+      <AppSidebar />
       <SidebarInset>
         {/* Header */}
         <header className="flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">

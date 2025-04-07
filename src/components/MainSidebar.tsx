@@ -22,76 +22,46 @@ import Image from "next/image"
 import { NavMain } from "./NavMain"
 import { NavUser } from "./NavUser"
 
-const navItems = [
-  {
-    title: "Panel Principal",
-    url: "/",
-    icon: LayoutDashboard
-  },
-  {
-    title: "Organizaciones",
-    url: "/organizations",
-    icon: School
-  },
-  {
-    title: "Clientes",
-    url: "/clientes",
-    icon: Users,
-    items: [
-      {
-        title: "Lista de Clientes",
-        url: "/clientes",
-      },
-      {
-        title: "Clientes por Organización",
-        url: "/clientes/byOrg",
-      }
-    ],
-  },
-  {
-    title: "Inventario",
-    url: "/inventario",
-    icon: Package,
-    items: [
-      {
-        title: "Lista de Inventario",
-        url: "/inventario",
-      },
-      {
-        title: "Gestión de Inventario",
-        url: "/inventario/stock",
-      }
-    ],
-  },
-  {
-    title: "Ventas",
-    url: "/sales",
-    icon: Receipt
-  },
-  {
-    title: "Ciudades",
-    url: "/cities",
-    icon: Building
-  },
-  {
-    title: "Resumen de Paquetes",
-    url: "/certificados",
-    icon: Package2,
-    items: [
-      {
-        title: "Resumen de Paquetes",
-        url: "/certificados",
-      }
-    ],
-  },
-];
+const ICONS = {
+  LayoutDashboard,
+  Users,
+  Package,
+  Receipt,
+  School,
+  Building,
+  Package2
+};
 
-export default function MainSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const user = {
-    name: "Fotógrafo Admin",
-    email: "admin@fotografia.com",
-    avatar: "",
+interface NavItem {
+  title: string;
+  url: string;
+  icon: keyof typeof ICONS;
+  items?: { title: string; url: string; }[];
+}
+
+interface MainSidebarProps extends React.ComponentProps<typeof Sidebar> {
+  items: NavItem[];
+  user: {
+    name: string;
+    email: string;
+    role: string;
   };
+}
+
+export function MainSidebar({ items, user, ...props }: MainSidebarProps) {
+  // Transform items to include actual icon components
+  const navItems = React.useMemo(() => {
+    return items.map(item => ({
+      ...item,
+      icon: ICONS[item.icon]
+    }));
+  }, [items]);
+
+  const userInfo = React.useMemo(() => ({
+    name: user.name || "Loading...",
+    email: user.email || "",
+    avatar: "", // Default empty avatar
+  }), [user]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -134,9 +104,9 @@ export default function MainSidebar({ ...props }: React.ComponentProps<typeof Si
         <NavMain items={navItems} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={user} />
+        <NavUser user={userInfo} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );
-}
+} 
