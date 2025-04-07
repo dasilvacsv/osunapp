@@ -8,15 +8,14 @@ import { Client } from "@/lib/types"
 import { ClientTable } from "./client-table"
 import { ClientForm } from "./create-client-form"
 import { ClientFormData, createClient, deleteClient, updateClient } from "@/app/(app)/clientes/client"
-import { OrganizationWithClients } from "@/features/clients/byorg/actions"
+import { useRouter } from "next/navigation"
 
 interface ClientListProps {
   initialClients: Client[]
-
 }
 
 export default function ClientList({ initialClients}: ClientListProps) {
-
+  const router = useRouter()
   const [clients, setClients] = useState<Client[]>(initialClients)
   const [selectedClients, setSelectedClients] = useState<string[]>([])
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -32,11 +31,12 @@ export default function ClientList({ initialClients}: ClientListProps) {
       if (result.success && result.data) {
         setShowCreateDialog(false)
         setClients(prev => [...prev, result.data]) // Optimistic update
+        router.push(`clientes/${result.data.id}/beneficiarios`)
       } else {
         console.error(result.error)
       }
     })
-  }, [])
+  }, [router])
   
   const handleUpdateClient = useCallback(async (id: string, data: ClientFormData) => {
     startTransition(async () => {
