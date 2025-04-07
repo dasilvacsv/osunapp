@@ -76,8 +76,6 @@ const allNavItems: NavItem[] = [
 
 export async function AppSidebar() {
   const session = await auth();
-
-  console.log(session);
   
 
   if (!session?.user) {

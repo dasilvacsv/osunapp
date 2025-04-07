@@ -3,6 +3,8 @@
 import { LogOut, Settings, User } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { signOut } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 import {
   DropdownMenu,
@@ -29,6 +31,17 @@ interface NavUserProps {
 }
 
 export function NavUser({ user }: NavUserProps) {
+  const router = useRouter()
+
+  const handleLogout = async () => {
+    try {
+      await signOut({ redirect: false })
+      router.push("/sign-in")
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Cuenta</SidebarGroupLabel>
@@ -65,11 +78,9 @@ export function NavUser({ user }: NavUserProps) {
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/logout">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Cerrar Sesión</span>
-                </Link>
+              <DropdownMenuItem onSelect={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Cerrar Sesión</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
