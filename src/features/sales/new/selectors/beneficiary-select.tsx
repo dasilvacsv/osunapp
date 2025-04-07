@@ -4,12 +4,13 @@ import { useState, useEffect } from "react"
 import { PopoverSelect } from "@/components/popover-select"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { BeneficiaryForm } from "@/features/clients/beneficiary-form"
+
 import { createBeneficiary, BeneficiaryFormData } from "@/app/(app)/clientes/client"
 import { getBeneficiariesByClient, getOrganizations } from "@/features/sales/new/actions"
 import { PlusIcon } from "lucide-react" 
 import { useToast } from "@/hooks/use-toast"
 import { Organization as LibOrganization } from "@/lib/types"
+import BeneficiaryForm from "@/features/clients/beneficiary-form"
 
 interface Organization {
   id: string

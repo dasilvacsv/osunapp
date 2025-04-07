@@ -2,7 +2,7 @@
 
 import { db } from "@/db"
 import { purchases, payments, clients } from "@/db/schema"
-import { eq, sql, desc } from "drizzle-orm"
+import { eq, sql, desc, inArray } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import type { PaymentStatus } from "@/features/payments/payment-types"
 
@@ -88,7 +88,7 @@ export async function getClientPaymentSummary(clientId: string) {
         paymentMethod: payments.paymentMethod,
       })
       .from(payments)
-      .where(sql`${payments.purchaseId} IN (${purchaseIds})`)
+      .where(inArray(payments.purchaseId, purchaseIds))
       .orderBy(desc(payments.paymentDate))
 
     // Get paid payments
