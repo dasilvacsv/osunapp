@@ -86,11 +86,19 @@ export async function AppSidebar() {
   let filteredItems = [...allNavItems];
   
   if (session.user.role === "OPERATOR") {
-    filteredItems = allNavItems.filter(item => 
-      item.title === "Organizaciones" || 
-      item.title === "Clientes" ||
-      item.title === "Panel Principal"
-    );
+    filteredItems = allNavItems
+      .filter(item => 
+        item.title === "Organizaciones" || 
+        item.title === "Clientes" ||
+        item.title === "Ventas" ||
+        item.title === "Ciudades"
+      )
+      .map(item => {
+        if (item.title === "Ventas") {
+          return { ...item, url: "/sales/new" };
+        }
+        return item;
+      });
   }
 
   const userInfo = {

@@ -23,8 +23,23 @@ import type { Beneficiary } from "./selectors/beneficiary-select"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 
-export default function NewSaleForm() {
+interface NewSaleFormProps {
+  userRole?: string;
+  initialClients: any[];
+  initialOrganizations: any[];
+  initialProducts: any[];
+  initialBundles: any[];
+}
+
+export default function NewSaleForm({ 
+  userRole,
+  initialClients,
+  initialOrganizations,
+  initialProducts,
+  initialBundles 
+}: NewSaleFormProps) {
   const router = useRouter()
+  const isAdmin = userRole === "ADMIN"
   const methods = useForm({
     defaultValues: {
       cart: [],
@@ -36,10 +51,10 @@ export default function NewSaleForm() {
   })
 
   const [loading, setLoading] = useState(false)
-  const [clients, setClients] = useState<any[]>([])
-  const [bundles, setBundles] = useState<any[]>([])
-  const [products, setProducts] = useState<any[]>([])
-  const [organizations, setOrganizations] = useState<any[]>([])
+  const [clients, setClients] = useState<any[]>(initialClients)
+  const [bundles, setBundles] = useState<any[]>(initialBundles)
+  const [products, setProducts] = useState<any[]>(initialProducts)
+  const [organizations, setOrganizations] = useState<any[]>(initialOrganizations)
   const [cartItems, setCartItems] = useState<any[]>([])
   const [selectedClient, setSelectedClient] = useState<any>(null)
   const [selectedBundle, setSelectedBundle] = useState<any>(null)
@@ -424,23 +439,25 @@ export default function NewSaleForm() {
                 )}
               </div>
 
-              <div className="space-y-4 pt-4">
-                <div className="flex items-center justify-between">
-                  <Label>Borrador</Label>
-                  <Switch checked={isDraft} onCheckedChange={setIsDraft} disabled={isDonation} />
-                </div>
+              {isAdmin && (
+                <div className="space-y-4 pt-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Borrador</Label>
+                    <Switch checked={isDraft} onCheckedChange={setIsDraft} disabled={isDonation} />
+                  </div>
 
-                <div className="flex items-center justify-between">
-                  <Label>Donación</Label>
-                  <Switch
-                    checked={isDonation}
-                    onCheckedChange={(checked) => {
-                      setIsDonation(checked)
-                      if (checked) setIsDraft(true)
-                    }}
-                  />
+                  <div className="flex items-center justify-between">
+                    <Label>Donación</Label>
+                    <Switch
+                      checked={isDonation}
+                      onCheckedChange={(checked) => {
+                        setIsDonation(checked)
+                        if (checked) setIsDraft(true)
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 

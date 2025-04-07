@@ -24,7 +24,7 @@ export default function AuthLayout({
                 alt="Logo FF"
                 fill
                 quality={100}
-                className="rounded-full transition duration-300 ease-in-out hover:scale-110 object-contain"
+                className="rounded-full transition duration-300 ease-in-out hover:scale-110 object-contain border"
               />
             </div>
           </div>

@@ -1,5 +1,7 @@
 import { Suspense } from "react"
-import  NewSaleForm  from "@/features/sales/new/new-sale-form"
+import { auth } from "@/features/auth"
+import { redirect } from "next/navigation"
+import NewSaleForm from "@/features/sales/new/new-sale-form"
 import { getClients, getOrganizations, getProducts, getBundles } from "@/features/sales/new/actions"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -9,6 +11,12 @@ export const metadata = {
 }
 
 export default async function NewSalePage() {
+  const session = await auth()
+  
+  if (!session?.user) {
+    redirect("/sign-in")
+  }
+
   // Fetch initial data for selectors
   const [clientsResult, organizationsResult, productsResult, bundlesResult] = await Promise.all([
     getClients(),
@@ -17,21 +25,22 @@ export default async function NewSalePage() {
     getBundles(),
   ])
 
-  const initialClients = clientsResult.data || []
-  const initialOrganizations = organizationsResult.data || []
-  const initialProducts = productsResult.data || []
-  const initialBundles = bundlesResult.data || []
+  const initialClients = clientsResult.success ? clientsResult.data : []
+  const initialOrganizations = organizationsResult.success ? organizationsResult.data : []
+  const initialProducts = productsResult.success ? productsResult.data : []
+  const initialBundles = bundlesResult.success ? bundlesResult.data : []
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto py-6">
       <h1 className="text-3xl font-bold mb-8">Nueva Venta</h1>
 
-      <Suspense fallback={<SaleFormSkeleton />}>
+      <Suspense fallback={<Skeleton className="h-[600px]" />}>
         <NewSaleForm
           initialClients={initialClients}
           initialOrganizations={initialOrganizations}
           initialProducts={initialProducts}
           initialBundles={initialBundles}
+          userRole={session.user.role || "OPERATOR"}
         />
       </Suspense>
     </div>
