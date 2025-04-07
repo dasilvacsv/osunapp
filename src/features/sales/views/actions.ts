@@ -18,6 +18,12 @@ import { auth } from "@/features/auth"
 import { and, eq, sql, gte, lte, desc } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 
+interface ActionResponse<T> {
+  success: boolean
+  data?: T
+  error?: string
+}
+
 // Get a single purchase by ID
 export async function getPurchaseById(id: string) {
   try {
@@ -210,64 +216,71 @@ export async function updatePurchaseItems(purchaseId: string, items: any[]) {
       .where(eq(purchases.id, purchaseId))
       .limit(1)
 
-    const isBundle = purchase?.paymentMetadata?.isBundle || false
+    // Get existing items to identify which ones are bundle items
+    const existingItems = await db
+      .select({
+        id: purchaseItems.id,
+        metadata: purchaseItems.metadata,
+      })
+      .from(purchaseItems)
+      .where(eq(purchaseItems.purchaseId, purchaseId))
 
-    // Delete existing items
-    await db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId))
+    const isBundle = purchase?.bundleId && purchase?.paymentMetadata?.isBundle
 
-    // Insert new items with proper data validation
+    // Separate bundle items from regular items
+    const bundleItems = items.filter(
+      (item) => item.metadata && (item.metadata.isBundle || item.metadata.isPartOfBundle),
+    )
+
+    const regularItems = items.filter(
+      (item) => !item.metadata || (!item.metadata.isBundle && !item.metadata.isPartOfBundle),
+    )
+
+    // Delete existing items that are not part of a bundle
+    if (isBundle) {
+      // For bundle sales, only delete non-bundle items
+      for (const item of existingItems) {
+        if (!item.metadata || (!item.metadata.isBundle && !item.metadata.isPartOfBundle)) {
+          await db.delete(purchaseItems).where(eq(purchaseItems.id, item.id))
+        }
+      }
+    } else {
+      // For regular sales, delete all items
+      await db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId))
+    }
+
+    // Insert or update items
     if (items.length > 0) {
-      // If this is a bundle, we need to handle it differently
-      if (isBundle && purchase?.bundleId) {
-        // Find the main bundle item
-        const mainBundleItem = items.find((item) => item.metadata?.isBundle)
-
-        if (mainBundleItem) {
-          // Insert the main bundle item first
-          await db.insert(purchaseItems).values({
-            purchaseId,
-            itemId: mainBundleItem.itemId,
-            quantity: Number(mainBundleItem.quantity),
-            unitPrice: mainBundleItem.unitPrice.toString(),
-            totalPrice: (Number(mainBundleItem.quantity) * Number(mainBundleItem.unitPrice)).toString(),
-            metadata: {
-              isBundle: true,
-              bundleId: purchase.bundleId,
-              bundleName: mainBundleItem.metadata?.bundleName || "Bundle",
-            },
-          })
-
-          // Insert all other bundle items
-          for (const item of items.filter((i) => i.metadata?.isPartOfBundle)) {
+      if (isBundle) {
+        // For bundle sales, preserve bundle items and add/update regular items
+        if (bundleItems.length > 0 && !existingItems.some((item) => item.metadata?.isBundle)) {
+          // If bundle items are provided but don't exist in DB, insert them
+          for (const item of bundleItems) {
             await db.insert(purchaseItems).values({
               purchaseId,
               itemId: item.itemId,
               quantity: Number(item.quantity),
               unitPrice: item.unitPrice.toString(),
               totalPrice: (Number(item.quantity) * Number(item.unitPrice)).toString(),
-              metadata: {
-                bundleId: purchase.bundleId,
-                bundleName: mainBundleItem.metadata?.bundleName || "Bundle",
-                isPartOfBundle: true,
-              },
+              metadata: item.metadata || {},
             })
           }
-        } else {
-          // If we can't find the main bundle item, just insert all items normally
-          const newItems = items.map((item) => ({
+        }
+
+        // Insert regular items
+        for (const item of regularItems) {
+          await db.insert(purchaseItems).values({
             purchaseId,
             itemId: item.itemId,
             quantity: Number(item.quantity),
             unitPrice: item.unitPrice.toString(),
             totalPrice: (Number(item.quantity) * Number(item.unitPrice)).toString(),
             metadata: item.metadata || {},
-          }))
-
-          await db.insert(purchaseItems).values(newItems)
+          })
         }
       } else {
-        // Regular non-bundle items
-        const newItems = items.map((item) => ({
+        // For regular sales, insert all items
+        const itemsToInsert = items.map((item) => ({
           purchaseId,
           itemId: item.itemId,
           quantity: Number(item.quantity),
@@ -276,28 +289,28 @@ export async function updatePurchaseItems(purchaseId: string, items: any[]) {
           metadata: item.metadata || {},
         }))
 
-        await db.insert(purchaseItems).values(newItems)
+        await db.insert(purchaseItems).values(itemsToInsert)
       }
     }
 
-    // Calculate and update the total amount in the purchase
-    // For bundles, only count the main bundle item price
-    let totalAmount = 0
+    // Recalculate the total amount
+    // Get all current items after updates
+    const updatedItems = await db
+      .select({
+        id: purchaseItems.id,
+        quantity: purchaseItems.quantity,
+        unitPrice: purchaseItems.unitPrice,
+        metadata: purchaseItems.metadata,
+      })
+      .from(purchaseItems)
+      .where(eq(purchaseItems.purchaseId, purchaseId))
 
-    if (isBundle && purchase?.bundleId) {
-      // For bundles, find the main bundle item and use its price
-      const mainBundleItem = items.find((item) => item.metadata?.isBundle)
-      if (mainBundleItem) {
-        totalAmount = Number(mainBundleItem.quantity) * Number(mainBundleItem.unitPrice)
-      } else {
-        // Fallback: sum all items
-        totalAmount = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0)
-      }
-    } else {
-      // For regular items, sum all items
-      totalAmount = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0)
-    }
+    // Calculate total amount - include all items (bundle and regular)
+    const totalAmount = updatedItems.reduce((sum, item) => {
+      return sum + Number(item.quantity) * Number(item.unitPrice)
+    }, 0)
 
+    // Update the purchase total
     const [updatedPurchase] = await db
       .update(purchases)
       .set({
@@ -315,7 +328,7 @@ export async function updatePurchaseItems(purchaseId: string, items: any[]) {
       success: true,
       data: {
         ...updatedPurchase,
-        items: items.length > 0 ? items : [],
+        items: updatedItems,
       },
     }
   } catch (error) {
@@ -340,13 +353,6 @@ export async function addPurchaseItem(purchaseId: string, item: any) {
 
     if (!purchase) {
       throw new Error("Purchase not found")
-    }
-
-    const isBundle = purchase?.paymentMetadata?.isBundle || false
-
-    // If this is a bundle purchase, we need to handle it differently
-    if (isBundle && purchase.bundleId) {
-      throw new Error("No se pueden agregar productos individuales a un paquete")
     }
 
     // Calculate the total price for the new item

@@ -1128,8 +1128,8 @@ export function SaleDetails({ sale }: { sale: any }) {
                     <span className="text-2xl font-bold">
                       {formatSaleCurrency(
                         currentItems.reduce((sum: number, item: any) => {
-                          // Si es parte de un bundle, no sumarlo al total
-                          if (item.metadata && item.metadata.isPartOfBundle) {
+                          // Si es parte de un bundle pero no es el item principal del bundle, no sumarlo al total
+                          if (item.metadata && item.metadata.bundleId && item.metadata.isPartOfBundle) {
                             return sum
                           }
                           return sum + item.quantity * item.unitPrice
@@ -1142,15 +1142,15 @@ export function SaleDetails({ sale }: { sale: any }) {
                       {formatSaleCurrency(
                         sale.currencyType === "USD"
                           ? currentItems.reduce((sum: number, item: any) => {
-                              // Si es parte de un bundle, no sumarlo al total
-                              if (item.metadata && item.metadata.isPartOfBundle) {
+                              // Si es parte de un bundle pero no es el item principal del bundle, no sumarlo al total
+                              if (item.metadata && item.metadata.bundleId && item.metadata.isPartOfBundle) {
                                 return sum
                               }
                               return sum + item.quantity * item.unitPrice
                             }, 0) * Number(sale.conversionRate || 1)
                           : currentItems.reduce((sum: number, item: any) => {
-                              // Si es parte de un bundle, no sumarlo al total
-                              if (item.metadata && item.metadata.isPartOfBundle) {
+                              // Si es parte de un bundle pero no es el item principal del bundle, no sumarlo al total
+                              if (item.metadata && item.metadata.bundleId && item.metadata.isPartOfBundle) {
                                 return sum
                               }
                               return sum + item.quantity * item.unitPrice
