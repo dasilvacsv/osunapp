@@ -16,7 +16,7 @@ export interface InventoryItem {
   updatedAt: Date | null
   metadata?: Record<string, any>
   margin?: string
-  costPrice?: string // Add cost price field
+  costPrice?: string // Campo para el costo del ítem
 }
 
 export interface InventoryTransaction {
@@ -83,20 +83,27 @@ export interface PurchasePayment {
   createdAt: Date
 }
 
+// Interfaz Bundle unificada
 export interface Bundle {
   id: string
   name: string
   description?: string
+  notes?: string // Nuevo campo para notas
   categoryId: string
   type: "SCHOOL_PACKAGE" | "ORGANIZATION_PACKAGE" | "REGULAR"
-  basePrice: number
-  discountPercentage?: number
+  basePrice: string | number // Puede ser string o number dependiendo de la fuente
+  bundlePrice?: string | number // Precio de venta (puede ser string o number)
+  discountPercentage?: string | number // Puede ser string o number
   status: "ACTIVE" | "INACTIVE"
   createdAt: Date
   updatedAt: Date
   currencyType?: string
   conversionRate?: string
-  organizationId?: string // Nuevo campo
+  organizationId?: string
+  // Campos adicionales que pueden estar en el esquema
+  totalSales?: number
+  lastSaleDate?: Date
+  totalRevenue?: string
 }
 
 // Interfaces para bundles
@@ -105,7 +112,7 @@ export interface BundleItem {
   item: InventoryItem
   quantity: number
   overridePrice?: number
-  costPrice?: number // Add cost price field
+  costPrice?: number
 }
 
 export interface BundleWithItems extends Bundle {
@@ -117,42 +124,26 @@ export interface BundleWithItems extends Bundle {
   totalEstimatedCost: number
   profit: number
   profitPercentage: number
-  organization?: { // Nueva relación
+  organization?: {
     id: string
     name: string
   }
 }
 
-export interface Bundle {
-  items: any
-  id: string
+export interface CreateBundleInput {
   name: string
   description?: string
-  categoryId: string
-  type: "SCHOOL_PACKAGE" | "ORGANIZATION_PACKAGE" | "REGULAR"
-  basePrice: number
-  discountPercentage?: number
-  status: "ACTIVE" | "INACTIVE"
-  createdAt: Date
-  updatedAt: Date
-  currencyType?: string
-  conversionRate?: string
-}
-
-export type CreateBundleInput = {
-  name: string
-  description?: string
+  notes?: string // Campo para notas
   categoryId: string
   items: {
     itemId: string
     quantity: number
-    overridePrice?: number
   }[]
-  totalBasePrice: number
-  savingsPercentage: number
+  basePrice: number
+  margin: number
+  salePrice: number
   totalCostPrice?: number
   currencyType?: string
   conversionRate?: number
-  organizationId?: string // Nuevo campo
+  organizationId?: string
 }
-
