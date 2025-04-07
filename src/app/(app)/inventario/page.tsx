@@ -20,7 +20,7 @@ export default async function InventoryPage() {
         <Button asChild variant="outline" size="lg" className="flex items-center gap-2">
           <Link href="/inventario/bundles">
             <Package className="h-5 w-5" />
-            <span>Gestionar Bundles</span>
+            <span>Gestionar Paquetes</span>
           </Link>
         </Button>
 

@@ -1,7 +1,5 @@
-
 import { ClientTable } from "@/features/organizations/client-table"
 import { getOrganizations } from "@/features/organizations/organization"
-
 
 export default async function OrganizationsPage() {
   const { data: organizations } = await getOrganizations()
@@ -12,3 +10,4 @@ export default async function OrganizationsPage() {
     </div>
   )
 }
+

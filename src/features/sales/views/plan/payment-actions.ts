@@ -67,6 +67,8 @@ export async function createPaymentPlan({
           status: "PENDING",
           dueDate: startDate,
           notes: "Pago inicial",
+          currencyType: purchase.currencyType || "USD",
+          conversionRate: purchase.conversionRate || "1",
         })
         .returning()
 
@@ -86,6 +88,8 @@ export async function createPaymentPlan({
           status: "PENDING",
           dueDate: dueDates[i],
           notes: `Cuota ${i + 1} de ${installmentCount}`,
+          currencyType: purchase.currencyType || "USD",
+          conversionRate: purchase.conversionRate || "1",
         })
         .returning()
 
@@ -109,14 +113,25 @@ export async function recordPayment({
   transactionReference,
   paymentDate = new Date(),
   notes,
+  currencyType,
+  conversionRate,
 }: {
   paymentId: string
   paymentMethod: string
   transactionReference?: string
   paymentDate?: Date
   notes?: string
+  currencyType?: string
+  conversionRate?: string
 }) {
   try {
+    // Get the payment to update
+    const [payment] = await db.select().from(payments).where(eq(payments.id, paymentId))
+
+    if (!payment) {
+      return { success: false, error: "Pago no encontrado" }
+    }
+
     // Actualizar el pago
     const [updatedPayment] = await db
       .update(payments)
@@ -126,6 +141,8 @@ export async function recordPayment({
         paymentMethod,
         transactionReference,
         notes,
+        currencyType: currencyType || payment.currencyType || "USD",
+        conversionRate: conversionRate || payment.conversionRate || "1",
         updatedAt: new Date(),
       })
       .where(eq(payments.id, paymentId))
@@ -150,6 +167,11 @@ export async function recordPayment({
           updatedAt: new Date(),
         })
         .where(eq(purchases.id, updatedPayment.purchaseId))
+
+      // Delete any pending payments (auto-purge)
+      await db
+        .delete(payments)
+        .where(and(eq(payments.purchaseId, updatedPayment.purchaseId), eq(payments.status, "PENDING")))
     }
 
     revalidatePath(`/sales/${updatedPayment.purchaseId}`)
@@ -211,6 +233,153 @@ export async function updatePaymentStatus(paymentId: string, status: PaymentStat
     return {
       success: false,
       error: error instanceof Error ? error.message : "Error al actualizar el estado del pago",
+    }
+  }
+}
+
+// Add partial payment
+export async function addPartialPayment({
+  purchaseId,
+  amount,
+  paymentMethod,
+  currencyType = "USD",
+  conversionRate = 1,
+  transactionReference,
+  paymentDate = new Date(),
+  notes,
+  originalAmount,
+}: {
+  purchaseId: string
+  amount: number
+  paymentMethod: string
+  currencyType?: string
+  conversionRate?: number
+  transactionReference?: string
+  paymentDate?: Date
+  notes?: string
+  originalAmount?: number
+}) {
+  try {
+    // Get the purchase to check remaining amount
+    const [purchase] = await db.select().from(purchases).where(eq(purchases.id, purchaseId))
+
+    if (!purchase) {
+      return { success: false, error: "Compra no encontrada" }
+    }
+
+    // Get existing payments
+    const existingPayments = await db
+      .select({
+        totalPaid: sql`SUM(CAST(${payments.amount} AS DECIMAL))`,
+      })
+      .from(payments)
+      .where(and(eq(payments.purchaseId, purchaseId), eq(payments.status, "PAID")))
+
+    const totalPaid = existingPayments[0]?.totalPaid || 0
+    const totalAmount = Number(purchase.totalAmount)
+    const remainingAmount = totalAmount - Number(totalPaid)
+
+    // Calculate original amount based on currency
+    let finalOriginalAmount = originalAmount || amount
+    if (!originalAmount && currencyType !== purchase.currencyType) {
+      // If paying in different currency, convert to purchase currency
+      if (currencyType === "BS" && purchase.currencyType === "USD") {
+        finalOriginalAmount = amount / conversionRate
+      } else if (currencyType === "USD" && purchase.currencyType === "BS") {
+        finalOriginalAmount = amount * conversionRate
+      }
+    }
+
+    // Create the payment
+    const [newPayment] = await db
+      .insert(payments)
+      .values({
+        purchaseId,
+        amount: amount.toString(),
+        originalAmount: finalOriginalAmount.toString(),
+        status: "PAID",
+        paymentDate,
+        paymentMethod,
+        currencyType,
+        conversionRate: conversionRate.toString(),
+        transactionReference,
+        notes: notes || `Pago parcial de ${amount} ${currencyType}`,
+      })
+      .returning()
+
+    // Check if this payment completes the purchase (with small tolerance for rounding)
+    const newTotalPaid = Number(totalPaid) + finalOriginalAmount
+    const isFullyPaid = newTotalPaid >= totalAmount - 0.01
+
+    if (isFullyPaid) {
+      // Update purchase to paid
+      await db
+        .update(purchases)
+        .set({
+          isPaid: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(purchases.id, purchaseId))
+
+      // Auto-purge any pending payments
+      await db.delete(payments).where(and(eq(payments.purchaseId, purchaseId), eq(payments.status, "PENDING")))
+    }
+
+    return { success: true, data: newPayment, isFullyPaid }
+  } catch (error) {
+    console.error("Error adding partial payment:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error al registrar el pago parcial",
+    }
+  }
+}
+
+// Get remaining balance for a purchase
+export async function getRemainingBalance(purchaseId: string) {
+  try {
+    // Get the purchase
+    const [purchase] = await db.select().from(purchases).where(eq(purchases.id, purchaseId))
+
+    if (!purchase) {
+      return { success: false, error: "Compra no encontrada" }
+    }
+
+    // Get existing payments
+    const existingPayments = await db
+      .select({
+        totalPaid: sql`SUM(CAST(${payments.amount} AS DECIMAL))`,
+      })
+      .from(payments)
+      .where(and(eq(payments.purchaseId, purchaseId), eq(payments.status, "PAID")))
+
+    const totalPaid = Number(existingPayments[0]?.totalPaid || 0)
+    const totalAmount = Number(purchase.totalAmount)
+
+    // Round to 2 decimal places to avoid floating point precision issues
+    const roundedTotalPaid = Math.round(totalPaid * 100) / 100
+    const roundedTotalAmount = Math.round(totalAmount * 100) / 100
+    const remainingAmount = Math.round((roundedTotalAmount - roundedTotalPaid) * 100) / 100
+
+    // Consider paid if remaining amount is less than 0.01
+    const isPaid = remainingAmount <= 0.01
+
+    return {
+      success: true,
+      data: {
+        totalAmount: roundedTotalAmount,
+        totalPaid: roundedTotalPaid,
+        remainingAmount: isPaid ? 0 : remainingAmount, // If considered paid, show 0 remaining
+        isPaid,
+        currencyType: purchase.currencyType || "USD",
+        conversionRate: Number(purchase.conversionRate || 1),
+      },
+    }
+  } catch (error) {
+    console.error("Error getting remaining balance:", error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Error al obtener el saldo pendiente",
     }
   }
 }

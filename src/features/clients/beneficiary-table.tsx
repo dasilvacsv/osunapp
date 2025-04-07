@@ -1,23 +1,24 @@
-'use client'
+"use client"
 
-import React, { useState } from "react"
+import { useState } from "react"
 import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
   flexRender,
-  SortingState,
-  ColumnFiltersState,
+  type SortingState,
+  type ColumnFiltersState,
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { columns } from "./beneficiary-columns"
 import { Input } from "@/components/ui/input"
-import { Beneficiary, Organization } from "@/lib/types"
+import type { Beneficiary, Organization } from "@/lib/types"
 import { PlusIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { BeneficiaryForm } from "./beneficiary-form"
+// Importar como default para evitar la dependencia circular
+import BeneficiaryForm from "./beneficiary-form"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface BeneficiaryTableProps {
@@ -67,15 +68,9 @@ export function BeneficiaryTable({
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <div>
           <CardTitle>Beneficiarios</CardTitle>
-          <CardDescription>
-            Gestione los beneficiarios asociados a este cliente
-          </CardDescription>
+          <CardDescription>Gestione los beneficiarios asociados a este cliente</CardDescription>
         </div>
-        <Button
-          size="sm"
-          onClick={() => setShowCreateDialog(true)}
-          className="flex items-center gap-1"
-        >
+        <Button size="sm" onClick={() => setShowCreateDialog(true)} className="flex items-center gap-1">
           <PlusIcon className="h-4 w-4" />
           Agregar
         </Button>
@@ -83,11 +78,9 @@ export function BeneficiaryTable({
       <CardContent>
         <div className="flex items-center py-4">
           <Input
-            placeholder="Filtrar por nombre..."
+            placeholder="Filtrar por apellido o nombre..."
             value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-            onChange={(event) =>
-              table.getColumn("name")?.setFilterValue(event.target.value)
-            }
+            onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
             className="max-w-sm"
           />
         </div>
@@ -98,12 +91,7 @@ export function BeneficiaryTable({
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -121,17 +109,9 @@ export function BeneficiaryTable({
                 </TableRow>
               ) : table.getRowModel().rows?.length ? (
                 table.getRowModel().rows.map((row) => (
-                  <TableRow
-                    key={row.id}
-                    data-state={row.getIsSelected() && "selected"}
-                  >
+                  <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
+                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
                     ))}
                   </TableRow>
                 ))
@@ -165,4 +145,5 @@ export function BeneficiaryTable({
       </Dialog>
     </Card>
   )
-} 
+}
+

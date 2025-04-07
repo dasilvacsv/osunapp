@@ -82,11 +82,11 @@ export function BeneficiarySelect({
           })
         }
       } catch (error) {
-        console.error("Error loading beneficiaries:", error)
+        console.error("Error cargando beneficiarios:", error)
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to load beneficiaries"
+          description: "Hubo un error al cagar los beneficiarios"
         })
       } finally {
         setLoading(false)
@@ -109,11 +109,11 @@ export function BeneficiarySelect({
             setOrganizations(result.data)
           }
         } catch (error) {
-          console.error("Failed to load organizations:", error)
+          console.error("Error al cargar organizaciones:", error)
           toast({
             variant: "destructive",
             title: "Error",
-            description: "Failed to load organizations"
+            description: "Hubo un fallo al cargar las organizaciones"
           })
         }
       }
@@ -140,7 +140,7 @@ export function BeneficiarySelect({
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Please select a client first"
+        description: "Por favor, selecciona un cliente primero"
       })
       return
     }
@@ -174,7 +174,7 @@ export function BeneficiarySelect({
         
         toast({
           title: "Success",
-          description: "Beneficiary created successfully"
+          description: "Beneficiario creado con éxito"
         })
       } else if (result.error) {
         toast({
@@ -184,11 +184,11 @@ export function BeneficiarySelect({
         })
       }
     } catch (error) {
-      console.error("Failed to create beneficiary:", error)
+      console.error("Error al crear beneficiario:", error)
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to create beneficiary"
+        description: "Hubo un error al crear el beneficiario"
       })
     }
   }
@@ -212,7 +212,7 @@ export function BeneficiarySelect({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Create New Beneficiary</DialogTitle>
+            <DialogTitle>Crear nuevo beneficiario</DialogTitle>
           </DialogHeader>
           <BeneficiaryForm
             clientId={clientId || ""}
@@ -233,17 +233,17 @@ export function BeneficiarySelect({
                   ben.firstName,
                   ben.lastName,
                   ben.school && `(${ben.school})`,
-                  ben.level && `Grade ${ben.level}`,
-                  ben.section && `Section ${ben.section}`
+                  ben.level && `Grado ${ben.level}`,
+                  ben.section && `Seccion ${ben.section}`
                 ].filter(Boolean).join(' '),
                 value: ben.id,
                 description: ben.id
               }))}
               value={selectedBeneficiaryId}
               onValueChange={handleBeneficiaryChange}
-              placeholder={loading ? "Loading beneficiaries..." : clientId ? "Select a beneficiary" : "Please select a client first"}
+              placeholder={loading ? "Cargando beneficiarios..." : clientId ? "Selecciona un beneficiario" : "Por favor, selecciona un cliente primero"}
               disabled={loading || !clientId}
-              emptyMessage={loading ? "Loading..." : clientId ? "No beneficiaries found" : "Please select a client first"}
+              emptyMessage={loading ? "Cargando..." : clientId ? "No se encontraron beneficiarios" : "Por favor, selecciona un cliente primero"}
             />
           </div>
           <Button

@@ -81,7 +81,7 @@ export async function getClients() {
     console.error("Error fetching clients:", error)
     return {
       success: false,
-      error: "Failed to fetch clients",
+      error: "Error al obtener los clientes",
     }
   }
 }
@@ -95,12 +95,12 @@ export async function getClientDetail(clientId: string) {
       return {
         success: false,
         data: null,
-        error: "Client not found"
+        error: "Cliente no encontrado",
       }
     }
 
     const client = clientResult[0]
-    
+
     // Obtener organización
     let organization = null
     if (client.organizationId) {
@@ -109,64 +109,59 @@ export async function getClientDetail(clientId: string) {
     }
 
     // Obtener beneficiarios
-    const beneficiariesData = await db.select()
-      .from(beneficiarios)
-      .where(eq(beneficiarios.clientId, clientId))
+    const beneficiariesData = await db.select().from(beneficiarios).where(eq(beneficiarios.clientId, clientId))
 
     // Obtener membresías de organizaciones
-    const memberships = await db.select()
-      .from(organizationMembers)
-      .where(eq(organizationMembers.clientId, clientId))
+    const memberships = await db.select().from(organizationMembers).where(eq(organizationMembers.clientId, clientId))
 
     let organizationMemberships = []
     if (memberships.length > 0) {
-      const orgIds = memberships.map(m => m.organizationId)
+      const orgIds = memberships.map((m) => m.organizationId)
       const orgs = await db.select().from(organizations).where(inArray(organizations.id, orgIds))
-      
-      organizationMemberships = memberships.map(m => ({
-        membership: m,
-        organization: orgs.find(o => o.id === m.organizationId)
-      })).filter(m => m.organization)
+
+      organizationMemberships = memberships
+        .map((m) => ({
+          membership: m,
+          organization: orgs.find((o) => o.id === m.organizationId),
+        }))
+        .filter((m) => m.organization)
     }
 
     // Obtener compras
-    const purchasesData = await db.select()
-      .from(purchases)
-      .where(eq(purchases.clientId, clientId))
+    const purchasesData = await db.select().from(purchases).where(eq(purchases.clientId, clientId))
 
     let clientPurchases = []
     if (purchasesData.length > 0) {
-      const purchaseIds = purchasesData.map(p => p.id)
-      
+      const purchaseIds = purchasesData.map((p) => p.id)
+
       // Obtener items de compra
-      const purchaseItemsData = await db.select()
+      const purchaseItemsData = await db
+        .select()
         .from(purchaseItems)
         .where(inArray(purchaseItems.purchaseId, purchaseIds))
 
       // Obtener detalles de inventario
-      const itemIds = purchaseItemsData.map(pi => pi.itemId)
-      const inventoryItemsData = await db.select()
-        .from(inventoryItems)
-        .where(inArray(inventoryItems.id, itemIds))
+      const itemIds = purchaseItemsData.map((pi) => pi.itemId)
+      const inventoryItemsData = await db.select().from(inventoryItems).where(inArray(inventoryItems.id, itemIds))
 
-      clientPurchases = purchasesData.map(purchase => {
+      clientPurchases = purchasesData.map((purchase) => {
         const items = purchaseItemsData
-          .filter(pi => pi.purchaseId === purchase.id)
-          .map(pi => ({
+          .filter((pi) => pi.purchaseId === purchase.id)
+          .map((pi) => ({
             item: pi,
-            inventoryItem: inventoryItemsData.find(ii => ii.id === pi.itemId)
+            inventoryItem: inventoryItemsData.find((ii) => ii.id === pi.itemId),
           }))
-          .filter(i => i.inventoryItem)
+          .filter((i) => i.inventoryItem)
 
         return {
           purchase,
-          items: items.map(i => ({
+          items: items.map((i) => ({
             ...i,
             inventoryItem: {
               ...i.inventoryItem,
-              basePrice: Number(i.inventoryItem.basePrice)
-            }
-          }))
+              basePrice: Number(i.inventoryItem.basePrice),
+            },
+          })),
         }
       })
     }
@@ -176,22 +171,22 @@ export async function getClientDetail(clientId: string) {
       data: {
         ...client,
         organization,
-        beneficiarios: beneficiariesData.map(b => ({
+        beneficiarios: beneficiariesData.map((b) => ({
           ...b,
-          level: b.level || '',
-          section: b.section || ''
+          level: b.level || "",
+          section: b.section || "",
         })),
         organizationMemberships,
-        purchases: clientPurchases
+        purchases: clientPurchases,
       },
-      error: null
+      error: null,
     }
   } catch (error) {
     console.error("Error fetching client detail:", error)
     return {
       success: false,
       data: null,
-      error: "Failed to fetch client detail"
+      error: "Error al obtener los detalles del cliente",
     }
   }
 }
@@ -208,7 +203,7 @@ export async function getOrganizations() {
     console.error("Error fetching organizations:", error)
     return {
       success: false,
-      error: "Failed to fetch organizations",
+      error: "Error al obtener las organizaciones",
     }
   }
 }
@@ -219,30 +214,29 @@ export async function getProducts() {
       .select()
       .from(inventoryItems)
       .where(
-        and(eq(inventoryItems.status, "ACTIVE"), 
-        or(isNull(inventoryItems.type), eq(inventoryItems.type, "PHYSICAL")))
+        and(eq(inventoryItems.status, "ACTIVE"), or(isNull(inventoryItems.type), eq(inventoryItems.type, "PHYSICAL"))),
       )
 
-    const processedProducts = result.map(item => ({
+    const processedProducts = result.map((item) => ({
       ...item,
       basePrice: Number(item.basePrice),
       currentStock: Number(item.currentStock),
       reservedStock: Number(item.reservedStock),
       minimumStock: Number(item.minimumStock),
-      allowPresale: Boolean(item.allowPresale)
+      allowPresale: Boolean(item.allowPresale),
     }))
 
     return {
       success: true,
       data: processedProducts,
-      error: null
+      error: null,
     }
   } catch (error) {
     console.error("Error fetching products:", error)
     return {
       success: false,
       data: [],
-      error: "Failed to fetch products"
+      error: "Error al obtener los productos",
     }
   }
 }
@@ -268,15 +262,15 @@ export async function getBundles() {
           ...bundle,
           basePrice: Number(bundle.basePrice),
           bundlePrice: bundle.bundlePrice ? Number(bundle.bundlePrice) : null,
-          items: items.map(i => ({
+          items: items.map((i) => ({
             ...i,
             overridePrice: i.overridePrice ? Number(i.overridePrice) : null,
             item: {
               ...i.item,
               basePrice: Number(i.item.basePrice),
-              currentStock: Number(i.item.currentStock)
-            }
-          }))
+              currentStock: Number(i.item.currentStock),
+            },
+          })),
         }
       }),
     )
@@ -284,14 +278,14 @@ export async function getBundles() {
     return {
       success: true,
       data: bundlesWithItems,
-      error: null
+      error: null,
     }
   } catch (error) {
     console.error("Error fetching bundles:", error)
     return {
       success: false,
       data: [],
-      error: "Failed to fetch bundles"
+      error: "Error al obtener los paquetes",
     }
   }
 }
@@ -303,6 +297,7 @@ export async function createSale(data: {
     itemId: string
     quantity: number
     overridePrice?: number
+    metadata?: any
   }>
   bundleId?: string
   beneficiaryId?: string
@@ -326,21 +321,35 @@ export async function createSale(data: {
   try {
     // Calculate the total price based on items
     let totalAmount = 0
+    let bundleItems: any[] = []
+    let isBundle = false
 
-    // Calculate total from items
-    for (const item of data.items) {
-      const inventoryItem = await db
-        .select({ basePrice: inventoryItems.basePrice })
-        .from(inventoryItems)
-        .where(eq(inventoryItems.id, item.itemId))
-        .limit(1)
+    // Check if we're dealing with a bundle
+    if (data.bundleId && data.items.length > 0 && data.items[0].metadata?.isBundle) {
+      isBundle = true
+      // For bundles, use the override price directly as the bundle price
+      totalAmount = data.items[0].quantity * (data.items[0].overridePrice || 0)
 
-      if (!inventoryItem.length) {
-        throw new Error(`Producto no encontrado: ${item.itemId}`)
+      // Store the bundle items for later processing
+      if (data.items[0].metadata?.bundleItems) {
+        bundleItems = data.items[0].metadata.bundleItems
       }
+    } else {
+      // Calculate total from regular items
+      for (const item of data.items) {
+        const inventoryItem = await db
+          .select({ basePrice: inventoryItems.basePrice })
+          .from(inventoryItems)
+          .where(eq(inventoryItems.id, item.itemId))
+          .limit(1)
 
-      const price = item.overridePrice || Number(inventoryItem[0].basePrice)
-      totalAmount += price * item.quantity
+        if (!inventoryItem.length) {
+          throw new Error(`Producto no encontrado: ${item.itemId}`)
+        }
+
+        const price = item.overridePrice || Number(inventoryItem[0].basePrice)
+        totalAmount += price * item.quantity
+      }
     }
 
     // If this is a bundle sale, check if the bundle has a specific currency type
@@ -368,7 +377,8 @@ export async function createSale(data: {
           } else if (currencyType === "BS") {
             // If no conversion rate but currency is BS, get BCV rate
             try {
-              conversionRate = await getBCVRate()
+              const rateInfo = await getBCVRate()
+              conversionRate = rateInfo.rate
             } catch (error) {
               console.error("Error getting BCV rate:", error)
               // Default to 35 if BCV rate fetch fails
@@ -386,7 +396,7 @@ export async function createSale(data: {
         clientId: data.clientId,
         beneficiarioId: data.beneficiaryId,
         bundleId: data.bundleId,
-        status: "COMPLETED",
+        status: "PENDING",
         totalAmount: totalAmount.toString(),
         paymentMethod: data.paymentMethod,
         paymentStatus: "PAID",
@@ -395,7 +405,10 @@ export async function createSale(data: {
         transactionReference: data.transactionReference,
         bookingMethod: data.saleType,
         // Store saleType in paymentMetadata
-        paymentMetadata: { saleType: data.saleType },
+        paymentMetadata: {
+          saleType: data.saleType,
+          isBundle: isBundle,
+        },
         // Add new fields
         isDraft: data.isDraft || false,
         vendido: data.vendido || false,
@@ -406,69 +419,156 @@ export async function createSale(data: {
       .returning()
 
     if (!purchase) {
-      throw new Error("Error al crear el registro de compra")
+      throw new Error("Error al crear el registro de venta")
     }
 
     // Process each item individually
-    for (const item of data.items) {
-      const inventoryItem = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId)).limit(1)
-
-      if (!inventoryItem.length) {
-        throw new Error(`Producto no encontrado: ${item.itemId}`)
-      }
-
-      const price = item.overridePrice || Number(inventoryItem[0].basePrice)
-
-      // Insert purchase item
+    if (isBundle) {
+      // For bundles, first insert the main bundle item
+      const mainItem = data.items[0]
       await db.insert(purchaseItems).values({
         purchaseId: purchase.id,
-        itemId: item.itemId,
-        quantity: item.quantity,
-        unitPrice: price.toString(),
-        totalPrice: (price * item.quantity).toString(),
+        itemId: mainItem.itemId,
+        quantity: mainItem.quantity,
+        unitPrice: (mainItem.overridePrice || 0).toString(),
+        totalPrice: (mainItem.quantity * (mainItem.overridePrice || 0)).toString(),
+        metadata: {
+          isBundle: true,
+          bundleId: data.bundleId,
+          bundleName: mainItem.metadata?.bundleName || "Bundle",
+        },
       })
 
-      // If not a draft and not a presale, update inventory immediately
-      if (!data.isDraft && data.saleType !== "PRESALE") {
-        // Decrease stock
-        await db
-          .update(inventoryItems)
-          .set({
-            currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(inventoryItems.id, item.itemId))
+      // Then insert all bundle items with the bundle metadata
+      for (const bundleItem of bundleItems) {
+        const inventoryItem = await db
+          .select()
+          .from(inventoryItems)
+          .where(eq(inventoryItems.id, bundleItem.itemId))
+          .limit(1)
 
-        // Record transaction
-        await db.insert(inventoryTransactions).values({
-          itemId: item.itemId,
-          quantity: -item.quantity,
-          transactionType: "OUT",
-          reference: { purchaseId: purchase.id },
-          notes: `Venta #${purchase.id}`,
-        })
-      } else if (!data.isDraft && data.saleType === "PRESALE") {
-        // For presales, reserve the stock
-        await db
-          .update(inventoryItems)
-          .set({
-            reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${item.quantity}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(inventoryItems.id, item.itemId))
+        if (!inventoryItem.length) {
+          console.warn(`Bundle item not found: ${bundleItem.itemId}`)
+          continue
+        }
 
-        // Record reservation transaction
-        await db.insert(inventoryTransactions).values({
-          itemId: item.itemId,
-          quantity: -item.quantity,
-          transactionType: "RESERVATION",
-          reference: { purchaseId: purchase.id },
-          notes: `Pre-venta #${purchase.id}`,
+        // Insert each bundle item with metadata linking it to the bundle
+        await db.insert(purchaseItems).values({
+          purchaseId: purchase.id,
+          itemId: bundleItem.itemId,
+          quantity: bundleItem.quantity,
+          unitPrice: bundleItem.price.toString(),
+          totalPrice: (bundleItem.quantity * bundleItem.price).toString(),
+          metadata: {
+            bundleId: data.bundleId,
+            bundleName: mainItem.metadata?.bundleName || "Bundle",
+            isPartOfBundle: true,
+          },
         })
+
+        // Update inventory for bundle items if not a draft
+        if (!data.isDraft && data.saleType !== "PRESALE") {
+          // Decrease stock
+          await db
+            .update(inventoryItems)
+            .set({
+              currentStock: sql`${inventoryItems.currentStock} - ${bundleItem.quantity}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(inventoryItems.id, bundleItem.itemId))
+
+          // Record transaction
+          await db.insert(inventoryTransactions).values({
+            itemId: bundleItem.itemId,
+            quantity: -bundleItem.quantity,
+            transactionType: "OUT",
+            reference: { purchaseId: purchase.id, bundleId: data.bundleId },
+            notes: `Venta de Bundle #${purchase.id}`,
+          })
+        } else if (!data.isDraft && data.saleType === "PRESALE") {
+          // For presales, reserve the stock
+          await db
+            .update(inventoryItems)
+            .set({
+              reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${bundleItem.quantity}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(inventoryItems.id, bundleItem.itemId))
+
+          // Record reservation transaction
+          await db.insert(inventoryTransactions).values({
+            itemId: bundleItem.itemId,
+            quantity: -bundleItem.quantity,
+            transactionType: "RESERVATION",
+            reference: { purchaseId: purchase.id, bundleId: data.bundleId },
+            notes: `Pre-venta de Bundle #${purchase.id}`,
+          })
+        }
       }
-      // For drafts, don't update inventory
+    } else {
+      // Process regular items
+      for (const item of data.items) {
+        const inventoryItem = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId)).limit(1)
+
+        if (!inventoryItem.length) {
+          throw new Error(`Producto no encontrado: ${item.itemId}`)
+        }
+
+        const price = item.overridePrice || Number(inventoryItem[0].basePrice)
+
+        // Insert purchase item
+        await db.insert(purchaseItems).values({
+          purchaseId: purchase.id,
+          itemId: item.itemId,
+          quantity: item.quantity,
+          unitPrice: price.toString(),
+          totalPrice: (price * item.quantity).toString(),
+          metadata: item.metadata || {},
+        })
+
+        // If not a draft and not a presale, update inventory immediately
+        if (!data.isDraft && data.saleType !== "PRESALE") {
+          // Decrease stock
+          await db
+            .update(inventoryItems)
+            .set({
+              currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(inventoryItems.id, item.itemId))
+
+          // Record transaction
+          await db.insert(inventoryTransactions).values({
+            itemId: item.itemId,
+            quantity: -item.quantity,
+            transactionType: "OUT",
+            reference: { purchaseId: purchase.id },
+            notes: `Venta #${purchase.id}`,
+          })
+        } else if (!data.isDraft && data.saleType === "PRESALE") {
+          // For presales, reserve the stock
+          await db
+            .update(inventoryItems)
+            .set({
+              reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${item.quantity}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(inventoryItems.id, item.itemId))
+
+          // Record reservation transaction
+          await db.insert(inventoryTransactions).values({
+            itemId: item.itemId,
+            quantity: -item.quantity,
+            transactionType: "RESERVATION",
+            reference: { purchaseId: purchase.id },
+            notes: `Pre-venta #${purchase.id}`,
+          })
+        }
+        // For drafts, don't update inventory
+      }
     }
 
+    // Rest of the function remains the same...
     // If this sale is for a bundle and doesn't have a beneficiaryId but has beneficiary details, create a beneficiary
     if (data.bundleId && !data.beneficiaryId && data.beneficiary) {
       const fullName = `${data.beneficiary.firstName} ${data.beneficiary.lastName}`
@@ -526,7 +626,7 @@ export async function createSale(data: {
       .limit(1)
 
     if (!purchaseDetails.length) {
-      throw new Error("Error al recuperar detalles de la compra")
+      throw new Error("Error al recuperar detalles de la venta")
     }
 
     // Get purchase items
@@ -552,7 +652,7 @@ export async function createSale(data: {
       },
     }
   } catch (error) {
-    console.error("Error al crear compra:", error)
+    console.error("Error al crear venta:", error)
     return { success: false, error: error instanceof Error ? error.message : "Error desconocido" }
   }
 }
@@ -562,15 +662,12 @@ export async function getBeneficiariesByClient(clientId: string) {
     const result = await db
       .select()
       .from(beneficiarios)
-      .where(and(
-        eq(beneficiarios.clientId, clientId),
-        eq(beneficiarios.status, "ACTIVE")
-      ))
+      .where(and(eq(beneficiarios.clientId, clientId), eq(beneficiarios.status, "ACTIVE")))
       .orderBy(desc(beneficiarios.createdAt))
 
     return {
       success: true,
-      data: result.map(b => ({
+      data: result.map((b) => ({
         id: b.id,
         clientId: b.clientId,
         organizationId: b.organizationId || null,
@@ -583,14 +680,14 @@ export async function getBeneficiariesByClient(clientId: string) {
         school: b.school || null,
         level: b.level || null,
         createdAt: b.createdAt || null,
-        updatedAt: b.updatedAt || null
-      }))
+        updatedAt: b.updatedAt || null,
+      })),
     }
   } catch (error) {
     console.error("Error fetching beneficiaries:", error)
     return {
       success: false,
-      error: "Failed to fetch beneficiaries"
+      error: "Error al obtener los beneficiarios",
     }
   }
 }
@@ -612,7 +709,7 @@ export async function getCurrentBCVRate() {
     console.error("Error fetching BCV rate:", error)
     return {
       success: false,
-      error: "Failed to fetch BCV rate",
+      error: "Error al obtener la tasa BCV",
     }
   }
 }

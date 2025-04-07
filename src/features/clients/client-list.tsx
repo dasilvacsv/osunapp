@@ -66,12 +66,13 @@ export default function ClientList({ initialClients}: ClientListProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow">
+      {/* Segundo componente */}
+      <div className="flex flex-col sm:flex-row justify-start items-center gap-4 bg-white p-4 rounded-lg shadow">
         <h1 className="text-2xl font-bold text-gray-800">Clients</h1>
         <div className="flex items-center gap-4">
           <Button onClick={() => setShowCreateDialog(true)}>
             <PlusIcon className="mr-2 h-4 w-4" />
-            Create Client
+            Crear Cliente
           </Button>
         </div>
       </div>
@@ -79,7 +80,7 @@ export default function ClientList({ initialClients}: ClientListProps) {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New Client</DialogTitle>
+            <DialogTitle>Crear nuevo cliente</DialogTitle>
           </DialogHeader>
           <ClientForm 
             closeDialog={() => setShowCreateDialog(false)}

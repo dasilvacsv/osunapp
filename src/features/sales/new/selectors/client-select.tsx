@@ -59,11 +59,11 @@ export function ClientSelect({
           )
         }
       } catch (error) {
-        console.error("Error loading clients:", error)
+        console.error("Error cargando clientes:", error)
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to load clients"
+          description: "Hubo un error al cargar clientes"
         })
       } finally {
         setLoading(false)
@@ -92,15 +92,15 @@ export function ClientSelect({
         
         toast({
           title: "Success",
-          description: "Client created successfully"
+          description: "Client creado con éxito"
         })
       }
     } catch (error) {
-      console.error("Failed to create client:", error)
+      console.error("Hubo un error al crear el cliente:", error)
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to create client"
+        description: "Hubo un fallo al crear al cliente"
       })
     }
   }
@@ -110,7 +110,7 @@ export function ClientSelect({
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Create New Client</DialogTitle>
+            <DialogTitle>Crear nuevo cliente</DialogTitle>
           </DialogHeader>
           <ClientForm
             closeDialog={() => setShowCreateDialog(false)}
@@ -137,9 +137,9 @@ export function ClientSelect({
               const client = clients.find(c => c.id === value)
               if (client) onClientSelect(value, client)
             }}
-            placeholder={loading ? "Loading clients..." : "Select a client"}
+            placeholder={loading ? "Cargando clientes..." : "Selecciona un cliente"}
             disabled={loading}
-            emptyMessage="No clients found"
+            emptyMessage="No se encontraron clientes"
           />
         </div>
         

@@ -10,8 +10,8 @@ import { DialogFooter } from "@/components/ui/dialog"
 import { Loader2 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { BeneficiaryFormData, createBeneficiary, updateBeneficiary } from "@/app/(app)/clientes/client"
-import { Organization } from "@/lib/types"
+import { type BeneficiaryFormData, createBeneficiary, updateBeneficiary } from "@/app/(app)/clientes/client"
+import type { Organization } from "@/lib/types"
 import { getOrganizationSections } from "@/features/organizations/actions"
 
 interface OrganizationSection {
@@ -21,14 +21,15 @@ interface OrganizationSection {
 }
 
 interface BeneficiaryFormProps {
-  clientId: string;
-  closeDialog: () => void;
-  initialData?: any;
-  mode: "create" | "edit";
-  organizations?: Organization[]; // Hacer opcional
+  clientId: string
+  closeDialog: () => void
+  initialData?: any
+  mode: "create" | "edit"
+  organizations?: Organization[] // Hacer opcional
 }
 
-export function BeneficiaryForm({
+// Cambiar a export default para evitar la dependencia circular
+export default function BeneficiaryForm({
   clientId,
   closeDialog,
   initialData,
@@ -58,7 +59,7 @@ export function BeneficiaryForm({
   // Watch for organization changes to update school name and fetch sections
   useEffect(() => {
     if (selectedOrganizationId && selectedOrganizationId !== "none") {
-      const selectedOrg = organizations.find(org => org.id === selectedOrganizationId)
+      const selectedOrg = organizations.find((org) => org.id === selectedOrganizationId)
       if (selectedOrg) {
         // Auto-populate school name if organization is a school
         if (selectedOrg.type === "SCHOOL") {
@@ -86,12 +87,12 @@ export function BeneficiaryForm({
       // Reset sections when no organization is selected
       setSections([])
       // Only reset school if it was previously auto-populated
-      const selectedOrg = organizations.find(org => org.id === initialData?.organizationId)
+      const selectedOrg = organizations.find((org) => org.id === initialData?.organizationId)
       if (selectedOrg?.type === "SCHOOL") {
         form.setValue("school", "")
       }
     }
-  }, [selectedOrganizationId, organizations, form])
+  }, [selectedOrganizationId, organizations, form, initialData])
 
   async function handleSubmit(data: BeneficiaryFormData) {
     if (isSubmitting) return
@@ -135,15 +136,16 @@ export function BeneficiaryForm({
           className="space-y-4"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Cambiado el orden: Apellidos primero, Nombres después */}
             <FormField
               control={form.control}
-              name="firstName"
+              name="lastName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nombres</FormLabel>
+                  <FormLabel>Apellidos</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Nombres"
+                      placeholder="Apellidos"
                       {...field}
                       className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
                     />
@@ -155,13 +157,13 @@ export function BeneficiaryForm({
 
             <FormField
               control={form.control}
-              name="lastName"
+              name="firstName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Apellidos</FormLabel>
+                  <FormLabel>Nombres</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Apellidos"
+                      placeholder="Nombres"
                       {...field}
                       className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
                     />
@@ -186,11 +188,11 @@ export function BeneficiaryForm({
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="none">Ninguna</SelectItem>
-                    {organizations?.map((org) => ( // Añadir operador opcional
-  <SelectItem key={org.id} value={org.id}>
-    {org.name}
-  </SelectItem>
-))}
+                    {organizations?.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -209,7 +211,10 @@ export function BeneficiaryForm({
                     placeholder="Nombre de la escuela"
                     {...field}
                     className="transition-all duration-200 focus:ring-2 focus:ring-primary/20"
-                    disabled={selectedOrganizationId !== "none" && organizations.find(org => org.id === selectedOrganizationId)?.type === "SCHOOL"}
+                    disabled={
+                      selectedOrganizationId !== "none" &&
+                      organizations.find((org) => org.id === selectedOrganizationId)?.type === "SCHOOL"
+                    }
                   />
                 </FormControl>
                 <FormMessage />
@@ -321,4 +326,5 @@ export function BeneficiaryForm({
       </form>
     </Form>
   )
-} 
+}
+

@@ -11,8 +11,12 @@ import { useToast } from "@/hooks/use-toast"
 import { addPartialPayment, getRemainingBalance } from "@/features/sales/views/payment-actions"
 import { formatCurrency } from "@/lib/utils"
 import { getBCVRate } from "@/lib/exchangeRates"
-import { Loader2, DollarSign, CreditCard, AlertCircle, RefreshCw } from "lucide-react"
+import { Loader2, DollarSign, CreditCard, AlertCircle, RefreshCw, Calendar } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar as CalendarComponent } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 interface PartialPaymentDialogProps {
   open: boolean
@@ -44,6 +48,7 @@ export function PartialPaymentDialog({
   const [conversionRate, setConversionRate] = useState("1")
   const [transactionReference, setTransactionReference] = useState("")
   const [notes, setNotes] = useState("")
+  const [paymentDate, setPaymentDate] = useState<Date>(new Date())
   const [remainingBalance, setRemainingBalance] = useState<{
     totalAmount: number
     totalPaid: number
@@ -57,7 +62,7 @@ export function PartialPaymentDialog({
   const fetchRemainingBalance = async () => {
     if (!purchaseId) {
       console.error("No purchaseId provided")
-      setError("ID de compra no proporcionado")
+      setError("ID de venta no proporcionado")
       return
     }
 
@@ -154,6 +159,7 @@ export function PartialPaymentDialog({
       setConversionRate("1")
       setTransactionReference("")
       setNotes("")
+      setPaymentDate(new Date())
       setRemainingBalance(null)
     } else if (purchaseId) {
       console.log("Dialog opened with purchaseId:", purchaseId)
@@ -203,6 +209,7 @@ export function PartialPaymentDialog({
         transactionReference: transactionReference || undefined,
         notes: notes || undefined,
         originalAmount: originalAmount,
+        paymentDate: paymentDate,
       })
 
       if (result.success) {
@@ -313,6 +320,28 @@ export function PartialPaymentDialog({
           )}
 
           <div className="space-y-4">
+            {/* Fecha de pago */}
+            <div className="space-y-2">
+              <Label htmlFor="paymentDate">Fecha de pago</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal" id="paymentDate">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {paymentDate ? format(paymentDate, "PPP", { locale: es }) : "Seleccionar fecha"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <CalendarComponent
+                    mode="single"
+                    selected={paymentDate}
+                    onSelect={(date) => date && setPaymentDate(date)}
+                    initialFocus
+                    locale={es}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
             {/* Only show currency selection if sale is in USD */}
             {(!remainingBalance || remainingBalance.currencyType === "USD") && (
               <div className="space-y-2">

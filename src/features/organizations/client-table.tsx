@@ -1,7 +1,8 @@
-'use client'
+"use client"
 
 import { useState } from "react"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation" // Importar useRouter
 import { OrganizationTable } from "./organization-table"
 import { createOrganization, deleteOrganization, updateOrganization } from "./organization"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -14,6 +15,7 @@ export function ClientTable({ initialOrganizations }: { initialOrganizations: an
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [selectedOrganization, setSelectedOrganization] = useState<any>(null)
+  const router = useRouter() // Añadir router para la redirección
 
   const handleCreate = async (data: any) => {
     try {
@@ -22,10 +24,13 @@ export function ClientTable({ initialOrganizations }: { initialOrganizations: an
         throw new Error(result.error)
       }
       setOrganizations((prev) => [...prev, result.data])
-      toast.success("Organization created successfully")
+      toast.success("Organización creada exitosamente")
       setShowCreateDialog(false)
+
+      // Redirigir a la página de secciones de la organización recién creada
+      router.push(`/organizations/${result.data.id}/sections`)
     } catch (error: any) {
-      toast.error(error.message || "Failed to create organization")
+      toast.error(error.message || "Error al crear la organización")
     }
   }
 
@@ -34,7 +39,7 @@ export function ClientTable({ initialOrganizations }: { initialOrganizations: an
       setSelectedOrganization(data)
       setShowEditDialog(true)
     } catch (error: any) {
-      toast.error(error.message || "Failed to update organization")
+      toast.error(error.message || "Error al actualizar la organización")
     }
   }
 
@@ -45,13 +50,13 @@ export function ClientTable({ initialOrganizations }: { initialOrganizations: an
         throw new Error(result.error)
       }
       setOrganizations((prev) =>
-        prev.map((org) => (org.id === selectedOrganization.id ? { ...org, ...result.data } : org))
+        prev.map((org) => (org.id === selectedOrganization.id ? { ...org, ...result.data } : org)),
       )
-      toast.success("Organization updated successfully")
+      toast.success("Organización actualizada exitosamente")
       setShowEditDialog(false)
       setSelectedOrganization(null)
     } catch (error: any) {
-      toast.error(error.message || "Failed to update organization")
+      toast.error(error.message || "Error al actualizar la organización")
     }
   }
 
@@ -62,50 +67,38 @@ export function ClientTable({ initialOrganizations }: { initialOrganizations: an
         throw new Error(result.error)
       }
       setOrganizations((prev) => prev.filter((org) => org.id !== id))
-      toast.success("Organization deleted successfully")
+      toast.success("Organización eliminada exitosamente")
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete organization")
+      toast.error(error.message || "Error al eliminar la organización")
     }
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold tracking-tight">Organizations</h2>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Add Organization
+      <div className="flex justify-start items-center">
+        <h2 className="text-3xl font-bold tracking-tight">Organizaciones</h2>
+        <Button onClick={() => setShowCreateDialog(true)} className="ml-4">
+          <Plus className="mr-2 h-4 w-4" /> Añadir Organización
         </Button>
       </div>
 
-      <OrganizationTable
-        data={organizations}
-        onUpdate={handleUpdate}
-        onDelete={handleDelete}
-      />
+      <OrganizationTable data={organizations} onUpdate={handleUpdate} onDelete={handleDelete} />
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Create Organization</DialogTitle>
-            <DialogDescription>
-              Fill out the form below to create a new organization.
-            </DialogDescription>
+            <DialogTitle>Crear Organización</DialogTitle>
+            <DialogDescription>Complete el formulario para crear una nueva organización.</DialogDescription>
           </DialogHeader>
-          <OrganizationForm
-            mode="create"
-            closeDialog={() => setShowCreateDialog(false)}
-            onSubmit={handleCreate}
-          />
+          <OrganizationForm mode="create" closeDialog={() => setShowCreateDialog(false)} onSubmit={handleCreate} />
         </DialogContent>
       </Dialog>
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Edit Organization</DialogTitle>
-            <DialogDescription>
-              Update the organization's information.
-            </DialogDescription>
+            <DialogTitle>Editar Organización</DialogTitle>
+            <DialogDescription>Actualice la información de la organización.</DialogDescription>
           </DialogHeader>
           <OrganizationForm
             mode="edit"
@@ -120,4 +113,5 @@ export function ClientTable({ initialOrganizations }: { initialOrganizations: an
       </Dialog>
     </div>
   )
-} 
+}
+

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useTransition, useRef } from "react"
+import { useState, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
@@ -30,7 +30,6 @@ import {
   DollarSign,
   Truck,
   FilePenLine,
-  FileCheck,
   Coins,
   Gift,
   RefreshCw,
@@ -41,7 +40,6 @@ import {
 import {
   updatePurchaseStatus,
   updateSaleDraftStatus,
-  updateSaleVendidoStatus,
   updateSaleCurrency,
   updateSaleDonation,
 } from "@/features/sales/actions"
@@ -148,14 +146,10 @@ export function SaleDetails({ sale }: { sale: any }) {
   const [isLoadingPayments, setIsLoadingPayments] = useState(false)
   const [isDraft, setIsDraft] = useState(sale.isDraft || false)
   const [isUpdatingDraft, setIsUpdatingDraft] = useState(false)
-  const [vendido, setVendido] = useState(sale.vendido || false)
-  const [isUpdatingVendido, setIsUpdatingVendido] = useState(false)
   const [currencyType, setCurrencyType] = useState(sale.currencyType || "USD")
   const [conversionRate, setConversionRate] = useState(sale.conversionRate || "1")
   const [isUpdatingCurrency, setIsUpdatingCurrency] = useState(false)
   const [remainingBalance, setRemainingBalance] = useState<any>(null)
-  const [showVendidoDialog, setShowVendidoDialog] = useState(false)
-  const [vendidoCode, setVendidoCode] = useState("")
   const [isDonation, setIsDonation] = useState(Boolean(sale.isDonation))
   const [isUpdatingDonation, setIsUpdatingDonation] = useState(false)
   const [isLoadingBCVRate, setIsLoadingBCVRate] = useState(false)
@@ -341,9 +335,6 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
   }
 
-  // Keyboard shortcut for vendido
-  const keysPressed = useRef<Set<string>>(new Set())
-
   const fetchInventoryItems = async () => {
     try {
       setIsLoadingInventory(true)
@@ -379,30 +370,6 @@ export function SaleDetails({ sale }: { sale: any }) {
       isDonationFromSale: Boolean(sale.isDonation),
       isDonationState: isDonation,
     })
-
-    // Set up keyboard shortcut listener for vendido easter egg
-    const handleKeyDown = (e: KeyboardEvent) => {
-      keysPressed.current.add(e.key.toLowerCase())
-
-      // Check if Ctrl + B + 6 is pressed
-      if (keysPressed.current.has("control") && keysPressed.current.has("b") && keysPressed.current.has("6")) {
-        setShowVendidoDialog(true)
-        keysPressed.current.clear()
-      }
-    }
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysPressed.current.delete(e.key.toLowerCase())
-    }
-
-    window.addEventListener("keydown", handleKeyDown)
-    window.addEventListener("keyup", handleKeyUp)
-
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown)
-      window.removeEventListener("keyup", handleKeyUp)
-      keysPressed.current.clear()
-    }
   }, [])
 
   const fetchPayments = async () => {
@@ -532,36 +499,6 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
   }
 
-  const handleVendidoChange = async (checked: boolean) => {
-    try {
-      setIsUpdatingVendido(true)
-      const result = await updateSaleVendidoStatus(sale.id, checked)
-
-      if (result.success) {
-        setVendido(checked)
-        toast({
-          title: checked ? "Venta marcada como vendida" : "Venta desmarcada",
-          description: checked ? "La venta ha sido marcada como vendida" : "La venta ha sido desmarcada como vendida",
-          className: checked
-            ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
-            : "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800",
-        })
-      } else {
-        throw new Error(result.error || "Error al actualizar el estado de vendido")
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Error desconocido",
-        variant: "destructive",
-      })
-      // Revert the switch if there was an error
-      setVendido(!checked)
-    } finally {
-      setIsUpdatingVendido(false)
-    }
-  }
-
   const handleDonationChange = async (checked: boolean) => {
     try {
       setIsUpdatingDonation(true)
@@ -627,21 +564,6 @@ export function SaleDetails({ sale }: { sale: any }) {
       })
     } finally {
       setIsUpdatingCurrency(false)
-    }
-  }
-
-  const handleVendidoCodeSubmit = () => {
-    // Check if code is correct (hardcoded as 1234)
-    if (vendidoCode === "1234") {
-      handleVendidoChange(!vendido)
-      setShowVendidoDialog(false)
-      setVendidoCode("")
-    } else {
-      toast({
-        title: "Código incorrecto",
-        description: "El código ingresado no es válido",
-        variant: "destructive",
-      })
     }
   }
 
@@ -761,11 +683,11 @@ export function SaleDetails({ sale }: { sale: any }) {
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="xl:col-span-2 space-y-8">
-            {/* Draft, Vendido, and Donation Status */}
+            {/* Draft and Donation Status */}
             <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
               <div className="p-6">
                 <h2 className="text-lg font-semibold mb-4">Estado de la Venta</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <FilePenLine className="h-5 w-5 text-amber-500" />
@@ -782,25 +704,6 @@ export function SaleDetails({ sale }: { sale: any }) {
                         className={cn(isDraft ? "bg-amber-500" : "bg-gray-200 dark:bg-gray-700")}
                       />
                       {isUpdatingDraft && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FileCheck className="h-5 w-5 text-green-500" />
-                      <div>
-                        <p className="font-medium">Vendido</p>
-                        <p className="text-sm text-muted-foreground">Marcar esta venta como vendida</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <Switch
-                        checked={vendido}
-                        onCheckedChange={handleVendidoChange}
-                        disabled={isUpdatingVendido}
-                        className={cn(vendido ? "bg-green-500" : "bg-gray-200 dark:bg-gray-700")}
-                      />
-                      {isUpdatingVendido && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
                     </div>
                   </div>
 
@@ -1034,6 +937,25 @@ export function SaleDetails({ sale }: { sale: any }) {
                       const numericRate = Number(sale.conversionRate) || 1
                       const altCurrencyType = sale.currencyType === "USD" ? "BS" : "USD"
 
+                      // Check if this item is part of a bundle
+                      const isPartOfBundle = item.metadata && item.metadata.bundleId
+                      const bundleId = isPartOfBundle ? item.metadata.bundleId : null
+
+                      // If this is a bundled item and not the first one of its bundle, skip rendering
+                      if (
+                        isPartOfBundle &&
+                        index > 0 &&
+                        currentItems[index - 1].metadata &&
+                        currentItems[index - 1].metadata.bundleId === bundleId
+                      ) {
+                        return null
+                      }
+
+                      // If this is a bundle, find all items in this bundle
+                      const bundleItems = isPartOfBundle
+                        ? currentItems.filter((i: any) => i.metadata && i.metadata.bundleId === bundleId)
+                        : []
+
                       return (
                         <motion.div
                           key={item.id}
@@ -1057,7 +979,9 @@ export function SaleDetails({ sale }: { sale: any }) {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
                                 <h3 className="font-medium truncate">
-                                  {item.inventoryItem?.name || "Producto eliminado"}
+                                  {isPartOfBundle
+                                    ? `Paquete: ${item.metadata.bundleName || "Paquete"}`
+                                    : item.inventoryItem?.name || "Producto eliminado"}
                                 </h3>
                                 <div className="flex items-center gap-2 ml-4">
                                   {editingItemId === item.id ? (
@@ -1137,7 +1061,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                                   </>
                                 )}
 
-                                {hoveredItem === index && (
+                                {hoveredItem === index && !isPartOfBundle && (
                                   <>
                                     <span>•</span>
                                     <span className="flex items-center gap-1">
@@ -1147,6 +1071,30 @@ export function SaleDetails({ sale }: { sale: any }) {
                                   </>
                                 )}
                               </div>
+
+                              {/* Display bundle contents if this is a bundle */}
+                              {isPartOfBundle && bundleItems.length > 0 && (
+                                <div className="mt-3 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+                                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                    Contenido del paquete:
+                                  </p>
+                                  <div className="space-y-1">
+                                    {bundleItems.map((bundleItem: any) => (
+                                      <div
+                                        key={bundleItem.id}
+                                        className="text-xs text-gray-500 dark:text-gray-400 flex justify-between"
+                                      >
+                                        <span>
+                                          {bundleItem.inventoryItem?.name || "Producto"} x{bundleItem.quantity}
+                                        </span>
+                                        <span className="text-gray-400">
+                                          {formatSaleCurrency(bundleItem.unitPrice, sale.currencyType, numericRate)} c/u
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
 
                             <div className="text-right flex flex-col">
@@ -1179,7 +1127,13 @@ export function SaleDetails({ sale }: { sale: any }) {
                   <div className="text-right">
                     <span className="text-2xl font-bold">
                       {formatSaleCurrency(
-                        currentItems.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice, 0),
+                        currentItems.reduce((sum: number, item: any) => {
+                          // Si es parte de un bundle, no sumarlo al total
+                          if (item.metadata && item.metadata.isPartOfBundle) {
+                            return sum
+                          }
+                          return sum + item.quantity * item.unitPrice
+                        }, 0),
                         sale.currencyType,
                         Number(sale.conversionRate),
                       )}
@@ -1187,10 +1141,20 @@ export function SaleDetails({ sale }: { sale: any }) {
                     <div className="text-sm text-gray-500">
                       {formatSaleCurrency(
                         sale.currencyType === "USD"
-                          ? currentItems.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice, 0) *
-                              Number(sale.conversionRate || 1)
-                          : currentItems.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice, 0) /
-                              Number(sale.conversionRate || 1),
+                          ? currentItems.reduce((sum: number, item: any) => {
+                              // Si es parte de un bundle, no sumarlo al total
+                              if (item.metadata && item.metadata.isPartOfBundle) {
+                                return sum
+                              }
+                              return sum + item.quantity * item.unitPrice
+                            }, 0) * Number(sale.conversionRate || 1)
+                          : currentItems.reduce((sum: number, item: any) => {
+                              // Si es parte de un bundle, no sumarlo al total
+                              if (item.metadata && item.metadata.isPartOfBundle) {
+                                return sum
+                              }
+                              return sum + item.quantity * item.unitPrice
+                            }, 0) / Number(sale.conversionRate || 1),
                         sale.currencyType === "USD" ? "BS" : "USD",
                         1,
                       )}
@@ -1459,30 +1423,7 @@ export function SaleDetails({ sale }: { sale: any }) {
             </Card>
           </div>
         </div>
-        ;
-        <Dialog open={showVendidoDialog} onOpenChange={setShowVendidoDialog}>
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>Confirmar acción</DialogTitle>
-              <DialogDescription>Ingrese el código para marcar esta venta como vendida</DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <Input
-                type="password"
-                placeholder="Código de autorización"
-                value={vendidoCode}
-                onChange={(e) => setVendidoCode(e.target.value)}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowVendidoDialog(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleVendidoCodeSubmit}>Confirmar</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        ;
+
         <PaymentPlanDialog
           open={showPaymentPlanDialog}
           onOpenChange={setShowPaymentPlanDialog}
@@ -1493,7 +1434,7 @@ export function SaleDetails({ sale }: { sale: any }) {
             fetchRemainingBalance()
           }}
         />
-        ;
+
         <PartialPaymentDialog
           open={showPartialPaymentDialog}
           onOpenChange={setShowPartialPaymentDialog}
@@ -1503,7 +1444,7 @@ export function SaleDetails({ sale }: { sale: any }) {
             fetchRemainingBalance()
           }}
         />
-        ;
+
         <Dialog open={showPaymentCurrencyDialog} onOpenChange={setShowPaymentCurrencyDialog}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>

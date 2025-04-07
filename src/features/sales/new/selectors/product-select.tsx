@@ -54,17 +54,17 @@ export function ProductSelect({
   const handleCreateProduct = async (data: any) => {
     try {
       // TODO: Implement product creation action
-      console.log("Creating product with data:", data)
+      console.log("Crear un nuevo producto:", data)
       toast({
-        title: "Not implemented",
-        description: "Product creation will be implemented soon",
+        title: "No esta implementado",
+        description: "La creación de productos estará disponible pronto",
       })
     } catch (error) {
-      console.error("Failed to create product:", error)
+      console.error("Hubo un fallo al crear el producto:", error)
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to create product"
+        description: "Error al crear producto"
       })
     }
   }
@@ -81,11 +81,11 @@ export function ProductSelect({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Create New Product</DialogTitle>
+            <DialogTitle>Crear nuevo producto</DialogTitle>
           </DialogHeader>
           {/* TODO: Add ProductForm component here */}
           <div className="p-4">
-            <p className="text-sm text-muted-foreground">Product creation form will be implemented soon.</p>
+            <p className="text-sm text-muted-foreground">El formulario de Creación de producto, estará implementado pronto...</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -101,9 +101,9 @@ export function ProductSelect({
               }))}
               value={selectedProductId}
               onValueChange={handleProductChange}
-              placeholder={loading ? "Loading products..." : "Select a product"}
+              placeholder={loading ? "Cargando productos..." : "Selecciona un producto"}
               disabled={loading}
-              emptyMessage="No products found"
+              emptyMessage="No se encontraron productos"
             />
           </div>
           <Button

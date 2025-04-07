@@ -1,20 +1,16 @@
 "use client"
 
-import { Beneficiary } from "@/lib/types"
-import { ColumnDef } from "@tanstack/react-table"
+import type { Beneficiary } from "@/lib/types"
+import type { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Eye, MoreHorizontal, Pencil, Trash } from "lucide-react"
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { BeneficiaryForm } from "./beneficiary-form"
-import { Organization } from "@/lib/types"
+// Importar como default para evitar la dependencia circular
+import BeneficiaryForm from "./beneficiary-form"
+import type { Organization } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 
 interface ViewBeneficiaryDialogProps {
@@ -32,7 +28,11 @@ function ViewBeneficiaryDialog({ beneficiary, open, onOpenChange }: ViewBenefici
         </DialogHeader>
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">{beneficiary.name}</CardTitle>
+            <CardTitle className="text-xl">
+              {beneficiary.lastName && beneficiary.firstName
+                ? `${beneficiary.lastName} ${beneficiary.firstName}`
+                : beneficiary.lastName || beneficiary.firstName || beneficiary.name || "Sin información"}
+            </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -40,11 +40,11 @@ function ViewBeneficiaryDialog({ beneficiary, open, onOpenChange }: ViewBenefici
               <div className="mt-2 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Nombre:</span>
-                  <span className="text-sm">{beneficiary.firstName || 'N/A'}</span>
+                  <span className="text-sm">{beneficiary.firstName || "N/A"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Apellido:</span>
-                  <span className="text-sm">{beneficiary.lastName || 'N/A'}</span>
+                  <span className="text-sm">{beneficiary.lastName || "N/A"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Estado:</span>
@@ -61,19 +61,19 @@ function ViewBeneficiaryDialog({ beneficiary, open, onOpenChange }: ViewBenefici
               <div className="mt-2 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Escuela:</span>
-                  <span className="text-sm">{beneficiary.school || 'N/A'}</span>
+                  <span className="text-sm">{beneficiary.school || "N/A"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Nivel:</span>
-                  <span className="text-sm">{beneficiary.level || 'N/A'}</span>
+                  <span className="text-sm">{beneficiary.level || "N/A"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Grado:</span>
-                  <span className="text-sm">{beneficiary.grade || 'N/A'}</span>
+                  <span className="text-sm">{beneficiary.grade || "N/A"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Sección:</span>
-                  <span className="text-sm">{beneficiary.section || 'N/A'}</span>
+                  <span className="text-sm">{beneficiary.section || "N/A"}</span>
                 </div>
               </div>
             </div>
@@ -82,11 +82,13 @@ function ViewBeneficiaryDialog({ beneficiary, open, onOpenChange }: ViewBenefici
               <div className="mt-2 space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Organización:</span>
-                  <span className="text-sm">{beneficiary.organization?.name || 'N/A'}</span>
+                  <span className="text-sm">{beneficiary.organization?.name || "N/A"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm font-medium">Fecha de creación:</span>
-                  <span className="text-sm">{beneficiary.createdAt ? new Date(beneficiary.createdAt).toLocaleDateString() : 'N/A'}</span>
+                  <span className="text-sm">
+                    {beneficiary.createdAt ? new Date(beneficiary.createdAt).toLocaleDateString() : "N/A"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -105,12 +107,12 @@ interface EditBeneficiaryDialogProps {
   organizations: Organization[]
 }
 
-function EditBeneficiaryDialog({ 
-  beneficiary, 
-  open, 
-  onOpenChange, 
+function EditBeneficiaryDialog({
+  beneficiary,
+  open,
+  onOpenChange,
   onUpdate,
-  organizations
+  organizations,
 }: EditBeneficiaryDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -130,15 +132,15 @@ function EditBeneficiaryDialog({
   )
 }
 
-const ActionsCell = ({ 
-  beneficiary, 
-  onUpdate, 
+const ActionsCell = ({
+  beneficiary,
+  onUpdate,
   onDelete,
-  organizations 
-}: { 
+  organizations,
+}: {
   beneficiary: Beneficiary
   onUpdate: (id: string, data: any) => void
-  onDelete: (id: string) => void 
+  onDelete: (id: string) => void
   organizations: Organization[]
 }) => {
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -148,7 +150,7 @@ const ActionsCell = ({
     onUpdate(beneficiary.id, {
       ...data,
       id: beneficiary.id,
-      status: beneficiary.status
+      status: beneficiary.status,
     })
   }
 
@@ -176,7 +178,7 @@ const ActionsCell = ({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <EditBeneficiaryDialog 
+      <EditBeneficiaryDialog
         beneficiary={beneficiary}
         open={showEditDialog}
         onOpenChange={setShowEditDialog}
@@ -184,11 +186,7 @@ const ActionsCell = ({
         organizations={organizations}
       />
 
-      <ViewBeneficiaryDialog
-        beneficiary={beneficiary}
-        open={showViewDialog}
-        onOpenChange={setShowViewDialog}
-      />
+      <ViewBeneficiaryDialog beneficiary={beneficiary} open={showViewDialog} onOpenChange={setShowViewDialog} />
     </>
   )
 }
@@ -196,11 +194,24 @@ const ActionsCell = ({
 export const columns = (
   onUpdate: (id: string, data: any) => void,
   onDelete: (id: string) => void,
-  organizations: Organization[]
+  organizations: Organization[],
 ): ColumnDef<Beneficiary>[] => [
   {
     accessorKey: "name",
     header: "Nombre",
+    cell: ({ row }) => {
+      const beneficiary = row.original
+      // Combinar apellidos y nombres, o mostrar uno de ellos si el otro no existe
+      if (beneficiary.lastName && beneficiary.firstName) {
+        return `${beneficiary.lastName} ${beneficiary.firstName}`
+      } else if (beneficiary.lastName) {
+        return beneficiary.lastName
+      } else if (beneficiary.firstName) {
+        return beneficiary.firstName
+      } else {
+        return beneficiary.name || "Sin información"
+      }
+    },
   },
   {
     accessorKey: "grade",
@@ -239,11 +250,9 @@ export const columns = (
   },
   {
     id: "actions",
-    cell: ({ row }) => <ActionsCell 
-      beneficiary={row.original} 
-      onUpdate={onUpdate} 
-      onDelete={onDelete}
-      organizations={organizations}
-    />,
+    cell: ({ row }) => (
+      <ActionsCell beneficiary={row.original} onUpdate={onUpdate} onDelete={onDelete} organizations={organizations} />
+    ),
   },
-] 
+]
+

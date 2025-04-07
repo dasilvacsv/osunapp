@@ -8,7 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, ShoppingCart } from "lucide-react"
+import { Loader2, ShoppingCart, Package, Info } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { getBCVRate } from "@/lib/exchangeRates"
 import { getClients, getBundles, getProducts, getOrganizations } from "./actions"
@@ -19,7 +19,9 @@ import { ProductSelect } from "./selectors/product-select"
 import { BeneficiarySelect } from "./selectors/beneficiary-select"
 import { OrganizationSelect } from "./selectors/organization-select"
 import { SaleTypeSelector } from "./selectors/sale-type-selector"
-import { Beneficiary } from "./selectors/beneficiary-select"
+import type { Beneficiary } from "./selectors/beneficiary-select"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 
 export default function NewSaleForm() {
   const router = useRouter()
@@ -30,7 +32,7 @@ export default function NewSaleForm() {
       currencyType: "USD",
       productId: "",
       bundleId: "",
-    }
+    },
   })
 
   const [loading, setLoading] = useState(false)
@@ -61,7 +63,7 @@ export default function NewSaleForm() {
           getClients(),
           getBundles(),
           getProducts(),
-          getOrganizations()
+          getOrganizations(),
         ])
 
         if (clientsRes.success) setClients(clientsRes.data || [])
@@ -102,11 +104,11 @@ export default function NewSaleForm() {
   }, [])
 
   const handleClientSelect = (clientId: string, client: any) => {
-    const fullClient = clients.find(c => c.id === clientId)
+    const fullClient = clients.find((c) => c.id === clientId)
     if (!fullClient) return
 
     setSelectedClient(fullClient)
-    setSelectedOrganization(organizations.find(org => org.id === fullClient.organizationId) || null)
+    setSelectedOrganization(organizations.find((org) => org.id === fullClient.organizationId) || null)
     setSelectedBeneficiary(null)
     setSelectedBundle(null)
     setCartItems([])
@@ -114,16 +116,32 @@ export default function NewSaleForm() {
 
   const handleBundleSelect = (bundleId: string, bundle: any) => {
     setSelectedBundle(bundle)
-    const newCartItems = bundle.items.map((item: any) => ({
-      id: item.item.id,
-      name: item.item.name,
-      quantity: item.quantity,
-      price: item.overridePrice ? Number(item.overridePrice) : Number(item.item.basePrice),
-      originalPrice: Number(item.item.basePrice),
-      currentStock: item.item.currentStock,
-      allowPreSale: item.item.allowPreSale,
-    }))
-    setCartItems(newCartItems)
+
+    // Automatically set sale type to PRESALE when a bundle is selected
+    setSaleType("PRESALE")
+
+    // Create a single cart item for the bundle with the bundle price
+    const bundlePrice = bundle.bundlePrice || bundle.basePrice
+    const newCartItem = {
+      id: `bundle-${bundle.id}`,
+      name: bundle.name,
+      quantity: 1,
+      price: Number(bundlePrice),
+      originalPrice: Number(bundlePrice),
+      isBundle: true,
+      bundleId: bundle.id,
+      bundleItems: bundle.items.map((item: any) => ({
+        id: item.item.id,
+        name: item.item.name,
+        quantity: item.quantity,
+        price: item.overridePrice ? Number(item.overridePrice) : Number(item.item.basePrice),
+        originalPrice: Number(item.item.basePrice),
+        currentStock: item.item.currentStock,
+        allowPreSale: item.item.allowPreSale,
+      })),
+    }
+
+    setCartItems([newCartItem])
 
     if (bundle.currencyType) {
       setCurrencyType(bundle.currencyType)
@@ -132,21 +150,29 @@ export default function NewSaleForm() {
   }
 
   const handleProductSelect = (productId: string, product: any) => {
-    const existingItemIndex = cartItems.findIndex(item => item.id === product.id)
+    // If a bundle is already selected, don't allow adding individual products
+    if (selectedBundle) {
+      return
+    }
+
+    const existingItemIndex = cartItems.findIndex((item) => item.id === product.id)
     if (existingItemIndex >= 0) {
       const updatedItems = [...cartItems]
       updatedItems[existingItemIndex].quantity += 1
       setCartItems(updatedItems)
     } else {
-      setCartItems([...cartItems, {
-        id: product.id,
-        name: product.name,
-        quantity: 1,
-        price: Number(product.basePrice),
-        originalPrice: Number(product.basePrice),
-        currentStock: product.currentStock,
-        allowPreSale: product.allowPresale || false,
-      }])
+      setCartItems([
+        ...cartItems,
+        {
+          id: product.id,
+          name: product.name,
+          quantity: 1,
+          price: Number(product.basePrice),
+          originalPrice: Number(product.basePrice),
+          currentStock: product.currentStock,
+          allowPreSale: product.allowPresale || false,
+        },
+      ])
     }
   }
 
@@ -186,11 +212,33 @@ export default function NewSaleForm() {
     try {
       const saleData = {
         clientId: selectedClient.id,
-        items: cartItems.map(item => ({
-          itemId: item.id,
-          quantity: item.quantity,
-          overridePrice: item.price !== item.originalPrice ? item.price : undefined,
-        })),
+        items: cartItems.map((item) => {
+          // If this is a bundle, we need to include the bundle metadata
+          if (item.isBundle) {
+            return {
+              itemId: selectedBundle.items[0].item.id, // Use the first item as the main item
+              quantity: item.quantity,
+              overridePrice: item.price,
+              metadata: {
+                isBundle: true,
+                bundleId: selectedBundle.id,
+                bundleName: selectedBundle.name,
+                bundleItems: selectedBundle.items.map((bundleItem: any) => ({
+                  itemId: bundleItem.item.id,
+                  quantity: bundleItem.quantity,
+                  price: bundleItem.overridePrice || bundleItem.item.basePrice,
+                })),
+              },
+            }
+          }
+
+          // Regular item
+          return {
+            itemId: item.id,
+            quantity: item.quantity,
+            overridePrice: item.price !== item.originalPrice ? item.price : undefined,
+          }
+        }),
         bundleId: selectedBundle?.id,
         beneficiaryId: selectedBeneficiary?.id,
         organizationId: selectedOrganization?.id,
@@ -244,13 +292,13 @@ export default function NewSaleForm() {
                     onBeneficiarySelect={handleBeneficiarySelect}
                     onBeneficiaryCreated={(newBeneficiary) => {
                       setSelectedBeneficiary(newBeneficiary)
-                      setLocalBeneficiaries(prev => [...prev, newBeneficiary])
-                      setClients(prevClients => 
-                        prevClients.map(client => 
-                          client.id === selectedClient?.id 
+                      setLocalBeneficiaries((prev) => [...prev, newBeneficiary])
+                      setClients((prevClients) =>
+                        prevClients.map((client) =>
+                          client.id === selectedClient?.id
                             ? { ...client, beneficiarios: [...(client.beneficiarios || []), newBeneficiary] }
-                            : client
-                        )
+                            : client,
+                        ),
                       )
                     }}
                     clientId={selectedClient?.id}
@@ -276,13 +324,42 @@ export default function NewSaleForm() {
                   onBundleSelect={handleBundleSelect}
                   initialBundles={bundles}
                 />
+
+                {/* Display bundle items when a bundle is selected */}
+                {selectedBundle && (
+                  <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Package className="h-4 w-4 text-primary" />
+                      <span className="font-medium">Contenido del paquete:</span>
+                      <Badge variant="outline" className="ml-auto">
+                        {selectedBundle.items.length} productos
+                      </Badge>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                      {selectedBundle.items.map((item: any, index: number) => (
+                        <div key={index} className="flex justify-between items-center text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{item.item.name}</span>
+                            <span className="text-muted-foreground">x{item.quantity}</span>
+                          </div>
+                          <span className="text-muted-foreground">
+                            {currencyType === "USD"
+                              ? `$${(item.overridePrice || item.item.basePrice).toFixed(2)}`
+                              : `${((item.overridePrice || item.item.basePrice) * conversionRate).toFixed(2)} Bs`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label>Moneda</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  <Select 
-                    value={currencyType} 
+                  <Select
+                    value={currencyType}
                     onValueChange={handleCurrencyChange}
                     disabled={!!selectedBundle?.currencyType}
                   >
@@ -322,7 +399,14 @@ export default function NewSaleForm() {
                   selectedProductId=""
                   onProductSelect={handleProductSelect}
                   initialProducts={products}
+                  disabled={!!selectedBundle} // Disable product selection if a bundle is selected
                 />
+                {selectedBundle && (
+                  <div className="flex items-center mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    <Info className="h-3 w-3 mr-1" />
+                    No se pueden agregar productos individuales cuando hay un paquete seleccionado
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -330,7 +414,14 @@ export default function NewSaleForm() {
                 <SaleTypeSelector
                   onTypeChange={setSaleType}
                   defaultValue={saleType}
+                  disabled={!!selectedBundle} // Disable type selection if a bundle is selected
                 />
+                {selectedBundle && (
+                  <div className="flex items-center mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    <Info className="h-3 w-3 mr-1" />
+                    Los paquetes se venden como preventa automáticamente
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4 pt-4">
@@ -341,12 +432,12 @@ export default function NewSaleForm() {
 
                 <div className="flex items-center justify-between">
                   <Label>Donación</Label>
-                  <Switch 
-                    checked={isDonation} 
+                  <Switch
+                    checked={isDonation}
                     onCheckedChange={(checked) => {
                       setIsDonation(checked)
                       if (checked) setIsDraft(true)
-                    }} 
+                    }}
                   />
                 </div>
               </div>
@@ -359,9 +450,7 @@ export default function NewSaleForm() {
                 <ShoppingCart className="h-5 w-5" />
                 Carrito
                 {currencyType === "BS" && (
-                  <span className="text-sm font-normal text-muted-foreground">
-                    (Tasa: {conversionRate})
-                  </span>
+                  <span className="text-sm font-normal text-muted-foreground">(Tasa: {conversionRate})</span>
                 )}
               </CardTitle>
             </CardHeader>
@@ -372,10 +461,16 @@ export default function NewSaleForm() {
                     <div>
                       <div className="font-medium">{item.name}</div>
                       <div className="text-sm text-muted-foreground">
-                        Precio: {currencyType === "BS" 
-                          ? `${(item.price * conversionRate).toFixed(2)} Bs` 
+                        Precio:{" "}
+                        {currencyType === "BS"
+                          ? `${(item.price * conversionRate).toFixed(2)} Bs`
                           : `$${item.price.toFixed(2)}`}
                       </div>
+                      {item.isBundle && (
+                        <Badge variant="outline" className="mt-1 text-xs">
+                          Paquete
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Input
@@ -384,10 +479,8 @@ export default function NewSaleForm() {
                         onChange={(e) => {
                           const newQuantity = Number(e.target.value)
                           if (newQuantity > 0) {
-                            const updatedItems = cartItems.map(cartItem =>
-                              cartItem.id === item.id 
-                                ? { ...cartItem, quantity: newQuantity }
-                                : cartItem
+                            const updatedItems = cartItems.map((cartItem) =>
+                              cartItem.id === item.id ? { ...cartItem, quantity: newQuantity } : cartItem,
                             )
                             setCartItems(updatedItems)
                           }
@@ -398,7 +491,15 @@ export default function NewSaleForm() {
                       <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => setCartItems(cartItems.filter(i => i.id !== item.id))}
+                        onClick={() => {
+                          setCartItems(cartItems.filter((i) => i.id !== item.id))
+                          // If removing a bundle, also clear the selected bundle
+                          if (item.isBundle) {
+                            setSelectedBundle(null)
+                            // Reset sale type to DIRECT if it was set to PRESALE due to bundle
+                            setSaleType("DIRECT")
+                          }
+                        }}
                       >
                         Eliminar
                       </Button>
@@ -407,9 +508,7 @@ export default function NewSaleForm() {
                 ))}
 
                 {cartItems.length === 0 && (
-                  <div className="text-center text-muted-foreground py-4">
-                    El carrito está vacío
-                  </div>
+                  <div className="text-center text-muted-foreground py-4">El carrito está vacío</div>
                 )}
 
                 <div className="pt-4 border-t">
@@ -472,3 +571,4 @@ export default function NewSaleForm() {
     </FormProvider>
   )
 }
+

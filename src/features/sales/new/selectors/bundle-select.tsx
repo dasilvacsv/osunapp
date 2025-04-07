@@ -69,12 +69,12 @@ export function BundleSelect({
           value: bundle.id,
           description: bundle.description,
           // Show items count in the description
-          secondaryText: `${bundle.items.length} items`
+          secondaryText: `${bundle.items.length} productos`
         }))}
         value={selectedBundleId}
         onValueChange={handleBundleChange}
-        placeholder="Select a bundle"
-        emptyMessage="No bundles available"
+        placeholder="Selecciona un paquete"
+        emptyMessage="No hay paquetes disponibles"
       />
     </div>
   )

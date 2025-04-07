@@ -198,29 +198,105 @@ export async function createPurchase(data: any) {
   }
 }
 
-
-
 export async function updatePurchaseItems(purchaseId: string, items: any[]) {
   try {
+    // Get the current purchase to check if it's a bundle
+    const [purchase] = await db
+      .select({
+        bundleId: purchases.bundleId,
+        paymentMetadata: purchases.paymentMetadata,
+      })
+      .from(purchases)
+      .where(eq(purchases.id, purchaseId))
+      .limit(1)
+
+    const isBundle = purchase?.paymentMetadata?.isBundle || false
+
     // Delete existing items
     await db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, purchaseId))
 
     // Insert new items with proper data validation
     if (items.length > 0) {
-      const newItems = items.map((item) => ({
-        purchaseId,
-        itemId: item.itemId,
-        quantity: Number(item.quantity),
-        unitPrice: item.unitPrice.toString(),
-        totalPrice: (Number(item.quantity) * Number(item.unitPrice)).toString(),
-        metadata: item.metadata || {},
-      }))
+      // If this is a bundle, we need to handle it differently
+      if (isBundle && purchase?.bundleId) {
+        // Find the main bundle item
+        const mainBundleItem = items.find((item) => item.metadata?.isBundle)
 
-      await db.insert(purchaseItems).values(newItems)
+        if (mainBundleItem) {
+          // Insert the main bundle item first
+          await db.insert(purchaseItems).values({
+            purchaseId,
+            itemId: mainBundleItem.itemId,
+            quantity: Number(mainBundleItem.quantity),
+            unitPrice: mainBundleItem.unitPrice.toString(),
+            totalPrice: (Number(mainBundleItem.quantity) * Number(mainBundleItem.unitPrice)).toString(),
+            metadata: {
+              isBundle: true,
+              bundleId: purchase.bundleId,
+              bundleName: mainBundleItem.metadata?.bundleName || "Bundle",
+            },
+          })
+
+          // Insert all other bundle items
+          for (const item of items.filter((i) => i.metadata?.isPartOfBundle)) {
+            await db.insert(purchaseItems).values({
+              purchaseId,
+              itemId: item.itemId,
+              quantity: Number(item.quantity),
+              unitPrice: item.unitPrice.toString(),
+              totalPrice: (Number(item.quantity) * Number(item.unitPrice)).toString(),
+              metadata: {
+                bundleId: purchase.bundleId,
+                bundleName: mainBundleItem.metadata?.bundleName || "Bundle",
+                isPartOfBundle: true,
+              },
+            })
+          }
+        } else {
+          // If we can't find the main bundle item, just insert all items normally
+          const newItems = items.map((item) => ({
+            purchaseId,
+            itemId: item.itemId,
+            quantity: Number(item.quantity),
+            unitPrice: item.unitPrice.toString(),
+            totalPrice: (Number(item.quantity) * Number(item.unitPrice)).toString(),
+            metadata: item.metadata || {},
+          }))
+
+          await db.insert(purchaseItems).values(newItems)
+        }
+      } else {
+        // Regular non-bundle items
+        const newItems = items.map((item) => ({
+          purchaseId,
+          itemId: item.itemId,
+          quantity: Number(item.quantity),
+          unitPrice: item.unitPrice.toString(),
+          totalPrice: (Number(item.quantity) * Number(item.unitPrice)).toString(),
+          metadata: item.metadata || {},
+        }))
+
+        await db.insert(purchaseItems).values(newItems)
+      }
     }
 
     // Calculate and update the total amount in the purchase
-    const totalAmount = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0)
+    // For bundles, only count the main bundle item price
+    let totalAmount = 0
+
+    if (isBundle && purchase?.bundleId) {
+      // For bundles, find the main bundle item and use its price
+      const mainBundleItem = items.find((item) => item.metadata?.isBundle)
+      if (mainBundleItem) {
+        totalAmount = Number(mainBundleItem.quantity) * Number(mainBundleItem.unitPrice)
+      } else {
+        // Fallback: sum all items
+        totalAmount = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0)
+      }
+    } else {
+      // For regular items, sum all items
+      totalAmount = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0)
+    }
 
     const [updatedPurchase] = await db
       .update(purchases)
@@ -248,13 +324,29 @@ export async function updatePurchaseItems(purchaseId: string, items: any[]) {
   }
 }
 
+// Update the addPurchaseItem function to handle bundles properly
 export async function addPurchaseItem(purchaseId: string, item: any) {
   try {
-    // Get the current purchase to calculate the new total
-    const [purchase] = await db.select().from(purchases).where(eq(purchases.id, purchaseId)).limit(1)
+    // Get the current purchase to check if it's a bundle
+    const [purchase] = await db
+      .select({
+        bundleId: purchases.bundleId,
+        paymentMetadata: purchases.paymentMetadata,
+        totalAmount: purchases.totalAmount,
+      })
+      .from(purchases)
+      .where(eq(purchases.id, purchaseId))
+      .limit(1)
 
     if (!purchase) {
       throw new Error("Purchase not found")
+    }
+
+    const isBundle = purchase?.paymentMetadata?.isBundle || false
+
+    // If this is a bundle purchase, we need to handle it differently
+    if (isBundle && purchase.bundleId) {
+      throw new Error("No se pueden agregar productos individuales a un paquete")
     }
 
     // Calculate the total price for the new item
@@ -300,7 +392,7 @@ export async function addPurchaseItem(purchaseId: string, item: any) {
     }
   } catch (error) {
     console.error("Error adding item:", error)
-    return { success: false, error: "Failed to add item" }
+    return { success: false, error: error instanceof Error ? error.message : "Failed to add item" }
   }
 }
 // Update a purchase
@@ -319,7 +411,7 @@ export async function updatePurchase(id: string, data: any) {
           unitPrice: item.unitPrice.toString(),
           totalPrice: (Number(item.unitPrice) * Number(item.quantity)).toString(),
         }))
-        
+
         await tx.insert(purchaseItems).values(purchaseItemsData)
       }
 
@@ -332,7 +424,7 @@ export async function updatePurchase(id: string, data: any) {
           conversionRate: data.conversionRate?.toString(),
           paymentMetadata: {
             ...data.paymentMetadata,
-            isCustomBundle: data.isCustomBundle
+            isCustomBundle: data.isCustomBundle,
           },
           updatedAt: new Date(),
         })
@@ -1141,7 +1233,7 @@ export async function getPendingDonations() {
       .leftJoin(clients, eq(purchases.clientId, clients.id))
       .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
       .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
-      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+      .leftJoin(organizations, eq(purchases.organizationId, organizations.organizationId))
       .where(and(eq(purchases.isDonation, true), eq(purchases.isDraft, true)))
       .orderBy(desc(purchases.purchaseDate))
 

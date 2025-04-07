@@ -49,11 +49,11 @@ export function OrganizationSelect({
           })))
         }
       } catch (error) {
-        console.error("Error loading organizations:", error)
+        console.error("Error cargando organizaciones:", error)
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to load organizations"
+          description: "Hubo un error al cargar las organizaciones"
         })
       } finally {
         setLoading(false)
@@ -80,16 +80,16 @@ export function OrganizationSelect({
         setShowCreateDialog(false)
         
         toast({
-          title: "Success",
-          description: "Organization created successfully"
+          title: "Enhorabuena",
+          description: "Organización creada con éxito"
         })
       }
     } catch (error) {
-      console.error("Failed to create organization:", error)
+      console.error("Error al crear organización:", error)
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to create organization"
+        description: "Hubo un error al crear la organización"
       })
     }
   }
@@ -99,7 +99,7 @@ export function OrganizationSelect({
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Create New Organization</DialogTitle>
+            <DialogTitle>Crear una nueva organización</DialogTitle>
           </DialogHeader>
           <OrganizationForm
             closeDialog={() => setShowCreateDialog(false)}
@@ -121,9 +121,9 @@ export function OrganizationSelect({
               const org = organizations.find(o => o.id === value)
               if (org) onOrganizationSelect(value, org)
             }}
-            placeholder={loading ? "Loading organizations..." : "Select an organization"}
+            placeholder={loading ? "Cargando organizaciones..." : "Selecciona una organización"}
             disabled={loading}
-            emptyMessage="No organizations found"
+            emptyMessage="No se encontraron organizaciones"
           />
         </div>
         

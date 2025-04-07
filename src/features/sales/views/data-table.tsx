@@ -10,6 +10,7 @@ import {
   getSortedRowModel,
   type ColumnFiltersState,
   getFilteredRowModel,
+  type FilterFn,
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -27,7 +28,7 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -54,6 +55,47 @@ interface DataTableProps<TData> {
   filterPreSales?: boolean
 }
 
+// Función de filtro personalizada para búsqueda global
+const fuzzyFilter: FilterFn<any> = (row, columnId, value, addMeta) => {
+  // Valor a buscar
+  const searchValue = value.toLowerCase()
+
+  // Si no hay valor de búsqueda, mostrar todas las filas
+  if (!searchValue) return true
+
+  // Obtener el valor de la celda
+  let cellValue = row.getValue(columnId)
+
+  // Si el valor es nulo o indefinido, intentar buscar en propiedades anidadas
+  if (cellValue == null) {
+    const original = row.original
+
+    // Buscar en propiedades anidadas (client.name, beneficiario.name, etc.)
+    if (columnId.includes(".")) {
+      const parts = columnId.split(".")
+      let value = original
+      for (const part of parts) {
+        if (value && typeof value === "object") {
+          value = value[part]
+        } else {
+          value = undefined
+          break
+        }
+      }
+      cellValue = value
+    } else {
+      // Intentar buscar en el objeto original
+      cellValue = original[columnId]
+    }
+  }
+
+  // Convertir a string para la búsqueda
+  const valueStr = String(cellValue || "").toLowerCase()
+
+  // Verificar si el valor de la celda contiene el valor de búsqueda
+  return valueStr.includes(searchValue)
+}
+
 export function DataTable<TData>({
   columns,
   data,
@@ -72,6 +114,7 @@ export function DataTable<TData>({
   const [pageSize, setPageSize] = useState<number>(initialPageSize)
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({})
   const [showPreSalesOnly, setShowPreSalesOnly] = useState<boolean>(false)
+  const [globalFilter, setGlobalFilter] = useState<string>("")
 
   // Escuchar eventos de actualización de ventas
   useEffect(() => {
@@ -87,16 +130,15 @@ export function DataTable<TData>({
     }
   }, [])
 
-  // Filtrar por pre-ventas si es necesario
-  useEffect(() => {
-    if (filterPreSales && showPreSalesOnly) {
-      // Asumimos que hay una columna 'saleType' que podemos filtrar
-      const filterColumn = table.getColumn("saleType")
-      if (filterColumn) {
-        filterColumn.setFilterValue(showPreSalesOnly ? "PRESALE" : undefined)
-      }
+  // Columnas de búsqueda
+  const searchableColumns = useMemo(() => {
+    if (searchKey) {
+      return [searchKey]
     }
-  }, [showPreSalesOnly, filterPreSales])
+
+    // Si no se proporciona searchKey, buscar en estas columnas
+    return ["id", "client.name", "beneficiario.name", "bundleName", "organization.name", "totalAmount"]
+  }, [searchKey])
 
   const table = useReactTable({
     data,
@@ -107,20 +149,48 @@ export function DataTable<TData>({
     getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
+    filterFns: {
+      fuzzy: fuzzyFilter,
+    },
     state: {
       sorting,
       columnFilters,
+      globalFilter: searchValue,
       pagination: {
         pageIndex: 0,
         pageSize,
       },
     },
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: "fuzzy",
   })
+
+  // Filtrar por pre-ventas si es necesario
+  useEffect(() => {
+    if (filterPreSales && showPreSalesOnly) {
+      // Asumimos que hay una columna 'saleType' que podemos filtrar
+      const filterColumn = table.getColumn("saleType")
+      if (filterColumn) {
+        filterColumn.setFilterValue(showPreSalesOnly ? "PRESALE" : undefined)
+      }
+    }
+  }, [showPreSalesOnly, filterPreSales, table])
+
+  // Efecto para aplicar el filtro global
+  useEffect(() => {
+    table.setGlobalFilter(searchValue)
+  }, [searchValue, table])
 
   const handleSearch = (value: string) => {
     setSearchValue(value)
+
+    // Si hay una columna específica para buscar, usar filtro de columna
     if (searchKey) {
       table.getColumn(searchKey)?.setFilterValue(value)
+    }
+    // De lo contrario, usar filtro global
+    else {
+      table.setGlobalFilter(value)
     }
   }
 
@@ -128,6 +198,8 @@ export function DataTable<TData>({
     setSearchValue("")
     if (searchKey) {
       table.getColumn(searchKey)?.setFilterValue("")
+    } else {
+      table.setGlobalFilter("")
     }
   }
 
@@ -144,102 +216,98 @@ export function DataTable<TData>({
   return (
     <div className="space-y-3">
       {/* Header with title and actions */}
-      {(title || searchKey || exportData || filterPreSales) && (
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
-          {title && (
-            <div>
-              <h2 className="text-lg font-semibold">{title}</h2>
-              {description && <p className="text-sm text-muted-foreground">{description}</p>}
-            </div>
-          )}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+        {title && (
+          <div>
+            <h2 className="text-lg font-semibold">{title}</h2>
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
+          </div>
+        )}
 
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            {searchKey && (
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar..."
-                  value={searchValue}
-                  onChange={(e) => handleSearch(e.target.value)}
-                  className="pl-9 h-9 w-full sm:w-[200px] lg:w-[300px]"
-                />
-                {searchValue && (
-                  <button
-                    onClick={clearSearch}
-                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="relative w-full sm:w-auto">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar ventas..."
+              value={searchValue}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="pl-9 h-9 w-full sm:w-[200px] lg:w-[300px]"
+            />
+            {searchValue && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex gap-2 self-end">
+            {filterPreSales && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={showPreSalesOnly ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setShowPreSalesOnly(!showPreSalesOnly)}
+                      className={cn("h-9 gap-1", showPreSalesOnly && "bg-red-500 hover:bg-red-600 text-white")}
+                    >
+                      <AlertTriangle className="h-4 w-4" />
+                      <span className="hidden sm:inline">Pre-ventas</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {showPreSalesOnly ? "Mostrar todas las ventas" : "Mostrar solo pre-ventas"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
 
-            <div className="flex gap-2 self-end">
-              {filterPreSales && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={showPreSalesOnly ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setShowPreSalesOnly(!showPreSalesOnly)}
-                        className={cn("h-9 gap-1", showPreSalesOnly && "bg-red-500 hover:bg-red-600 text-white")}
-                      >
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="hidden sm:inline">Pre-ventas</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {showPreSalesOnly ? "Mostrar todas las ventas" : "Mostrar solo pre-ventas"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 gap-1">
-                    <SlidersHorizontal className="h-4 w-4" />
-                    <span className="hidden sm:inline">Columnas</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[180px]">
-                  <DropdownMenuLabel className="text-xs">Mostrar columnas</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {table
-                    .getAllColumns()
-                    .filter((column) => column.id !== "actions" && column.getCanHide())
-                    .map((column) => {
-                      return (
-                        <DropdownMenuCheckboxItem
-                          key={column.id}
-                          className="capitalize text-xs"
-                          checked={column.getIsVisible()}
-                          onCheckedChange={(value) => {
-                            column.toggleVisibility(value)
-                            setVisibleColumns({
-                              ...visibleColumns,
-                              [column.id]: value,
-                            })
-                          }}
-                        >
-                          {typeof column.columnDef.header === "string" ? column.columnDef.header : column.id}
-                        </DropdownMenuCheckboxItem>
-                      )
-                    })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {exportData && (
-                <Button variant="outline" size="sm" onClick={exportData} className="h-9 gap-1">
-                  <Download className="h-4 w-4" />
-                  <span className="hidden sm:inline">Exportar</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 gap-1">
+                  <SlidersHorizontal className="h-4 w-4" />
+                  <span className="hidden sm:inline">Columnas</span>
                 </Button>
-              )}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[180px]">
+                <DropdownMenuLabel className="text-xs">Mostrar columnas</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {table
+                  .getAllColumns()
+                  .filter((column) => column.id !== "actions" && column.getCanHide())
+                  .map((column) => {
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={column.id}
+                        className="capitalize text-xs"
+                        checked={column.getIsVisible()}
+                        onCheckedChange={(value) => {
+                          column.toggleVisibility(value)
+                          setVisibleColumns({
+                            ...visibleColumns,
+                            [column.id]: value,
+                          })
+                        }}
+                      >
+                        {typeof column.columnDef.header === "string" ? column.columnDef.header : column.id}
+                      </DropdownMenuCheckboxItem>
+                    )
+                  })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {exportData && (
+              <Button variant="outline" size="sm" onClick={exportData} className="h-9 gap-1">
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Exportar</span>
+              </Button>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* Table */}
       <div className="rounded-md border overflow-hidden bg-card text-card-foreground shadow-sm">
