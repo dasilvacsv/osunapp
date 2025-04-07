@@ -46,9 +46,9 @@ const allNavItems: NavItem[] = [
         url: "/inventario",
       },
       {
-        title: "Gestión de Inventario",
-        url: "/inventario/stock",
-      }
+        title: "Gestión de Paquetes",
+        url: "/inventario/bundles",
+      },
     ],
   },
   {

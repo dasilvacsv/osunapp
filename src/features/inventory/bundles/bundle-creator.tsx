@@ -48,7 +48,7 @@ const bundleSchema = z.object({
   notes: z.string().optional(),
   categoryId: z.string().min(1, "La categoría es requerida"),
   basePrice: z.coerce.number().min(0, "El precio base debe ser mayor o igual a 0"),
-  margin: z.coerce.number().min(0).max(100).default(30),
+  margin: z.coerce.number().min(0, "El margen debe ser mayor o igual a 0").default(5),
   currencyType: z.enum(["USD", "BS"]).default("USD"),
   conversionRate: z.coerce.number().optional(),
   organizationId: z.string().optional(),
@@ -80,7 +80,7 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
       notes: "",
       categoryId: "",
       basePrice: 0,
-      margin: 30,
+      margin: 5,
       currencyType: "USD",
       conversionRate: undefined,
       organizationId: undefined,
@@ -97,8 +97,8 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
   const currencyType = form.watch("currencyType")
   const conversionRate = form.watch("conversionRate")
 
-  // Cálculo del precio de venta basado en el precio base y el margen
-  const salePrice = basePrice * (1 + margin / 100)
+  // El precio de venta es igual al precio base
+  const salePrice = basePrice
 
   // Cálculo del costo estimado basado en los ítems seleccionados
   const totalCostPrice = selectedItems.reduce((sum, item) => {
@@ -117,9 +117,9 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
     return sum
   }, 0)
 
-  // Cálculo de la ganancia
+  // Cálculo de la ganancia real (puede ser diferente del margen esperado)
   const profit = salePrice - totalCostPrice
-  const profitPercentage = salePrice > 0 ? (profit / salePrice) * 100 : 0
+  const profitPercentage = totalCostPrice > 0 ? (profit / totalCostPrice) * 100 : 0
 
   useEffect(() => {
     if (currencyType === "BS") {
@@ -538,22 +538,21 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-2">
-                        <Percent className="w-4 h-4" />
-                        Margen (%)
+                        <DollarSign className="w-4 h-4" />
+                        Ganancia Esperada
                       </FormLabel>
                       <div className="flex items-center gap-2">
                         <FormControl>
                           <Input
                             type="number"
-                            step="0.1"
+                            step="0.01"
                             min="0"
-                            max="100"
                             {...field}
                             onChange={(e) => field.onChange(Number(e.target.value))}
-                            placeholder="Margen de ganancia"
+                            placeholder="Ganancia esperada"
                           />
                         </FormControl>
-                        <span>%</span>
+                        {currencyType === "USD" ? <span>$</span> : <span>Bs</span>}
                       </div>
                       <FormMessage />
                     </FormItem>
@@ -706,8 +705,8 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
                             </div>
 
                             <div className="flex justify-between items-center">
-                              <span className="text-muted-foreground">Margen:</span>
-                              <span className="font-medium">{margin}%</span>
+                              <span className="text-muted-foreground">Ganancia Esperada:</span>
+                              <span className="font-medium">{formatBundleCurrency(margin)}</span>
                             </div>
 
                             <div className="flex justify-between items-center">
@@ -722,14 +721,14 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
                         <CardContent className="p-4">
                           <div className="space-y-4">
                             <div className="flex justify-between items-center">
-                              <span className="text-muted-foreground">Ganancia:</span>
+                              <span className="text-muted-foreground">Ganancia Real:</span>
                               <span className={`font-medium ${profit < 0 ? "text-destructive" : "text-green-600"}`}>
                                 {formatBundleCurrency(profit)}
                               </span>
                             </div>
 
                             <div className="flex justify-between items-center">
-                              <span className="text-muted-foreground">% Ganancia:</span>
+                              <span className="text-muted-foreground">% Ganancia sobre costo:</span>
                               <span
                                 className={`font-medium ${profitPercentage < 0 ? "text-destructive" : "text-green-600"}`}
                               >
