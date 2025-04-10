@@ -296,6 +296,7 @@ export const bundles = pgTable("bundles", {
   id: uuid("id").notNull().primaryKey().defaultRandom(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
+  notes: text("notes"),
   type: bundleTypeEnum("type").notNull(),
   organizationId: uuid("organization_id").references(() => organizations.id),
   basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(),

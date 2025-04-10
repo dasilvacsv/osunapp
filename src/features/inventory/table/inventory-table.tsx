@@ -1,7 +1,4 @@
-"use client"
-
 import React, { useState, useCallback, useEffect } from "react"
-
 import {
   useReactTable,
   getCoreRowModel,
@@ -15,14 +12,23 @@ import {
 } from "@tanstack/react-table"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronDown, ChevronRight, AlertCircle, Package2, Search, MoreHorizontal, Archive, Flag, Package } from "lucide-react"
+import { ChevronDown, ChevronRight, AlertCircle, Package2, Search, MoreHorizontal, Archive, Flag, Package, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { TransactionHistory } from "./transaction-history"
 import { getInventoryTransactions } from "./actions"
+import { updateInventoryItem, deleteInventoryItem } from "../actions"
 import { columns } from "./columns"
 import type { InventoryItem, InventoryTransaction } from "../types"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +49,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { updateInventoryItemStatus, updatePreSaleFlag } from "../actions"
 import type { InventoryTableProps } from "../types"
 import { AddProductDialog } from "../add-product-dialog"
@@ -60,6 +68,22 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
   const [filteredItems, setFilteredItems] = useState<InventoryItem[]>([])
   const [isUpdating, setIsUpdating] = useState(false)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    sku: "",
+    description: "",
+    basePrice: "",
+    costPrice: "",
+    currentStock: "",
+    minimumStock: "",
+    type: "",
+    status: "",
+    allowPresale: false,
+  })
+  const [deleteAuthCode, setDeleteAuthCode] = useState("")
 
   const { toast } = useToast()
 
@@ -86,6 +110,107 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
     },
     [transactions, toast],
   )
+
+  const handleEdit = (product: InventoryItem) => {
+    setSelectedProduct(product)
+    setEditFormData({
+      name: product.name,
+      sku: product.sku,
+      description: product.description || "",
+      basePrice: product.basePrice.toString(),
+      costPrice: product.costPrice?.toString() || "",
+      currentStock: product.currentStock.toString(),
+      minimumStock: product.minimumStock.toString(),
+      type: product.type,
+      status: product.status,
+      allowPresale: product.allowPresale,
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleDelete = (product: InventoryItem) => {
+    setSelectedProduct(product)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedProduct) return
+
+    setIsUpdating(true)
+    try {
+      const result = await updateInventoryItem(selectedProduct.id, {
+        name: editFormData.name,
+        sku: editFormData.sku,
+        description: editFormData.description,
+        basePrice: parseFloat(editFormData.basePrice),
+        costPrice: editFormData.costPrice ? parseFloat(editFormData.costPrice) : undefined,
+        currentStock: parseInt(editFormData.currentStock),
+        minimumStock: parseInt(editFormData.minimumStock),
+        type: editFormData.type,
+        status: editFormData.status,
+        allowPresale: editFormData.allowPresale,
+      })
+
+      if (result.success) {
+        toast({
+          title: "Éxito",
+          description: "Producto actualizado correctamente",
+        })
+        setIsEditDialogOpen(false)
+        if (onItemUpdated) onItemUpdated()
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Error al actualizar el producto",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error updating product:", error)
+      toast({
+        title: "Error",
+        description: "Error al actualizar el producto",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const handleDeleteSubmit = async () => {
+    if (!selectedProduct) return
+
+    setIsUpdating(true)
+    try {
+      const result = await deleteInventoryItem(selectedProduct.id, deleteAuthCode)
+
+      if (result.success) {
+        toast({
+          title: "Éxito",
+          description: result.message || "Producto eliminado correctamente",
+        })
+        setIsDeleteDialogOpen(false)
+        setDeleteAuthCode("")
+        if (onItemUpdated) onItemUpdated()
+      } else {
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error deleting product:", error)
+      toast({
+        title: "Error",
+        description: "Error al eliminar el producto",
+        variant: "destructive",
+      })
+    } finally {
+      setIsUpdating(false)
+    }
+  }
 
   const handleDisableItem = async (id: string) => {
     setItemToDisable(id)
@@ -135,7 +260,6 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
     }
   }, [onItemUpdated])
 
-  // Modificar la función handlePreSaleToggle para que actualice correctamente solo el elemento seleccionado
   const handlePreSaleToggle = async (id: string, currentValue: boolean) => {
     if (isUpdating) return
 
@@ -144,7 +268,6 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
       const result = await updatePreSaleFlag(id, !currentValue)
 
       if (result.success) {
-        // Actualizar inmediatamente la UI
         const updatedItems = filteredItems.map((item) =>
           item.id === id ? { ...item, allowPresale: !currentValue } : item,
         )
@@ -158,7 +281,6 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
             : "Este producto ahora requiere stock disponible para venderse",
         })
 
-        // Disparar evento personalizado para actualizar la tabla
         window.dispatchEvent(
           new CustomEvent("inventory-updated", {
             detail: { itemId: id, allowPresale: !currentValue },
@@ -311,7 +433,9 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -20 }}
                       transition={{ duration: 0.2 }}
-                      className={`relative group hover:bg-muted/50 ${row.original.allowPresale ? "bg-red-50/30 dark:bg-red-900/10" : ""}`}
+                      className={`relative group hover:bg-muted/50 ${
+                        row.original.allowPresale ? "bg-red-50/30 dark:bg-red-900/10" : ""
+                      }`}
                     >
                       <TableCell>
                         <Button
@@ -345,6 +469,14 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                             <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleEdit(row.original)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDelete(row.original)}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Eliminar
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handlePreSaleToggle(row.original.id, row.original.allowPresale)}
                             >
@@ -463,12 +595,157 @@ export function InventoryTable({ items, onItemDisabled, onItemUpdated }: Invento
         </AlertDialogContent>
       </AlertDialog>
 
-      <AddProductDialog 
-        open={isAddDialogOpen} 
-        onOpenChange={setIsAddDialogOpen}
-        onProductAdded={onItemUpdated}
-      />
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" />
+              Editar Producto
+            </DialogTitle>
+            <DialogDescription>
+              Modifica los detalles del producto. Los cambios se guardarán automáticamente.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nombre</Label>
+                <Input
+                  id="name"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sku">SKU</Label>
+                <Input
+                  id="sku"
+                  value={editFormData.sku}
+                  onChange={(e) => setEditFormData({ ...editFormData, sku: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="basePrice">Precio Base</Label>
+                <Input
+                  id="basePrice"
+                  type="number"
+                  value={editFormData.basePrice}
+                  onChange={(e) => setEditFormData({ ...editFormData, basePrice: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="costPrice">Precio de Costo</Label>
+                <Input
+                  id="costPrice"
+                  type="number"
+                  value={editFormData.costPrice}
+                  onChange={(e) => setEditFormData({ ...editFormData, costPrice: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="currentStock">Stock Actual</Label>
+                <Input
+                  id="currentStock"
+                  type="number"
+                  value={editFormData.currentStock}
+                  onChange={(e) => setEditFormData({ ...editFormData, currentStock: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="minimumStock">Stock Mínimo</Label>
+                <Input
+                  id="minimumStock"
+                  type="number"
+                  value={editFormData.minimumStock}
+                  onChange={(e) => setEditFormData({ ...editFormData, minimumStock: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Descripción</Label>
+              <Input
+                id="description"
+                value={editFormData.description}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="allowPresale"
+                checked={editFormData.allowPresale}
+                onChange={(e) => setEditFormData({ ...editFormData, allowPresale: e.target.checked })}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="allowPresale">Permitir Pre-venta</Label>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Guardando..." : "Guardar Cambios"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Eliminar Producto
+            </DialogTitle>
+            <DialogDescription>
+              Esta acción no se puede deshacer. Si el producto tiene transacciones asociadas, se desactivará en lugar de
+              eliminarse.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 border border-red-200 rounded-md bg-red-50">
+              <p className="text-sm text-red-700">
+                ¿Estás seguro de que deseas eliminar el producto "{selectedProduct?.name}"?
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="authCode">Código de autorización (1234)</Label>
+              <Input
+                id="authCode"
+                type="password"
+                value={deleteAuthCode}
+                onChange={(e) => setDeleteAuthCode(e.target.value)}
+                placeholder="Ingresa el código de autorización"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDeleteSubmit}
+              disabled={isUpdating || !deleteAuthCode}
+            >
+              {isUpdating ? "Eliminando..." : "Eliminar Producto"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AddProductDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} onProductAdded={onItemUpdated} />
     </div>
   )
 }
-

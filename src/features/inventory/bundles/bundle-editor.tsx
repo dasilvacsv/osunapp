@@ -25,12 +25,13 @@ import {
   Building,
   FileText,
   List,
+  Loader2,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/utils"
 import { InventoryItemSelector } from "../stock/inventory-item-selector"
 import type { InventoryItem, BundleItem } from "../types"
 import { getInventoryItems } from "../actions"
-import { createBundle, createInventoryTransaction } from "./actions"
+import { getBundleById, updateBundle, createInventoryTransaction } from "./actions"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { getBCVRate } from "@/lib/exchangeRates"
@@ -57,18 +58,21 @@ const bundleSchema = z.object({
 type BundleFormValues = z.infer<typeof bundleSchema>
 type CategoryFormValues = z.infer<typeof categorySchema>
 
-interface BundleCreatorProps {
+interface BundleEditorProps {
+  bundleId: string
   categories: { id: string; name: string }[]
   organizations: { id: string; name: string }[]
-  onBundleCreated?: () => void
+  onBundleUpdated?: () => void
 }
 
-export function BundleCreator({ categories, organizations, onBundleCreated }: BundleCreatorProps) {
+export function BundleEditor({ bundleId, categories, organizations, onBundleUpdated }: BundleEditorProps) {
   const [selectedItems, setSelectedItems] = useState<BundleItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [isLoadingRate, setIsLoadingRate] = useState(false)
   const [bcvRate, setBcvRate] = useState<number>(35)
+  const [originalItems, setOriginalItems] = useState<BundleItem[]>([])
   const { toast } = useToast()
   const router = useRouter()
 
@@ -120,6 +124,57 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
   // Cálculo de la ganancia real (puede ser diferente del margen esperado)
   const profit = salePrice - totalCostPrice
   const profitPercentage = totalCostPrice > 0 ? (profit / totalCostPrice) * 100 : 0
+
+  // Cargar datos del paquete
+  useEffect(() => {
+    const loadBundle = async () => {
+      try {
+        setIsLoading(true)
+        const result = await getBundleById(bundleId)
+
+        if (result.success && result.data) {
+          const bundle = result.data
+
+          // Establecer valores del formulario
+          form.reset({
+            name: bundle.name,
+            description: bundle.description || "",
+            notes: bundle.notes || "",
+            categoryId: bundle.categoryId,
+            basePrice: Number(bundle.basePrice),
+            margin: Number(bundle.discountPercentage || 0),
+            currencyType: (bundle.currencyType as "USD" | "BS") || "USD",
+            conversionRate: bundle.conversionRate ? Number(bundle.conversionRate) : undefined,
+            organizationId: bundle.organizationId || undefined,
+          })
+
+          // Establecer items seleccionados
+          setSelectedItems(bundle.items)
+          setOriginalItems(bundle.items)
+        } else {
+          toast({
+            title: "Error",
+            description: result.error || "No se pudo cargar el paquete",
+            variant: "destructive",
+          })
+          router.push("/inventario/bundles")
+        }
+      } catch (error) {
+        console.error("Error loading bundle:", error)
+        toast({
+          title: "Error",
+          description: "Ocurrió un error al cargar el paquete",
+          variant: "destructive",
+        })
+        router.push("/inventario/bundles")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadBundle()
+    refreshInventory()
+  }, [bundleId, form, router, toast])
 
   useEffect(() => {
     if (currencyType === "BS" && form.getValues("basePrice") === 0) {
@@ -281,44 +336,50 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
         totalCostPrice,
       }
 
-      const result = await createBundle(bundleData)
+      const result = await updateBundle(bundleId, bundleData)
 
       if (result.success) {
-        // Crear transacciones de inventario para cada ítem
-        for (const item of selectedItems) {
+        // Crear transacciones de inventario para los cambios en los ítems
+        // Primero, identificar los ítems que se han agregado o modificado
+        const itemChanges = calculateItemChanges(originalItems, selectedItems)
+
+        // Procesar cada cambio de inventario
+        for (const change of itemChanges) {
           await createInventoryTransaction({
-            itemId: item.itemId,
-            quantity: -item.quantity, // Negativo porque se está retirando del inventario
-            transactionType: "OUT",
+            itemId: change.itemId,
+            quantity: change.quantityChange, // Puede ser positivo (devolución) o negativo (retiro)
+            transactionType: change.quantityChange > 0 ? "IN" : "OUT",
             reference: {
-              type: "BUNDLE_CREATION",
-              bundleId: result.data,
+              type: "BUNDLE_UPDATE",
+              bundleId: bundleId,
               bundleName: values.name,
             },
-            notes: `Ítem asignado al paquete: ${values.name}`,
+            notes: `Actualización de ítem en paquete: ${values.name}`,
           })
         }
 
         toast({
-          title: "Paquete creado",
-          description: "El paquete ha sido creado exitosamente y los ítems han sido descontados del inventario.",
+          title: "Paquete actualizado",
+          description: "El paquete ha sido actualizado exitosamente y el inventario ha sido ajustado.",
         })
-        form.reset()
-        setSelectedItems([])
+
+        // Actualizar los items originales para futuras comparaciones
+        setOriginalItems([...selectedItems])
+
+        if (onBundleUpdated) onBundleUpdated()
         router.refresh()
-        if (onBundleCreated) onBundleCreated()
       } else {
         toast({
           title: "Error",
-          description: result.error || "No se pudo crear el paquete.",
+          description: result.error || "No se pudo actualizar el paquete.",
           variant: "destructive",
         })
       }
     } catch (error) {
-      console.error("Error creating bundle:", error)
+      console.error("Error updating bundle:", error)
       toast({
         title: "Error",
-        description: "Ocurrió un error al crear el paquete.",
+        description: "Ocurrió un error al actualizar el paquete.",
         variant: "destructive",
       })
     } finally {
@@ -326,9 +387,61 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
     }
   }
 
-  useEffect(() => {
-    refreshInventory()
-  }, [])
+  // Función para calcular los cambios en los ítems
+  const calculateItemChanges = (originalItems: BundleItem[], newItems: BundleItem[]) => {
+    const changes: { itemId: string; quantityChange: number }[] = []
+
+    // Verificar ítems eliminados o con cantidad reducida
+    for (const originalItem of originalItems) {
+      const newItem = newItems.find((item) => item.itemId === originalItem.itemId)
+
+      if (!newItem) {
+        // Ítem eliminado, devolver al inventario
+        changes.push({
+          itemId: originalItem.itemId,
+          quantityChange: originalItem.quantity, // Positivo porque se devuelve al inventario
+        })
+      } else if (newItem.quantity < originalItem.quantity) {
+        // Cantidad reducida, devolver la diferencia al inventario
+        changes.push({
+          itemId: originalItem.itemId,
+          quantityChange: originalItem.quantity - newItem.quantity, // Positivo porque se devuelve al inventario
+        })
+      }
+    }
+
+    // Verificar ítems nuevos o con cantidad aumentada
+    for (const newItem of newItems) {
+      const originalItem = originalItems.find((item) => item.itemId === newItem.itemId)
+
+      if (!originalItem) {
+        // Ítem nuevo, retirar del inventario
+        changes.push({
+          itemId: newItem.itemId,
+          quantityChange: -newItem.quantity, // Negativo porque se retira del inventario
+        })
+      } else if (newItem.quantity > originalItem.quantity) {
+        // Cantidad aumentada, retirar la diferencia del inventario
+        changes.push({
+          itemId: newItem.itemId,
+          quantityChange: -(newItem.quantity - originalItem.quantity), // Negativo porque se retira del inventario
+        })
+      }
+    }
+
+    return changes
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Cargando información del paquete...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -338,7 +451,7 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="w-5 h-5" />
-                Información del Paquete
+                Editar Paquete
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -442,6 +555,7 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
                   )}
                 />
 
+
                 <FormField
                   control={form.control}
                   name="currencyType"
@@ -467,7 +581,7 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
                   )}
                 />
 
-                {/* Solo mostrar el campo de tasa de conversión si estamos en USD y necesitamos convertir */}
+                {/* Solo mostrar el campo de tasa de conversión si estamos en USD */}
                 {currencyType === "USD" && (
                   <FormField
                     control={form.control}
@@ -775,12 +889,12 @@ export function BundleCreator({ categories, organizations, onBundleCreated }: Bu
             {isSubmitting ? (
               <>
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                Creando...
+                Actualizando...
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                Crear Paquete
+                Guardar Cambios
               </>
             )}
           </Button>

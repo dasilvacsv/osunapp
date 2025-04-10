@@ -24,19 +24,19 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 
 interface NewSaleFormProps {
-  userRole?: string;
-  initialClients: any[];
-  initialOrganizations: any[];
-  initialProducts: any[];
-  initialBundles: any[];
+  userRole?: string
+  initialClients: any[]
+  initialOrganizations: any[]
+  initialProducts: any[]
+  initialBundles: any[]
 }
 
-export default function NewSaleForm({ 
+export default function NewSaleForm({
   userRole,
   initialClients,
   initialOrganizations,
   initialProducts,
-  initialBundles 
+  initialBundles,
 }: NewSaleFormProps) {
   const router = useRouter()
   const isAdmin = userRole === "ADMIN"
@@ -132,8 +132,8 @@ export default function NewSaleForm({
   const handleBundleSelect = (bundleId: string, bundle: any) => {
     setSelectedBundle(bundle)
 
-    // Automatically set sale type to PRESALE when a bundle is selected
-    setSaleType("PRESALE")
+    // Ya no establecemos automáticamente el tipo de venta a PRESALE
+    // setSaleType("PRESALE")
 
     // Create a single cart item for the bundle with the bundle price
     const bundlePrice = bundle.bundlePrice || bundle.basePrice
@@ -426,17 +426,7 @@ export default function NewSaleForm({
 
               <div className="space-y-2">
                 <Label>Tipo de Venta</Label>
-                <SaleTypeSelector
-                  onTypeChange={setSaleType}
-                  defaultValue={saleType}
-                  disabled={!!selectedBundle} // Disable type selection if a bundle is selected
-                />
-                {selectedBundle && (
-                  <div className="flex items-center mt-1 text-xs text-amber-600 dark:text-amber-400">
-                    <Info className="h-3 w-3 mr-1" />
-                    Los paquetes se venden como preventa automáticamente
-                  </div>
-                )}
+                <SaleTypeSelector onTypeChange={setSaleType} defaultValue={saleType} />
               </div>
 
               {isAdmin && (
@@ -541,46 +531,43 @@ export default function NewSaleForm({
               </div>
             </CardContent>
             <CardFooter className="flex-col space-y-4">
-              <div className="w-full space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Método de Pago</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CASH">Efectivo</SelectItem>
-                        <SelectItem value="TRANSFER">Transferencia</SelectItem>
-                        <SelectItem value="CARD">Tarjeta</SelectItem>
-                        <SelectItem value="ZELLE">Zelle</SelectItem>
-                        <SelectItem value="PAYPAL">PayPal</SelectItem>
-                        <SelectItem value="OTHER">Otro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {(paymentMethod === "TRANSFER" || paymentMethod === "ZELLE" || paymentMethod === "PAYPAL") && (
+              {saleType !== "PRESALE" && (
+                <div className="w-full space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label>Referencia</Label>
-                      <Input
-                        value={transactionReference}
-                        onChange={(e) => setTransactionReference(e.target.value)}
-                        placeholder="# de referencia"
-                      />
+                      <Label>Método de Pago</Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CASH">Efectivo</SelectItem>
+                          <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                          <SelectItem value="CARD">Tarjeta</SelectItem>
+                          <SelectItem value="ZELLE">Zelle</SelectItem>
+                          <SelectItem value="PAYPAL">PayPal</SelectItem>
+                          <SelectItem value="OTHER">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
-                </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={loading || !selectedClient || cartItems.length === 0}
-                >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isDraft ? "Guardar como Borrador" : isDonation ? "Registrar Donación" : "Completar Venta"}
-                </Button>
-              </div>
+                    {(paymentMethod === "TRANSFER" || paymentMethod === "ZELLE" || paymentMethod === "PAYPAL") && (
+                      <div>
+                        <Label>Referencia</Label>
+                        <Input
+                          value={transactionReference}
+                          onChange={(e) => setTransactionReference(e.target.value)}
+                          placeholder="# de referencia"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <Button type="submit" className="w-full" disabled={loading || !selectedClient || cartItems.length === 0}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isDraft ? "Guardar como Borrador" : isDonation ? "Registrar Donación" : "Completar Venta"}
+              </Button>
             </CardFooter>
           </Card>
         </div>
@@ -588,4 +575,3 @@ export default function NewSaleForm({
     </FormProvider>
   )
 }
-

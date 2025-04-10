@@ -63,32 +63,21 @@ export async function createBundleCategory(input: { name: string }): Promise<
   }
 }
 
-// Crear un nuevo paquete - Modificado para usar precio base directo
+// Crear un nuevo paquete - Ahora incluye directamente el campo notes
 export async function createBundle(input: CreateBundleInput): Promise<ActionResponse<string>> {
   try {
-    // Verificamos si el campo notes existe en el esquema
-    // Si no existe, lo omitimos en la inserción
-    const bundleData: any = {
+    const bundleData = {
       name: input.name,
       description: input.description || null,
+      notes: input.notes || null, // Incluimos notes directamente
       categoryId: input.categoryId,
       type: "REGULAR",
       basePrice: input.basePrice.toString(),
       bundlePrice: input.salePrice.toString(),
-      discountPercentage: input.margin.toString(),
+      discountPercentage: input.margin.toString(), // Now represents dollar value instead of percentage
       currencyType: input.currencyType || "USD",
       conversionRate: input.conversionRate ? input.conversionRate.toString() : null,
       organizationId: input.organizationId || null,
-    }
-
-    // Solo agregamos notes si existe en el esquema
-    if (input.notes) {
-      try {
-        // Intentamos agregar notes al objeto
-        bundleData.notes = input.notes
-      } catch (e) {
-        console.warn("El campo 'notes' no existe en el esquema de bundles, se omitirá")
-      }
     }
 
     const [bundle] = await db.insert(bundles).values(bundleData).returning({ id: bundles.id })
@@ -109,6 +98,143 @@ export async function createBundle(input: CreateBundleInput): Promise<ActionResp
   } catch (error) {
     console.error("Error creating bundle:", error)
     return { success: false, error: "Error al crear el paquete" }
+  }
+}
+
+// Obtener un paquete específico por ID
+export async function getBundleById(bundleId: string): Promise<ActionResponse<BundleWithItems>> {
+  try {
+    noStore()
+    const bundleResult = await db
+      .select({
+        bundle: bundles,
+        organization: {
+          id: organizations.id,
+          name: organizations.name,
+        },
+      })
+      .from(bundles)
+      .leftJoin(organizations, eq(bundles.organizationId, organizations.id))
+      .where(eq(bundles.id, bundleId))
+      .limit(1)
+
+    if (!bundleResult.length) {
+      return { success: false, error: "Paquete no encontrado" }
+    }
+
+    const { bundle, organization } = bundleResult[0]
+
+    const bundleItemsWithDetails = await db
+      .select({
+        bundleItem: bundleItems,
+        item: inventoryItems,
+      })
+      .from(bundleItems)
+      .where(eq(bundleItems.bundleId, bundle.id))
+      .innerJoin(inventoryItems, eq(bundleItems.itemId, inventoryItems.id))
+
+    const basePrice = Number(bundle.basePrice)
+    const margin = Number(bundle.discountPercentage || 0)
+    const salePrice = Number(bundle.bundlePrice || 0)
+
+    // Cálculo correcto del costo estimado
+    let totalEstimatedCost = 0
+    bundleItemsWithDetails.forEach((i) => {
+      // Si costPrice no existe, intentamos calcularlo a partir del basePrice y margin
+      let itemCost = 0
+      if (i.item.costPrice) {
+        itemCost = Number(i.item.costPrice)
+      } else if (i.item.basePrice && i.item.margin) {
+        // Si no hay costPrice pero tenemos basePrice y margin, calculamos el costo
+        const itemBasePrice = Number(i.item.basePrice)
+        const itemMargin = Number(i.item.margin)
+        itemCost = itemBasePrice / (1 + itemMargin)
+      }
+
+      totalEstimatedCost += itemCost * i.bundleItem.quantity
+    })
+
+    const profit = salePrice - totalEstimatedCost
+    const profitPercentage = salePrice > 0 ? (profit / salePrice) * 100 : 0
+
+    // Convertimos el resultado a BundleWithItems
+    const bundleWithItems: BundleWithItems = {
+      ...bundle,
+      organization,
+      items: bundleItemsWithDetails.map((i) => ({
+        itemId: i.item.id,
+        item: i.item,
+        quantity: i.bundleItem.quantity,
+        // Calculamos el costo para cada ítem
+        costPrice: i.item.costPrice
+          ? Number(i.item.costPrice)
+          : i.item.basePrice && i.item.margin
+            ? Number(i.item.basePrice) / (1 + Number(i.item.margin))
+            : 0,
+      })),
+      totalBasePrice: basePrice,
+      totalDiscountedPrice: salePrice,
+      savings: 0, // Ya no calculamos ahorros
+      savingsPercentage: 0, // Ya no calculamos porcentaje de ahorro
+      totalEstimatedCost,
+      profit,
+      profitPercentage,
+      currencyType: bundle.currencyType || "USD",
+      conversionRate: bundle.conversionRate || "1",
+    }
+
+    return { success: true, data: bundleWithItems }
+  } catch (error) {
+    console.error("Error fetching bundle by ID:", error)
+    return { success: false, error: "Error al obtener el paquete" }
+  }
+}
+
+// Actualizar un paquete existente - Ahora incluye directamente el campo notes
+export async function updateBundle(bundleId: string, input: CreateBundleInput): Promise<ActionResponse<string>> {
+  try {
+    // Verificar si el paquete existe
+    const bundleExists = await db.select({ id: bundles.id }).from(bundles).where(eq(bundles.id, bundleId)).limit(1)
+
+    if (!bundleExists.length) {
+      return { success: false, error: "Paquete no encontrado" }
+    }
+
+    // Actualizar los datos del paquete
+    const bundleData = {
+      name: input.name,
+      description: input.description || null,
+      notes: input.notes || null, // Incluimos notes directamente
+      categoryId: input.categoryId,
+      basePrice: input.basePrice.toString(),
+      bundlePrice: input.salePrice.toString(),
+      discountPercentage: input.margin.toString(),
+      currencyType: input.currencyType || "USD",
+      conversionRate: input.conversionRate ? input.conversionRate.toString() : null,
+      organizationId: input.organizationId || null,
+      updatedAt: new Date(),
+    }
+
+    await db.update(bundles).set(bundleData).where(eq(bundles.id, bundleId))
+
+    // Eliminar los items actuales del paquete
+    await db.delete(bundleItems).where(eq(bundleItems.bundleId, bundleId))
+
+    // Insertar los nuevos items
+    for (const item of input.items) {
+      await db.insert(bundleItems).values({
+        bundleId: bundleId,
+        itemId: item.itemId,
+        quantity: item.quantity,
+        overridePrice: null,
+      })
+    }
+
+    revalidatePath("/inventario/bundles")
+    return { success: true, data: bundleId }
+  } catch (error) {
+    console.error("Error updating bundle:", error)
+    return { success: false, error: "Error al actualizar el paquete" }
   }
 }
 
@@ -261,3 +387,34 @@ export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
   }
 }
 
+// Eliminar un paquete (soft delete)
+export async function deleteBundle(bundleId: string, authCode: string): Promise<ActionResponse<string>> {
+  try {
+    // Verificar el código de autorización
+    if (authCode !== "1234") {
+      return { success: false, error: "Código de autorización incorrecto" }
+    }
+
+    // Verificar si el paquete existe
+    const bundleExists = await db.select({ id: bundles.id }).from(bundles).where(eq(bundles.id, bundleId)).limit(1)
+
+    if (!bundleExists.length) {
+      return { success: false, error: "Paquete no encontrado" }
+    }
+
+    // Realizar un soft delete cambiando el status a INACTIVE
+    await db
+      .update(bundles)
+      .set({
+        status: "INACTIVE",
+        updatedAt: new Date(),
+      })
+      .where(eq(bundles.id, bundleId))
+
+    revalidatePath("/inventario/bundles")
+    return { success: true, data: bundleId }
+  } catch (error) {
+    console.error("Error deleting bundle:", error)
+    return { success: false, error: "Error al eliminar el paquete" }
+  }
+}

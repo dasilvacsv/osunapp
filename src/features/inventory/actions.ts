@@ -301,3 +301,116 @@ export async function getPurchaseDetails(purchaseId: string): Promise<ActionResp
   }
 }
 
+export async function updateInventoryItem(
+  id: string,
+  data: {
+    name?: string
+    sku?: string
+    description?: string
+    basePrice?: number
+    costPrice?: number
+    currentStock?: number
+    minimumStock?: number
+    type?: string
+    status?: string
+    allowPresale?: boolean
+  },
+) {
+  try {
+    // Verificar que el producto existe
+    const [existingItem] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id))
+
+    if (!existingItem) {
+      return { success: false, error: "Producto no encontrado" }
+    }
+
+    // Preparar los datos para actualizar
+    const updateData: any = {
+      updatedAt: new Date(),
+    }
+
+    // Solo incluir los campos que se proporcionaron
+    if (data.name !== undefined) updateData.name = data.name
+    if (data.sku !== undefined) updateData.sku = data.sku
+    if (data.description !== undefined) updateData.description = data.description
+    if (data.basePrice !== undefined) updateData.basePrice = data.basePrice.toString()
+    if (data.costPrice !== undefined) updateData.costPrice = data.costPrice.toString()
+    if (data.currentStock !== undefined) updateData.currentStock = data.currentStock
+    if (data.minimumStock !== undefined) updateData.minimumStock = data.minimumStock
+    if (data.type !== undefined) updateData.type = data.type
+    if (data.status !== undefined) updateData.status = data.status
+    if (data.allowPresale !== undefined) updateData.allowPresale = data.allowPresale
+
+    // Si se cambió el stock actual, registrar una transacción de ajuste
+    if (data.currentStock !== undefined && data.currentStock !== existingItem.currentStock) {
+      const difference = data.currentStock - Number(existingItem.currentStock)
+
+      await db.insert(inventoryTransactions).values({
+        itemId: id,
+        quantity: difference,
+        transactionType: "ADJUSTMENT",
+        notes: `Ajuste manual de inventario: ${difference > 0 ? "+" : ""}${difference} unidades`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    }
+
+    // Actualizar el producto
+    const [updatedItem] = await db.update(inventoryItems).set(updateData).where(eq(inventoryItems.id, id)).returning()
+
+    revalidatePath("/inventory")
+
+    return { success: true, data: updatedItem }
+  } catch (error) {
+    console.error("Error updating inventory item:", error)
+    return { success: false, error: "Error al actualizar el producto" }
+  }
+}
+
+// Función para eliminar un producto (soft delete)
+export async function deleteInventoryItem(id: string, authCode: string) {
+  try {
+    // Verificar el código de autorización
+    if (authCode !== "1234") {
+      return { success: false, error: "Código de autorización incorrecto" }
+    }
+
+    // Verificar que el producto existe
+    const [existingItem] = await db.select().from(inventoryItems).where(eq(inventoryItems.id, id))
+
+    if (!existingItem) {
+      return { success: false, error: "Producto no encontrado" }
+    }
+
+    // Verificar si hay transacciones asociadas
+    const transactionsCount = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(inventoryTransactions)
+      .where(eq(inventoryTransactions.itemId, id))
+      .then((result) => Number(result[0].count))
+
+    // Si hay transacciones, hacer un soft delete cambiando el estado a INACTIVE
+    if (transactionsCount > 0) {
+      await db
+        .update(inventoryItems)
+        .set({
+          status: "INACTIVE",
+          updatedAt: new Date(),
+        })
+        .where(eq(inventoryItems.id, id))
+
+      revalidatePath("/inventory")
+      return { success: true, message: "Producto desactivado debido a que tiene transacciones asociadas" }
+    }
+
+    // Si no hay transacciones, eliminar el producto
+    await db.delete(inventoryItems).where(eq(inventoryItems.id, id))
+
+    revalidatePath("/inventory")
+    return { success: true, message: "Producto eliminado correctamente" }
+  } catch (error) {
+    console.error("Error deleting inventory item:", error)
+    return { success: false, error: "Error al eliminar el producto" }
+  }
+}
+

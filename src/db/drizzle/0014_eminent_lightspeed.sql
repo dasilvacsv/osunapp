@@ -1,0 +1,1 @@
+ALTER TABLE "bundles" ADD COLUMN "notes" text;

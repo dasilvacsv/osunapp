@@ -10,13 +10,13 @@ export interface InventoryItem {
   minimumStock: number
   maximumStock?: number
   allowPresale: boolean
-  status: "ACTIVE" | "INACTIVE"
+  status: "ACTIVE" | "INACTIVE" | null // Permitir null para coincidir con el esquema
   preSaleCount?: number
   createdAt: Date | null
   updatedAt: Date | null
   metadata?: Record<string, any>
   margin?: string
-  costPrice?: string // Campo para el costo del ítem
+  costPrice?: string // Asegurarse de que costPrice esté definido
 }
 
 export interface InventoryTransaction {
@@ -88,7 +88,7 @@ export interface Bundle {
   id: string
   name: string
   description?: string
-  notes?: string // Nuevo campo para notas
+  notes?: string // Campo para notas
   categoryId: string
   type: "SCHOOL_PACKAGE" | "ORGANIZATION_PACKAGE" | "REGULAR"
   basePrice: string | number // Puede ser string o number dependiendo de la fuente
@@ -97,7 +97,7 @@ export interface Bundle {
   status: "ACTIVE" | "INACTIVE"
   createdAt: Date
   updatedAt: Date
-  currencyType?: string
+  currencyType?: string // Mantener como string para compatibilidad
   conversionRate?: string
   organizationId?: string
   // Campos adicionales que pueden estar en el esquema
@@ -115,7 +115,26 @@ export interface BundleItem {
   costPrice?: number
 }
 
-export interface BundleWithItems extends Bundle {
+export interface BundleWithItems {
+  id: string
+  name: string
+  description: string | null
+  notes: string | null // Añade el campo notes aquí
+  categoryId: string
+  type: string
+  basePrice: string
+  bundlePrice: string | null
+  discountPercentage: string | null
+  currencyType: string
+  conversionRate: string | null
+  organizationId: string | null
+  status: string
+  createdAt: Date
+  updatedAt: Date
+  organization: {
+    id: string
+    name: string
+  } | null
   items: BundleItem[]
   totalBasePrice: number
   totalDiscountedPrice: number
@@ -124,26 +143,35 @@ export interface BundleWithItems extends Bundle {
   totalEstimatedCost: number
   profit: number
   profitPercentage: number
-  organization?: {
-    id: string
-    name: string
-  }
 }
 
 export interface CreateBundleInput {
   name: string
   description?: string
-  notes?: string // Campo para notas
+  notes?: string // Añade el campo notes aquí también
   categoryId: string
+  basePrice: number
+  margin: number
+  salePrice: number
+  totalCostPrice: number
+  currencyType?: string
+  conversionRate?: number
+  organizationId?: string
   items: {
     itemId: string
     quantity: number
   }[]
-  basePrice: number
-  margin: number
-  salePrice: number
-  totalCostPrice?: number
-  currencyType?: string
-  conversionRate?: number
-  organizationId?: string
+}
+
+// Nuevo tipo para manejar cambios de inventario durante la edición de paquetes
+export interface InventoryChange {
+  itemId: string
+  quantityChange: number // Positivo para devoluciones, negativo para retiros
+}
+
+// Tipo para la respuesta de la tasa de cambio BCV
+export interface BCVRateResponse {
+  rate: number
+  date: string
+  isError: boolean
 }

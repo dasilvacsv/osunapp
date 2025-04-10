@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -275,110 +275,145 @@ export function PartialPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[425px] md:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0 px-1">
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <CreditCard className="w-5 h-5" />
             Registrar Abono
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {loadingBalance ? (
-            <div className="flex justify-center items-center py-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : remainingBalance ? (
-            <div className="bg-muted/50 p-4 rounded-lg border border-border">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-muted-foreground">Monto total</div>
-                  <div className="text-lg font-bold mt-1">
-                    {formatCurrency(remainingBalance.totalAmount)} {remainingBalance.currencyType}
+        <div className="overflow-y-auto pr-1 py-2 flex-1">
+          <div className="space-y-4 px-1">
+            {loadingBalance ? (
+              <div className="flex justify-center items-center py-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : remainingBalance ? (
+              <div className="bg-muted/50 p-3 rounded-lg border border-border space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">Monto total</div>
+                    <div className="text-base font-semibold">
+                      {formatCurrency(remainingBalance.totalAmount)} {remainingBalance.currencyType}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm text-muted-foreground">Total pagado</div>
+                    <div className="text-base font-semibold">
+                      {formatCurrency(remainingBalance.totalPaid)} {remainingBalance.currencyType}
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Total pagado</div>
-                  <div className="text-lg font-bold mt-1">
-                    {formatCurrency(remainingBalance.totalPaid)} {remainingBalance.currencyType}
+                <div className="pt-3 border-t border-border space-y-1">
+                  <div className="text-sm text-muted-foreground">Saldo pendiente</div>
+                  <div className="text-xl font-bold">
+                    {formatCurrency(remainingBalance.remainingAmount)} {remainingBalance.currencyType}
                   </div>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="text-sm text-muted-foreground">Saldo pendiente</div>
-                <div className="text-2xl font-bold mt-1">
-                  {formatCurrency(remainingBalance.remainingAmount)} {remainingBalance.currencyType}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="space-y-4">
-            {/* Fecha de pago */}
-            <div className="space-y-2">
-              <Label htmlFor="paymentDate">Fecha de pago</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-left font-normal" id="paymentDate">
-                    <Calendar className="mr-2 h-4 w-4" />
-                    {paymentDate ? format(paymentDate, "PPP", { locale: es }) : "Seleccionar fecha"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <CalendarComponent
-                    mode="single"
-                    selected={paymentDate}
-                    onSelect={(date) => date && setPaymentDate(date)}
-                    initialFocus
-                    locale={es}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Only show currency selection if sale is in USD */}
-            {(!remainingBalance || remainingBalance.currencyType === "USD") && (
-              <div className="space-y-2">
-                <Label htmlFor="currencyType">Moneda de Pago</Label>
-                <Select value={currencyType} onValueChange={handleCurrencyChange}>
-                  <SelectTrigger id="currencyType">
-                    <SelectValue placeholder="Seleccionar moneda" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="BS">BS</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            ) : (
+              <Alert variant="destructive" className="mt-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
             )}
 
-            {currencyType === "BS" ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="bsAmount">Monto en Bs</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-muted-foreground">Bs.</span>
-                    <Input
-                      id="bsAmount"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={bsAmount}
-                      onChange={(e) => handleBsAmountChange(e.target.value)}
-                      placeholder="0.00"
-                      className="pl-9"
+            <div className="space-y-4">
+              {/* Fecha de pago */}
+              <div className="space-y-2">
+                <Label htmlFor="paymentDate">Fecha de pago</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal h-10" id="paymentDate">
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {paymentDate ? format(paymentDate, "PPP", { locale: es }) : "Seleccionar fecha"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <CalendarComponent
+                      mode="single"
+                      selected={paymentDate}
+                      onSelect={(date) => date && setPaymentDate(date)}
+                      initialFocus
+                      locale={es}
                     />
-                  </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Moneda de pago */}
+              {(!remainingBalance || remainingBalance.currencyType === "USD") && (
+                <div className="space-y-2">
+                  <Label htmlFor="currencyType">Moneda de Pago</Label>
+                  <Select value={currencyType} onValueChange={handleCurrencyChange}>
+                    <SelectTrigger id="currencyType" className="h-10">
+                      <SelectValue placeholder="Seleccionar moneda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="BS">BS</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                {remainingBalance?.currencyType === "USD" && (
+              )}
+
+              {/* Campos de monto */}
+              <div className="space-y-3">
+                {currencyType === "BS" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="bsAmount">Monto en Bs</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-muted-foreground">Bs.</span>
+                        <Input
+                          id="bsAmount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={bsAmount}
+                          onChange={(e) => handleBsAmountChange(e.target.value)}
+                          placeholder="0.00"
+                          className="pl-9 h-10"
+                        />
+                      </div>
+                    </div>
+                    {remainingBalance?.currencyType === "USD" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="amount">Equivalente en USD</Label>
+                        <div className="relative">
+                          <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="amount"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={amount}
+                            onChange={(e) => handleAmountChange(e.target.value)}
+                            placeholder="0.00"
+                            className="pl-9 h-10"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                          <span>Tasa: {conversionRate} Bs/USD</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7"
+                            onClick={fetchBCVRate}
+                            disabled={loadingBCV}
+                          >
+                            <RefreshCw className={`h-3.5 w-3.5 ${loadingBCV ? "animate-spin" : ""}`} />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
                   <div className="space-y-2">
-                    <Label htmlFor="amount">Equivalente en USD</Label>
+                    <Label htmlFor="amount">Monto en USD</Label>
                     <div className="relative">
                       <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -389,90 +424,77 @@ export function PartialPaymentDialog({
                         value={amount}
                         onChange={(e) => handleAmountChange(e.target.value)}
                         placeholder="0.00"
-                        className="pl-9"
+                        className="pl-9 h-10"
                       />
-                    </div>
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>Tasa: {conversionRate} Bs/USD</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={fetchBCVRate}
-                        disabled={loadingBCV}
-                      >
-                        <RefreshCw className={`h-4 w-4 ${loadingBCV ? "animate-spin" : ""}`} />
-                      </Button>
                     </div>
                   </div>
                 )}
-              </>
-            ) : (
+              </div>
+
+              {/* Método de pago */}
               <div className="space-y-2">
-                <Label htmlFor="amount">Monto en USD</Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="paymentMethod">Método de pago</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger id="paymentMethod" className="h-10">
+                    <SelectValue placeholder="Seleccionar método de pago" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CASH">Efectivo</SelectItem>
+                    <SelectItem value="CARD">Tarjeta</SelectItem>
+                    <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                    <SelectItem value="OTHER">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Referencia y notas */}
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="transactionReference">Referencia de transacción (opcional)</Label>
                   <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={amount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    placeholder="0.00"
-                    className="pl-9"
+                    id="transactionReference"
+                    value={transactionReference}
+                    onChange={(e) => setTransactionReference(e.target.value)}
+                    placeholder="Número de referencia, recibo, etc."
+                    className="h-10"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Notas (opcional)</Label>
+                  <Textarea
+                    id="notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Información adicional sobre el pago"
+                    className="min-h-[80px]"
                   />
                 </div>
               </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="paymentMethod">Método de pago</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger id="paymentMethod">
-                  <SelectValue placeholder="Seleccionar método de pago" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CASH">Efectivo</SelectItem>
-                  <SelectItem value="CARD">Tarjeta</SelectItem>
-                  <SelectItem value="TRANSFER">Transferencia</SelectItem>
-                  <SelectItem value="OTHER">Otro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="transactionReference">Referencia de transacción (opcional)</Label>
-              <Input
-                id="transactionReference"
-                value={transactionReference}
-                onChange={(e) => setTransactionReference(e.target.value)}
-                placeholder="Número de referencia, recibo, etc."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notas (opcional)</Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Información adicional sobre el pago"
-              />
             </div>
           </div>
+        </div>
 
-          <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+        <DialogFooter className="flex-shrink-0 pt-4 border-t">
+          <div className="flex gap-2 w-full">
+            <Button 
+              variant="outline" 
+              onClick={() => onOpenChange(false)} 
+              disabled={loading}
+              className="flex-1 h-10"
+            >
               Cancelar
             </Button>
-            <Button onClick={handleSubmit} disabled={loading || !remainingBalance} className="gap-2">
+            <Button 
+              onClick={handleSubmit} 
+              disabled={loading || !remainingBalance}
+              className="flex-1 h-10 gap-2"
+            >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
               {loading ? "Procesando..." : "Registrar Abono"}
             </Button>
           </div>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

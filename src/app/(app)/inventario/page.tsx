@@ -2,7 +2,7 @@ import { InventoryManager } from "@/features/inventory/inventory-manager"
 import { getInventoryItems } from "@/features/inventory/actions"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Package, ShoppingBag } from "lucide-react"
+import { DollarSign, Package, ShoppingBag } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
@@ -31,6 +31,13 @@ export default async function InventoryPage() {
           </Link>
         </Button>
       </div>
+
+      <Button asChild variant="outline" size="lg" className="flex items-center gap-2">
+  <Link href="/inventario/metodos-de-pago">
+    <DollarSign className="h-5 w-5" />
+    <span>Métodos de Pago</span>
+  </Link>
+</Button>
 
       {/* Componente original de InventoryManager */}
       <InventoryManager initialData={items} />

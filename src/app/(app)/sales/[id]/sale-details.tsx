@@ -67,17 +67,16 @@ import { getBCVRate, formatSaleCurrency } from "@/lib/exchangeRates"
 import { getInventoryItems } from "@/features/inventory/actions"
 
 const statusLabels = {
-  PENDING: "Pendiente",
-  APPROVED: "Entregado",
-  IN_PROGRESS: "En Proceso",
+  PENDING: "Deudor",
+  IN_PROGRESS: "Solvente",
   COMPLETED: "Completado",
-  CANCELLED: "Cancelado",
+  CANCELLED: "Anulado",
 }
 
 const statusIcons = {
-  PENDING: Clock,
+  PENDING: DollarSign,
   APPROVED: CheckCircle2,
-  IN_PROGRESS: Truck,
+  IN_PROGRESS: CheckCircle2,
   COMPLETED: CheckCircle2,
   CANCELLED: XCircle,
 }
@@ -163,6 +162,42 @@ export function SaleDetails({ sale }: { sale: any }) {
   const [isAddingItem, setIsAddingItem] = useState(false)
   const [inventoryItems, setInventoryItems] = useState<any[]>([])
   const [isLoadingInventory, setIsLoadingInventory] = useState(false)
+
+  // Actualizar la función para manejar cambios de estado con autenticaci��n
+  // Añadir esta función dentro del componente SaleDetails
+
+  const [adminPassword, setAdminPassword] = useState("")
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [statusToChange, setStatusToChange] = useState<string | null>(null)
+
+  const handleStatusChangeWithAuth = (newStatus: string) => {
+    // Si el estado es CANCELLED, requerir contraseña de administrador
+    if (newStatus === "CANCELLED") {
+      setStatusToChange(newStatus)
+      setShowPasswordDialog(true)
+    } else {
+      // Para otros estados, proceder normalmente
+      handleStatusChange(newStatus)
+    }
+  }
+
+  const confirmStatusChange = () => {
+    // Verificar la contraseña de administrador
+    if (adminPassword === "1234") {
+      if (statusToChange) {
+        handleStatusChange(statusToChange)
+      }
+      setShowPasswordDialog(false)
+      setAdminPassword("")
+      setStatusToChange(null)
+    } else {
+      toast({
+        title: "Error",
+        description: "Contraseña de administrador incorrecta",
+        variant: "destructive",
+      })
+    }
+  }
 
   // Función para manejar cambios en items
   const handleItemUpdate = async (itemId: string, field: string, value: any) => {
@@ -817,7 +852,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                           isActive && colors.border,
                           !isActive && colors.hover,
                         )}
-                        onClick={() => handleStatusChange(value)}
+                        onClick={() => handleStatusChangeWithAuth(value)}
                         disabled={isPending || isActive}
                       >
                         <StatusIcon className="h-4 w-4 mr-2" />
@@ -1552,8 +1587,36 @@ export function SaleDetails({ sale }: { sale: any }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        {/* Añadir este diálogo al final del componente SaleDetails */}
+        <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Autenticación requerida</DialogTitle>
+              <DialogDescription>Ingresa la contraseña de administrador para anular esta venta.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="adminPassword" className="text-right">
+                  Contraseña
+                </Label>
+                <Input
+                  id="adminPassword"
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPasswordDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmStatusChange}>Confirmar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
 }
-
