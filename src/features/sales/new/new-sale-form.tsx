@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useForm, FormProvider } from "react-hook-form"
 import { Button } from "@/components/ui/button"
@@ -132,10 +132,6 @@ export default function NewSaleForm({
   const handleBundleSelect = (bundleId: string, bundle: any) => {
     setSelectedBundle(bundle)
 
-    // Ya no establecemos automáticamente el tipo de venta a PRESALE
-    // setSaleType("PRESALE")
-
-    // Create a single cart item for the bundle with the bundle price
     const bundlePrice = bundle.bundlePrice || bundle.basePrice
     const newCartItem = {
       id: `bundle-${bundle.id}`,
@@ -145,6 +141,7 @@ export default function NewSaleForm({
       originalPrice: Number(bundlePrice),
       isBundle: true,
       bundleId: bundle.id,
+      currencyType: bundle.currencyType,
       bundleItems: bundle.items.map((item: any) => ({
         id: item.item.id,
         name: item.item.name,
@@ -153,6 +150,7 @@ export default function NewSaleForm({
         originalPrice: Number(item.item.basePrice),
         currentStock: item.item.currentStock,
         allowPreSale: item.item.allowPreSale,
+        currencyType: item.item.currencyType || "USD",
       })),
     }
 
@@ -165,7 +163,6 @@ export default function NewSaleForm({
   }
 
   const handleProductSelect = (productId: string, product: any) => {
-    // If a bundle is already selected, don't allow adding individual products
     if (selectedBundle) {
       return
     }
@@ -186,6 +183,7 @@ export default function NewSaleForm({
           originalPrice: Number(product.basePrice),
           currentStock: product.currentStock,
           allowPreSale: product.allowPresale || false,
+          currencyType: product.currencyType || "USD",
         },
       ])
     }
@@ -208,7 +206,67 @@ export default function NewSaleForm({
   }
 
   const calculateTotal = () => {
-    return cartItems.reduce((total, item) => total + item.price * item.quantity, 0)
+    return cartItems.reduce((total, item) => {
+      const itemTotal = item.price * item.quantity
+
+      // If the item is a bundle and in BS, return the price as is
+      if (item.isBundle && item.currencyType === "BS") {
+        return total + itemTotal
+      }
+
+      // For USD items when displaying in BS
+      if (currencyType === "BS" && item.currencyType === "USD") {
+        return total + itemTotal * conversionRate
+      }
+
+      // For BS items when displaying in USD
+      if (currencyType === "USD" && item.currencyType === "BS") {
+        return total + itemTotal / conversionRate
+      }
+
+      // For items in the same currency as display currency
+      return total + itemTotal
+    }, 0)
+  }
+
+  const formatItemPrice = (item: any) => {
+    const itemPrice = item.price * item.quantity
+
+    // If item is in BS and we're showing BS
+    if (item.currencyType === "BS" && currencyType === "BS") {
+      return `${itemPrice.toFixed(2)} Bs`
+    }
+
+    // If item is in USD and we're showing USD
+    if (item.currencyType === "USD" && currencyType === "USD") {
+      return `$${itemPrice.toFixed(2)}`
+    }
+
+    // If item is in BS and we're showing USD
+    if (item.currencyType === "BS" && currencyType === "USD") {
+      return `$${(itemPrice / conversionRate).toFixed(2)}`
+    }
+
+    // If item is in USD and we're showing BS
+    if (item.currencyType === "USD" && currencyType === "BS") {
+      return `${(itemPrice * conversionRate).toFixed(2)} Bs`
+    }
+
+    return currencyType === "BS" 
+      ? `${(itemPrice * conversionRate).toFixed(2)} Bs`
+      : `$${itemPrice.toFixed(2)}`
+  }
+
+  const formatBundleItemPrice = (item: any) => {
+    const price = item.overridePrice || item.item.basePrice
+    const itemCurrencyType = item.item.currencyType || "USD"
+
+    if (itemCurrencyType === "BS") {
+      return `${price.toFixed(2)} Bs`
+    }
+    return currencyType === "BS"
+      ? `${(price * conversionRate).toFixed(2)} Bs`
+      : `$${price.toFixed(2)}`
   }
 
   const onSubmit = async () => {
@@ -228,10 +286,9 @@ export default function NewSaleForm({
       const saleData = {
         clientId: selectedClient.id,
         items: cartItems.map((item) => {
-          // If this is a bundle, we need to include the bundle metadata
           if (item.isBundle) {
             return {
-              itemId: selectedBundle.items[0].item.id, // Use the first item as the main item
+              itemId: selectedBundle.items[0].item.id,
               quantity: item.quantity,
               overridePrice: item.price,
               metadata: {
@@ -242,16 +299,17 @@ export default function NewSaleForm({
                   itemId: bundleItem.item.id,
                   quantity: bundleItem.quantity,
                   price: bundleItem.overridePrice || bundleItem.item.basePrice,
+                  currencyType: bundleItem.item.currencyType || "USD",
                 })),
               },
             }
           }
 
-          // Regular item
           return {
             itemId: item.id,
             quantity: item.quantity,
             overridePrice: item.price !== item.originalPrice ? item.price : undefined,
+            currencyType: item.currencyType || "USD",
           }
         }),
         bundleId: selectedBundle?.id,
@@ -340,7 +398,6 @@ export default function NewSaleForm({
                   initialBundles={bundles}
                 />
 
-                {/* Display bundle items when a bundle is selected */}
                 {selectedBundle && (
                   <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-2 mb-2">
@@ -359,9 +416,7 @@ export default function NewSaleForm({
                             <span className="text-muted-foreground">x{item.quantity}</span>
                           </div>
                           <span className="text-muted-foreground">
-                            {currencyType === "USD"
-                              ? `$${(item.overridePrice || item.item.basePrice).toFixed(2)}`
-                              : `${((item.overridePrice || item.item.basePrice) * conversionRate).toFixed(2)} Bs`}
+                            {formatBundleItemPrice(item)}
                           </span>
                         </div>
                       ))}
@@ -414,7 +469,7 @@ export default function NewSaleForm({
                   selectedProductId=""
                   onProductSelect={handleProductSelect}
                   initialProducts={products}
-                  disabled={!!selectedBundle} // Disable product selection if a bundle is selected
+                  disabled={!!selectedBundle}
                 />
                 {selectedBundle && (
                   <div className="flex items-center mt-1 text-xs text-amber-600 dark:text-amber-400">
@@ -468,10 +523,7 @@ export default function NewSaleForm({
                     <div>
                       <div className="font-medium">{item.name}</div>
                       <div className="text-sm text-muted-foreground">
-                        Precio:{" "}
-                        {currencyType === "BS"
-                          ? `${(item.price * conversionRate).toFixed(2)} Bs`
-                          : `$${item.price.toFixed(2)}`}
+                        Precio: {formatItemPrice(item)}
                       </div>
                       {item.isBundle && (
                         <Badge variant="outline" className="mt-1 text-xs">
@@ -500,10 +552,8 @@ export default function NewSaleForm({
                         size="sm"
                         onClick={() => {
                           setCartItems(cartItems.filter((i) => i.id !== item.id))
-                          // If removing a bundle, also clear the selected bundle
                           if (item.isBundle) {
                             setSelectedBundle(null)
-                            // Reset sale type to DIRECT if it was set to PRESALE due to bundle
                             setSaleType("DIRECT")
                           }
                         }}
@@ -523,7 +573,7 @@ export default function NewSaleForm({
                     <span className="font-medium">Total:</span>
                     <span className="text-xl font-bold">
                       {currencyType === "BS"
-                        ? `${(calculateTotal() * conversionRate).toFixed(2)} Bs`
+                        ? `${calculateTotal().toFixed(2)} Bs`
                         : `$${calculateTotal().toFixed(2)}`}
                     </span>
                   </div>

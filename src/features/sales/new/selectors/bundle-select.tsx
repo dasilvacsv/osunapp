@@ -16,6 +16,7 @@ export interface BundleItem {
     status: "ACTIVE" | "INACTIVE"
     sku: string
     metadata: unknown
+    currencyType?: "USD" | "BS"
   }
 }
 
@@ -28,6 +29,8 @@ export interface Bundle {
   bundlePrice: string | null
   status: "ACTIVE" | "INACTIVE"
   items: BundleItem[]
+  currencyType?: "USD" | "BS"
+  conversionRate?: number
 }
 
 interface BundleSelectProps {
@@ -45,13 +48,11 @@ export function BundleSelect({
 }: BundleSelectProps) {
   const { toast } = useToast()
   const [bundles, setBundles] = useState<Bundle[]>(initialBundles)
-  console.log(initialBundles);
-  
 
   // Update bundles when initialBundles changes
   useEffect(() => {
-    setBundles(initialBundles);
-  }, [initialBundles]);
+    setBundles(initialBundles)
+  }, [initialBundles])
 
   // Handle bundle selection
   const handleBundleChange = (value: string) => {
@@ -61,15 +62,41 @@ export function BundleSelect({
     }
   }
 
+  // Format bundle price based on currency type
+  const formatBundlePrice = (bundle: Bundle) => {
+    const price = bundle.bundlePrice || bundle.basePrice
+    const numericPrice = parseFloat(price)
+
+    if (bundle.currencyType === "BS") {
+      return `${numericPrice.toFixed(2)} Bs`
+    }
+    return `$${numericPrice.toFixed(2)}`
+  }
+
+  // Format bundle items prices
+  const formatBundleItemsDescription = (bundle: Bundle) => {
+    const itemsCount = bundle.items.length
+    const itemsWithPrices = bundle.items.map(item => {
+      const price = item.overridePrice || parseFloat(item.item.basePrice.toString())
+      const currencyType = item.item.currencyType || "USD"
+      
+      if (currencyType === "BS") {
+        return `${item.item.name} (${price.toFixed(2)} Bs)`
+      }
+      return `${item.item.name} ($${price.toFixed(2)})`
+    }).join(", ")
+
+    return `${itemsCount} productos: ${itemsWithPrices}`
+  }
+
   return (
     <div className={className}>
       <PopoverSelect
         options={bundles.map(bundle => ({
-          label: `${bundle.name} - $${bundle.bundlePrice || bundle.basePrice}`,
+          label: `${bundle.name} - ${formatBundlePrice(bundle)}`,
           value: bundle.id,
           description: bundle.description,
-          // Show items count in the description
-          secondaryText: `${bundle.items.length} productos`
+          secondaryText: formatBundleItemsDescription(bundle)
         }))}
         value={selectedBundleId}
         onValueChange={handleBundleChange}
@@ -78,4 +105,4 @@ export function BundleSelect({
       />
     </div>
   )
-} 
+}
