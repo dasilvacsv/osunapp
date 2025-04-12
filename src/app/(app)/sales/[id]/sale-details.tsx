@@ -580,16 +580,16 @@ export function SaleDetails({ sale }: { sale: any }) {
   }
 
   const handlePaymentAmountChange = (value: string) => {
-    setPaymentAmount(value)
-
-    if (paymentCurrency === "BS" && value) {
-      const converted = (Number.parseFloat(value) / Number.parseFloat(conversionRate)).toFixed(2)
-      setConvertedAmount(converted)
+    setPaymentAmount(value);
+  
+    if (paymentCurrency === "BS") {
+      // Don't convert BS amounts
+      setConvertedAmount(value);
     } else if (paymentCurrency === "USD" && value) {
-      const converted = (Number.parseFloat(value) * Number.parseFloat(conversionRate)).toFixed(2)
-      setConvertedAmount(converted)
+      const converted = (Number.parseFloat(value) * Number.parseFloat(conversionRate)).toFixed(2);
+      setConvertedAmount(converted);
     }
-  }
+  };
 
   const handleConvertedAmountChange = (value: string) => {
     setConvertedAmount(value)
@@ -715,66 +715,27 @@ export function SaleDetails({ sale }: { sale: any }) {
                   </div>
 
                   {remainingBalance && (
-                    <div className="bg-muted/30 p-4 rounded-lg mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total</p>
-                        <p className="text-lg font-bold">
-                          {formatSaleCurrency(
-                            remainingBalance.totalAmount,
-                            remainingBalance.currencyType,
-                            Number(remainingBalance.conversionRate),
-                          )}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatSaleCurrency(
-                            remainingBalance.currencyType === "USD"
-                              ? remainingBalance.totalAmount * Number(remainingBalance.conversionRate || 1)
-                              : remainingBalance.totalAmount / Number(remainingBalance.conversionRate || 1),
-                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
-                            1,
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Pagado</p>
-                        <p className="text-lg font-bold">
-                          {formatSaleCurrency(
-                            remainingBalance.totalPaid,
-                            remainingBalance.currencyType,
-                            Number(remainingBalance.conversionRate),
-                          )}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatSaleCurrency(
-                            remainingBalance.currencyType === "USD"
-                              ? remainingBalance.totalPaid * Number(remainingBalance.conversionRate || 1)
-                              : remainingBalance.totalPaid / Number(remainingBalance.conversionRate || 1),
-                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
-                            1,
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Pendiente</p>
-                        <p className="text-lg font-bold">
-                          {formatSaleCurrency(
-                            remainingBalance.remainingAmount,
-                            remainingBalance.currencyType,
-                            Number(remainingBalance.conversionRate),
-                          )}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatSaleCurrency(
-                            remainingBalance.currencyType === "USD"
-                              ? remainingBalance.remainingAmount * Number(remainingBalance.conversionRate || 1)
-                              : remainingBalance.remainingAmount / Number(remainingBalance.conversionRate || 1),
-                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
-                            1,
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+  <div className="bg-muted/30 p-4 rounded-lg mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div>
+      <p className="text-sm text-muted-foreground">Total</p>
+      <p className="text-lg font-bold">
+        {formatSaleCurrency(remainingBalance.totalAmount, remainingBalance.currencyType, 1)}
+      </p>
+    </div>
+    <div>
+      <p className="text-sm text-muted-foreground">Pagado</p>
+      <p className="text-lg font-bold">
+        {formatSaleCurrency(remainingBalance.totalPaid, remainingBalance.currencyType, 1)}
+      </p>
+    </div>
+    <div>
+      <p className="text-sm text-muted-foreground">Pendiente</p>
+      <p className="text-lg font-bold">
+        {formatSaleCurrency(remainingBalance.remainingAmount, remainingBalance.currencyType, 1)}
+      </p>
+    </div>
+  </div>
+)}
 
                   {isLoadingPayments ? (
                     <div className="flex justify-center items-center py-8">
@@ -799,65 +760,70 @@ export function SaleDetails({ sale }: { sale: any }) {
               </Card>
             )}
             <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
-              <div className="p-6">
-                <h2 className="text-lg font-semibold mb-4">Configuración de Moneda</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="currencyType">Moneda</Label>
-                    <Select value={currencyType} onValueChange={setCurrencyType}>
-                      <SelectTrigger id="currencyType">
-                        <SelectValue placeholder="Seleccionar moneda" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="BS">BS</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+  <div className="p-6">
+    <h2 className="text-lg font-semibold mb-4">Configuración de Moneda</h2>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="space-y-2">
+        <Label htmlFor="currencyType">Moneda</Label>
+        <Select value={currencyType} onValueChange={setCurrencyType}>
+          <SelectTrigger id="currencyType">
+            <SelectValue placeholder="Seleccionar moneda" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="USD">USD</SelectItem>
+            <SelectItem value="BS">BS</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="conversionRate">Tasa de cambio</Label>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={fetchBCVRate}
-                        disabled={isLoadingBCVRate}
-                        className="h-6 px-2 text-xs"
-                      >
-                        <RefreshCw className={`h-3 w-3 mr-1 ${isLoadingBCVRate ? "animate-spin" : ""}`} />
-                        Tasa BCV
-                      </Button>
-                    </div>
-                    <Input
-                      id="conversionRate"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={conversionRate}
-                      onChange={(e) => setConversionRate(e.target.value)}
-                      placeholder="Tasa BS/USD"
-                    />
-                  </div>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="conversionRate">Tasa de cambio</Label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={fetchBCVRate}
+            disabled={isLoadingBCVRate || currencyType === "BS"}
+            className="h-6 px-2 text-xs"
+          >
+            <RefreshCw className={`h-3 w-3 mr-1 ${isLoadingBCVRate ? "animate-spin" : ""}`} />
+            Tasa BCV
+          </Button>
+        </div>
+        <Input
+  id="conversionRate"
+  type="number"
+  step="0.01"
+  min="0.01"
+  value={currencyType === "BS" ? "1" : conversionRate}
+  onChange={(e) => setConversionRate(e.target.value)}
+  placeholder="Tasa BS/USD"
+  disabled={currencyType === "BS"} // Deshabilitar para BS
+/>
+      </div>
 
-                  <div className="col-span-1 md:col-span-2">
-                    <Button onClick={handleCurrencyUpdate} disabled={isUpdatingCurrency} className="w-full">
-                      {isUpdatingCurrency ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Actualizando...
-                        </>
-                      ) : (
-                        <>
-                          <Coins className="mr-2 h-4 w-4" />
-                          Actualizar Moneda
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </Card>
+      <div className="col-span-1 md:col-span-2">
+        <Button 
+          onClick={handleCurrencyUpdate} 
+          disabled={isUpdatingCurrency} 
+          className="w-full"
+        >
+          {isUpdatingCurrency ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Actualizando...
+            </>
+          ) : (
+            <>
+              <Coins className="mr-2 h-4 w-4" />
+              Actualizar Moneda
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  </div>
+</Card>
 
             {/* Draft and Donation Status */}
             
@@ -946,333 +912,300 @@ export function SaleDetails({ sale }: { sale: any }) {
             </Card>
 
             {/* Products */}
-            <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold">Productos</h2>
-                  <Button size="sm" onClick={() => setIsAddingItem(true)} disabled={isAddingItem || isPending}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Agregar Producto
-                  </Button>
+<Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+  <div className="p-6">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-lg font-semibold">Productos</h2>
+      <Button size="sm" onClick={() => setIsAddingItem(true)} disabled={isAddingItem || isPending}>
+        <PlusCircle className="mr-2 h-4 w-4" />
+        Agregar Producto
+      </Button>
+    </div>
+
+    <AnimatePresence>
+      {isAddingItem && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg"
+        >
+          <div className="flex gap-4 items-end">
+            <div className="flex-1 space-y-2">
+              <Label>Producto</Label>
+              <Select
+                value={newItem?.itemId || ""}
+                onValueChange={(value) => setNewItem((prev) => ({ ...prev, itemId: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={isLoadingInventory ? "Cargando productos..." : "Seleccionar producto"}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {isLoadingInventory ? (
+                    <SelectItem value="loading" disabled>
+                      <div className="flex items-center">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Cargando productos...
+                      </div>
+                    </SelectItem>
+                  ) : inventoryItems.length > 0 ? (
+                    inventoryItems.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name} ({item.sku || "Sin SKU"}) - Stock: {item.currentStock}
+                        {item.allowPresale && item.currentStock < 5 ? " (Preventa disponible)" : ""}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="empty" disabled>
+                      No hay productos disponibles
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Cantidad</Label>
+              <Input
+                type="number"
+                min="1"
+                placeholder="Cantidad"
+                value={newItem?.quantity || ""}
+                onChange={(e) => setNewItem((prev) => ({ ...prev, quantity: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Precio Unitario</Label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="Precio"
+                value={newItem?.unitPrice || ""}
+                onChange={(e) => setNewItem((prev) => ({ ...prev, unitPrice: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleAddItem}
+                disabled={!newItem?.itemId || !newItem?.quantity || !newItem?.unitPrice}
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Agregar
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setIsAddingItem(false)
+                  setNewItem(null)
+                }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    <div className="space-y-4">
+      <AnimatePresence>
+        {currentItems.map((item: any, index: number) => {
+          const isPartOfBundle = item.metadata?.bundleId
+          const bundleId = isPartOfBundle ? item.metadata.bundleId : null
+
+          if (isPartOfBundle && index > 0 && currentItems[index - 1].metadata?.bundleId === bundleId) {
+            return null
+          }
+
+          const bundleItems = isPartOfBundle
+            ? currentItems.filter((i: any) => i.metadata?.bundleId === bundleId)
+            : []
+
+          return (
+            <motion.div
+              key={item.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className={cn(
+                "group p-4 rounded-xl transition-all duration-300",
+                "bg-gray-50/50 dark:bg-gray-950/50",
+                "hover:bg-gray-100/50 dark:hover:bg-gray-900/50",
+                hoveredItem === index && "ring-2 ring-primary/10"
+              )}
+              onMouseEnter={() => setHoveredItem(index)}
+              onMouseLeave={() => setHoveredItem(null)}
+            >
+              <div className="flex items-center gap-6">
+                <div className="h-16 w-16 rounded-lg bg-white dark:bg-gray-800 flex items-center justify-center shadow-sm">
+                  <Package className="h-8 w-8 text-gray-400 dark:text-gray-500" />
                 </div>
 
-                {/* Formulario para agregar nuevo producto */}
-                <AnimatePresence>
-                  {isAddingItem && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="mb-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg"
-                    >
-                      <div className="flex gap-4 items-end">
-                        <div className="flex-1 space-y-2">
-                          <Label>Producto</Label>
-                          <Select
-                            value={newItem?.itemId || ""}
-                            onValueChange={(value) => setNewItem((prev) => ({ ...prev, itemId: value }))}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium truncate">
+                      {isPartOfBundle
+                        ? `Paquete: ${item.metadata.bundleName || "Paquete"}`
+                        : item.inventoryItem?.name || "Producto eliminado"}
+                    </h3>
+                    <div className="flex items-center gap-2 ml-4">
+                      {editingItemId === item.id ? (
+                        <>
+                          <Button size="sm" onClick={() => handleSaveItem(item)} disabled={isPending}>
+                            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setEditingItemId(null)}>
+                            Cancelar
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button variant="ghost" size="sm" onClick={() => setEditingItemId(item.id)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteItem(item.id)}
+                            disabled={isPending}
                           >
-                            <SelectTrigger>
-                              <SelectValue
-                                placeholder={isLoadingInventory ? "Cargando productos..." : "Seleccionar producto"}
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {isLoadingInventory ? (
-                                <SelectItem value="loading" disabled>
-                                  <div className="flex items-center">
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Cargando productos...
-                                  </div>
-                                </SelectItem>
-                              ) : inventoryItems.length > 0 ? (
-                                inventoryItems.map((item) => (
-                                  <SelectItem key={item.id} value={item.id}>
-                                    {item.name} ({item.sku || "Sin SKU"}) - Stock: {item.currentStock}
-                                    {item.allowPresale && item.currentStock < 5 ? " (Preventa disponible)" : ""}
-                                  </SelectItem>
-                                ))
-                              ) : (
-                                <SelectItem value="empty" disabled>
-                                  No hay productos disponibles
-                                </SelectItem>
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                            {isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            )}
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
 
-                        <div className="space-y-2">
-                          <Label>Cantidad</Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            placeholder="Cantidad"
-                            value={newItem?.quantity || ""}
-                            onChange={(e) => setNewItem((prev) => ({ ...prev, quantity: e.target.value }))}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Precio Unitario</Label>
+                  <div className="flex flex-wrap items-center gap-2 mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {editingItemId === item.id ? (
+                      <>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => handleItemChange(item.id, "quantity", e.target.value)}
+                          className="w-24"
+                        />
+                        <span>•</span>
+                        <div className="flex items-center gap-2">
                           <Input
                             type="number"
                             min="0.01"
                             step="0.01"
-                            placeholder="Precio"
-                            value={newItem?.unitPrice || ""}
-                            onChange={(e) => setNewItem((prev) => ({ ...prev, unitPrice: e.target.value }))}
+                            value={item.unitPrice}
+                            onChange={(e) => handleItemChange(item.id, "unitPrice", e.target.value)}
+                            className="w-32"
                           />
+                          <span className="text-xs">({sale.currencyType})</span>
                         </div>
-
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={handleAddItem}
-                            disabled={!newItem?.itemId || !newItem?.quantity || !newItem?.unitPrice}
-                          >
-                            <PlusCircle className="mr-2 h-4 w-4" />
-                            Agregar
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            onClick={() => {
-                              setIsAddingItem(false)
-                              setNewItem(null)
-                            }}
-                          >
-                            Cancelar
-                          </Button>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <div className="space-y-4">
-                  <AnimatePresence>
-                    {currentItems.map((item: any, index: number) => {
-                      const numericRate = Number(sale.conversionRate) || 1
-                      const altCurrencyType = sale.currencyType === "USD" ? "BS" : "USD"
-
-                      const isPartOfBundle = item.metadata && item.metadata.bundleId
-                      const bundleId = isPartOfBundle ? item.metadata.bundleId : null
-
-                      if (
-                        isPartOfBundle &&
-                        index > 0 &&
-                        currentItems[index - 1].metadata &&
-                        currentItems[index - 1].metadata.bundleId === bundleId
-                      ) {
-                        return null
-                      }
-
-                      const bundleItems = isPartOfBundle
-                        ? currentItems.filter((i: any) => i.metadata && i.metadata.bundleId === bundleId)
-                        : []
-
-                      return (
-                        <motion.div
-                          key={item.id}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -20 }}
-                          className={cn(
-                            "group p-4 rounded-xl transition-all duration-300",
-                            "bg-gray-50/50 dark:bg-gray-950/50",
-                            "hover:bg-gray-100/50 dark:hover:bg-gray-900/50",
-                            hoveredItem === index && "ring-2 ring-primary/10",
-                          )}
-                          onMouseEnter={() => setHoveredItem(index)}
-                          onMouseLeave={() => setHoveredItem(null)}
-                        >
-                          <div className="flex items-center gap-6">
-                            <div className="h-16 w-16 rounded-lg bg-white dark:bg-gray-800 flex items-center justify-center shadow-sm">
-                              <Package className="h-8 w-8 text-gray-400 dark:text-gray-500" />
-                            </div>
-
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <h3 className="font-medium truncate">
-                                  {isPartOfBundle
-                                    ? `Paquete: ${item.metadata.bundleName || "Paquete"}`
-                                    : item.inventoryItem?.name || "Producto eliminado"}
-                                </h3>
-                                <div className="flex items-center gap-2 ml-4">
-                                  {editingItemId === item.id ? (
-                                    <>
-                                      <Button size="sm" onClick={() => handleSaveItem(item)} disabled={isPending}>
-                                        {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
-                                      </Button>
-                                      <Button variant="ghost" size="sm" onClick={() => setEditingItemId(null)}>
-                                        Cancelar
-                                      </Button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Button variant="ghost" size="sm" onClick={() => setEditingItemId(item.id)}>
-                                        <Pencil className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => handleDeleteItem(item.id)}
-                                        disabled={isPending}
-                                      >
-                                        {isPending ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <Trash2 className="h-4 w-4 text-red-500" />
-                                        )}
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex flex-wrap items-center gap-2 mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                {editingItemId === item.id ? (
-                                  <>
-                                    <Input
-                                      type="number"
-                                      min="1"
-                                      value={item.quantity}
-                                      onChange={(e) => handleItemChange(item.id, "quantity", e.target.value)}
-                                      className="w-24"
-                                    />
-                                    <span>•</span>
-                                    <div className="flex items-center gap-2">
-                                      <Input
-                                        type="number"
-                                        min="0.01"
-                                        step="0.01"
-                                        value={item.unitPrice}
-                                        onChange={(e) => handleItemChange(item.id, "unitPrice", e.target.value)}
-                                        className="w-32"
-                                      />
-                                      <span className="text-xs">({sale.currencyType})</span>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="font-medium">{item.quantity} unidades</span>
-                                    <span>•</span>
-                                    <div>
-                                      <span className="font-medium">
-                                        {formatSaleCurrency(item.unitPrice, sale.currencyType, numericRate)} c/u
-                                      </span>
-                                      {sale.currencyType === "USD" && (
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-medium">{item.quantity} unidades</span>
+                        <span>•</span>
+                        <div>
+                          <span className="font-medium">
+                            {formatSaleCurrency(item.unitPrice, sale.currencyType, 1)} c/u
+                          </span>
+                          {sale.currencyType === "USD" && (
                             <span className="text-xs ml-1 text-gray-400">
-                              (
-                              {formatSaleCurrency(
-                                item.unitPrice * numericRate,
-                                "BS",
-                                1
-                              )}
-                              )
-                            
+                              ({formatSaleCurrency(item.unitPrice * Number(sale.conversionRate), "BS", 1)})
                             </span>
-                            )}
-                                    </div>
-                                  </>
-                                )}
+                          )}
+                        </div>
+                      </>
+                    )}
 
-                                {hoveredItem === index && !isPartOfBundle && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="flex items-center gap-1">
-                                      <Tag className="h-3.5 w-3.5" />
-                                      SKU: {item.inventoryItem?.sku || "N/A"}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-
-                              {/* Display bundle contents if this is a bundle */}
-                              {isPartOfBundle && bundleItems.length > 0 && (
-                                <div className="mt-3 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
-                                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                    Contenido del paquete:
-                                  </p>
-                                  <div className="space-y-1">
-                                    {bundleItems.map((bundleItem: any) => (
-                                      <div
-                                        key={bundleItem.id}
-                                        className="text-xs text-gray-500 dark:text-gray-400 flex justify-between"
-                                      >
-                                        <span>
-                                          {bundleItem.inventoryItem?.name || "Producto"} x{bundleItem.quantity}
-                                        </span>
-                                        <span className="text-gray-400">
-                                          {formatSaleCurrency(bundleItem.unitPrice, sale.currencyType, numericRate)} c/u
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="text-right flex flex-col">
-                              <span className="text-2xl font-bold">
-                                {formatSaleCurrency(item.quantity * item.unitPrice, sale.currencyType, numericRate)}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {formatSaleCurrency(
-                                  sale.currencyType === "USD"
-                                    ? item.quantity * item.unitPrice * numericRate
-                                    : (item.quantity * item.unitPrice) / numericRate,
-                                  altCurrencyType,
-                                  1,
-                                )}
-                              </span>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )
-                    })}
-                  </AnimatePresence>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="p-6 bg-gray-50/50 dark:bg-gray-950/50">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Total</span>
-                  <div className="text-right">
-                    <span className="text-2xl font-bold">
-                      {formatSaleCurrency(
-                        currentItems.reduce((sum: number, item: any) => {
-                          if (item.metadata && item.metadata.bundleId && item.metadata.isPartOfBundle) {
-                            return sum
-                          }
-                          return sum + item.quantity * item.unitPrice
-                        }, 0),
-                        sale.currencyType,
-                        Number(sale.conversionRate),
-                      )}
-                    </span>
-                    <div className="text-sm text-gray-500">
-                      {formatSaleCurrency(
-                        sale.currencyType === "USD"
-                          ? currentItems.reduce((sum: number, item: any) => {
-                              if (item.metadata && item.metadata.bundleId && item.metadata.isPartOfBundle) {
-                                return sum
-                              }
-                              return sum + item.quantity * item.unitPrice
-                            }, 0) * Number(sale.conversionRate || 1)
-                          : currentItems.reduce((sum: number, item: any) => {
-                              if (item.metadata && item.metadata.bundleId && item.metadata.isPartOfBundle) {
-                                return sum
-                              }
-                              return sum + item.quantity * item.unitPrice
-                            }, 0) / Number(sale.conversionRate || 1),
-                        sale.currencyType === "USD" ? "BS" : "USD",
-                        1,
-                      )}
-                    </div>
+                    {hoveredItem === index && !isPartOfBundle && (
+                      <>
+                        <span>•</span>
+                        <span className="flex items-center gap-1">
+                          <Tag className="h-3.5 w-3.5" />
+                          SKU: {item.inventoryItem?.sku || "N/A"}
+                        </span>
+                      </>
+                    )}
                   </div>
+
+                  {isPartOfBundle && bundleItems.length > 0 && (
+                    <div className="mt-3 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                        Contenido del paquete:
+                      </p>
+                      <div className="space-y-1">
+                        {bundleItems.map((bundleItem: any) => (
+                          <div
+                            key={bundleItem.id}
+                            className="text-xs text-gray-500 dark:text-gray-400 flex justify-between"
+                          >
+                            <span>
+                              {bundleItem.inventoryItem?.name || "Producto"} x{bundleItem.quantity}
+                            </span>
+                            <span className="text-gray-400">
+                              {formatSaleCurrency(bundleItem.unitPrice, sale.currencyType, 1)} c/u
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-right flex flex-col">
+                  <span className="text-2xl font-bold">
+                    {formatSaleCurrency(
+                      item.quantity * item.unitPrice,
+                      sale.currencyType,
+                      1
+                    )}
+                  </span>
+                  {sale.currencyType === "USD" && (
+                    <span className="text-xs text-gray-400">
+                      ({formatSaleCurrency(
+                        item.quantity * item.unitPrice * Number(sale.conversionRate),
+                        "BS",
+                        1
+                      )})
+                    </span>
+                  )}
                 </div>
               </div>
+            </motion.div>
+          )
+        })}
+      </AnimatePresence>
+    </div>
+  </div>
+
+  <Separator />
+
+  <div className="p-6 bg-gray-50/50 dark:bg-gray-950/50">
+    <div className="flex justify-between items-center">
+      <span className="text-gray-600 dark:text-gray-400">Total</span>
+      <div className="text-right">
+        <span className="text-2xl font-bold">
+          {formatSaleCurrency(
+            currentItems.reduce((sum: number, item: any) => {
+              if (item.metadata?.isPartOfBundle) return sum
+              return sum + item.quantity * item.unitPrice
+            }, 0),
+            sale.currencyType,
+            1
+          )}
+        </span>
+      </div>
+    </div>
+  </div>
+
             </Card>
 
             
