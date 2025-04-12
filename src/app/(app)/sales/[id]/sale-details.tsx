@@ -162,27 +162,20 @@ export function SaleDetails({ sale }: { sale: any }) {
   const [isAddingItem, setIsAddingItem] = useState(false)
   const [inventoryItems, setInventoryItems] = useState<any[]>([])
   const [isLoadingInventory, setIsLoadingInventory] = useState(false)
-
-  // Actualizar la función para manejar cambios de estado con autenticaci��n
-  // Añadir esta función dentro del componente SaleDetails
-
   const [adminPassword, setAdminPassword] = useState("")
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const [statusToChange, setStatusToChange] = useState<string | null>(null)
 
   const handleStatusChangeWithAuth = (newStatus: string) => {
-    // Si el estado es CANCELLED, requerir contraseña de administrador
     if (newStatus === "CANCELLED") {
       setStatusToChange(newStatus)
       setShowPasswordDialog(true)
     } else {
-      // Para otros estados, proceder normalmente
       handleStatusChange(newStatus)
     }
   }
 
   const confirmStatusChange = () => {
-    // Verificar la contraseña de administrador
     if (adminPassword === "1234") {
       if (statusToChange) {
         handleStatusChange(statusToChange)
@@ -199,7 +192,6 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
   }
 
-  // Función para manejar cambios en items
   const handleItemUpdate = async (itemId: string, field: string, value: any) => {
     const updatedItems = currentItems.map((item) => (item.id === itemId ? { ...item, [field]: value } : item))
 
@@ -219,14 +211,11 @@ export function SaleDetails({ sale }: { sale: any }) {
       items.map((item) => {
         if (item.id === itemId) {
           const updatedItem = { ...item, [field]: Number(value) }
-
-          // If we're updating quantity or unitPrice, also update the totalPrice
           if (field === "quantity" || field === "unitPrice") {
             const quantity = field === "quantity" ? Number(value) : item.quantity
             const unitPrice = field === "unitPrice" ? Number(value) : item.unitPrice
             updatedItem.totalPrice = (quantity * unitPrice).toString()
           }
-
           return updatedItem
         }
         return item
@@ -234,10 +223,8 @@ export function SaleDetails({ sale }: { sale: any }) {
     )
   }
 
-  // Update the handleSaveItem function to save the updated item
   const handleSaveItem = async (item: any) => {
     try {
-      // Show loading state
       toast({
         title: "Actualizando producto...",
         description: "Por favor espere mientras se actualiza el producto",
@@ -264,12 +251,10 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
   }
 
-  // Update the handleDeleteItem function to delete an item
   const handleDeleteItem = async (itemId: string) => {
     try {
       const updatedItems = currentItems.filter((item) => item.id !== itemId)
 
-      // Show loading state
       toast({
         title: "Eliminando producto...",
         description: "Por favor espere mientras se elimina el producto",
@@ -296,7 +281,6 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
   }
 
-  // Update the handleAddItem function to add a new item
   const handleAddItem = async () => {
     if (!newItem?.itemId || !newItem.quantity || !newItem.unitPrice) {
       toast({
@@ -308,7 +292,6 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
 
     try {
-      // Find the inventory item to check stock
       const inventoryItem = inventoryItems.find((item) => item.id === newItem.itemId)
 
       if (inventoryItem && !inventoryItem.allowPresale && inventoryItem.currentStock < Number(newItem.quantity)) {
@@ -320,13 +303,11 @@ export function SaleDetails({ sale }: { sale: any }) {
         return
       }
 
-      // Show loading state
       toast({
         title: "Agregando producto...",
         description: "Por favor espere mientras se agrega el producto",
       })
 
-      // Create the new item with calculated totalPrice
       const itemToAdd = {
         itemId: newItem.itemId,
         quantity: Number(newItem.quantity),
@@ -337,10 +318,8 @@ export function SaleDetails({ sale }: { sale: any }) {
       const result = await addPurchaseItem(sale.id, itemToAdd)
 
       if (result.success) {
-        // Find the inventory item details to display the name
         const selectedInventoryItem = inventoryItems.find((item) => item.id === newItem.itemId)
 
-        // Add the new item to the current items with the inventory item details
         setCurrentItems([
           ...currentItems,
           {
@@ -399,12 +378,6 @@ export function SaleDetails({ sale }: { sale: any }) {
     fetchPayments()
     fetchRemainingBalance()
     fetchInventoryItems()
-
-    // Add this console log to debug the donation status
-    console.log("Sale donation status:", {
-      isDonationFromSale: Boolean(sale.isDonation),
-      isDonationState: isDonation,
-    })
   }, [])
 
   const fetchPayments = async () => {
@@ -436,7 +409,6 @@ export function SaleDetails({ sale }: { sale: any }) {
     }
   }
 
-  // Update the fetchBCVRate function to use your existing implementation
   const fetchBCVRate = async () => {
     try {
       setIsLoadingBCVRate(true)
@@ -527,7 +499,6 @@ export function SaleDetails({ sale }: { sale: any }) {
         description: error instanceof Error ? error.message : "Error desconocido",
         variant: "destructive",
       })
-      // Revert the switch if there was an error
       setIsDraft(!checked)
     } finally {
       setIsUpdatingDraft(false)
@@ -541,7 +512,6 @@ export function SaleDetails({ sale }: { sale: any }) {
 
       if (result.success) {
         setIsDonation(checked)
-        // If marking as donation, also mark as draft
         if (checked && !isDraft) {
           setIsDraft(true)
         }
@@ -564,7 +534,6 @@ export function SaleDetails({ sale }: { sale: any }) {
         description: error instanceof Error ? error.message : "Error desconocido",
         variant: "destructive",
       })
-      // Revert the switch if there was an error
       setIsDonation(!checked)
     } finally {
       setIsUpdatingDonation(false)
@@ -577,16 +546,12 @@ export function SaleDetails({ sale }: { sale: any }) {
       const result = await updateSaleCurrency(sale.id, currencyType, Number(conversionRate))
 
       if (result.success) {
-        // Update product prices based on new currency and rate
-        const updatedSale = result.data
-
         toast({
           title: "Moneda actualizada",
           description: `La moneda ha sido actualizada a ${currencyType} con tasa de ${conversionRate}`,
           className: "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800",
         })
 
-        // Refresh the page to show updated prices
         window.location.reload()
       } else {
         throw new Error(result.error || "Error al actualizar la moneda")
@@ -605,12 +570,10 @@ export function SaleDetails({ sale }: { sale: any }) {
   const handlePaymentCurrencyChange = (value: string) => {
     setPaymentCurrency(value)
 
-    // If changing to BS, calculate the converted amount
     if (value === "BS" && paymentAmount) {
       const converted = (Number.parseFloat(paymentAmount) * Number.parseFloat(conversionRate)).toFixed(2)
       setConvertedAmount(converted)
     } else if (value === "USD" && convertedAmount) {
-      // If changing to USD, calculate back from BS
       const original = (Number.parseFloat(convertedAmount) / Number.parseFloat(conversionRate)).toFixed(2)
       setPaymentAmount(original)
     }
@@ -619,13 +582,10 @@ export function SaleDetails({ sale }: { sale: any }) {
   const handlePaymentAmountChange = (value: string) => {
     setPaymentAmount(value)
 
-    // Calculate converted amount if currency is BS
     if (paymentCurrency === "BS" && value) {
-      // When entering BS amount, divide by rate to get USD
       const converted = (Number.parseFloat(value) / Number.parseFloat(conversionRate)).toFixed(2)
       setConvertedAmount(converted)
     } else if (paymentCurrency === "USD" && value) {
-      // When entering USD amount, multiply by rate to get BS
       const converted = (Number.parseFloat(value) * Number.parseFloat(conversionRate)).toFixed(2)
       setConvertedAmount(converted)
     }
@@ -634,13 +594,10 @@ export function SaleDetails({ sale }: { sale: any }) {
   const handleConvertedAmountChange = (value: string) => {
     setConvertedAmount(value)
 
-    // Calculate original amount based on currency
     if (paymentCurrency === "BS" && value) {
-      // When entering USD equivalent, multiply by rate to get BS
       const original = (Number.parseFloat(value) * Number.parseFloat(conversionRate)).toFixed(2)
       setPaymentAmount(original)
     } else if (paymentCurrency === "USD" && value) {
-      // When entering BS equivalent, divide by rate to get USD
       const original = (Number.parseFloat(value) / Number.parseFloat(conversionRate)).toFixed(2)
       setPaymentAmount(original)
     }
@@ -715,56 +672,132 @@ export function SaleDetails({ sale }: { sale: any }) {
             </Badge>
           </div>
         </div>
+
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="xl:col-span-2 space-y-8">
-            {/* Draft and Donation Status */}
-            <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
-              <div className="p-6">
-                <h2 className="text-lg font-semibold mb-4">Estado de la Venta</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <FilePenLine className="h-5 w-5 text-amber-500" />
-                      <div>
-                        <p className="font-medium">Borrador</p>
-                        <p className="text-sm text-muted-foreground">Marcar como borrador pendiente de aprobación</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <Switch
-                        checked={isDraft}
-                        onCheckedChange={handleDraftChange}
-                        disabled={isUpdatingDraft}
-                        className={cn(isDraft ? "bg-amber-500" : "bg-gray-200 dark:bg-gray-700")}
-                      />
-                      {isUpdatingDraft && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Gift className="h-5 w-5 text-purple-500" />
-                      <div>
-                        <p className="font-medium">Donación</p>
-                        <p className="text-sm text-muted-foreground">Marcar como donación (solo admin)</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <Switch
-                        checked={isDonation}
-                        onCheckedChange={handleDonationChange}
-                        disabled={isUpdatingDonation}
-                        className={cn(isDonation ? "bg-purple-500" : "bg-gray-200 dark:bg-gray-700")}
-                      />
-                      {isUpdatingDonation && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
             {/* Currency Settings */}
+            {/* Payments */}
+            {(payments.length > 0 || sale.saleType === "PRESALE" || remainingBalance) && (
+              <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold">Pagos</h2>
+                    <div className="flex items-center gap-2">
+                      {paymentPlan && (
+                        <Badge variant="outline" className="px-3 py-1.5">
+                          Plan: {paymentPlan.installmentCount} cuotas{" "}
+                          {paymentPlan.installmentFrequency === "WEEKLY"
+                            ? "semanales"
+                            : paymentPlan.installmentFrequency === "BIWEEKLY"
+                              ? "quincenales"
+                              : "mensuales"}
+                        </Badge>
+                      )}
+
+                      {remainingBalance && remainingBalance.remainingAmount > 0 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (currencyType !== sale.currencyType) {
+                              setShowPaymentCurrencyDialog(true)
+                            } else {
+                              setShowPartialPaymentDialog(true)
+                            }
+                          }}
+                        >
+                          <Coins className="mr-2 h-4 w-4" />
+                          Registrar Abono
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {remainingBalance && (
+                    <div className="bg-muted/30 p-4 rounded-lg mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Total</p>
+                        <p className="text-lg font-bold">
+                          {formatSaleCurrency(
+                            remainingBalance.totalAmount,
+                            remainingBalance.currencyType,
+                            Number(remainingBalance.conversionRate),
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatSaleCurrency(
+                            remainingBalance.currencyType === "USD"
+                              ? remainingBalance.totalAmount * Number(remainingBalance.conversionRate || 1)
+                              : remainingBalance.totalAmount / Number(remainingBalance.conversionRate || 1),
+                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
+                            1,
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Pagado</p>
+                        <p className="text-lg font-bold">
+                          {formatSaleCurrency(
+                            remainingBalance.totalPaid,
+                            remainingBalance.currencyType,
+                            Number(remainingBalance.conversionRate),
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatSaleCurrency(
+                            remainingBalance.currencyType === "USD"
+                              ? remainingBalance.totalPaid * Number(remainingBalance.conversionRate || 1)
+                              : remainingBalance.totalPaid / Number(remainingBalance.conversionRate || 1),
+                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
+                            1,
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Pendiente</p>
+                        <p className="text-lg font-bold">
+                          {formatSaleCurrency(
+                            remainingBalance.remainingAmount,
+                            remainingBalance.currencyType,
+                            Number(remainingBalance.conversionRate),
+                          )}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {formatSaleCurrency(
+                            remainingBalance.currencyType === "USD"
+                              ? remainingBalance.remainingAmount * Number(remainingBalance.conversionRate || 1)
+                              : remainingBalance.remainingAmount / Number(remainingBalance.conversionRate || 1),
+                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
+                            1,
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {isLoadingPayments ? (
+                    <div className="flex justify-center items-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                  ) : (
+                    <PaymentsTable payments={payments} onPaymentUpdated={fetchPayments} />
+                  )}
+                </div>
+
+                {sale.saleType === "PRESALE" && !paymentPlan && (
+                  <>
+                    <Separator />
+                    <div className="p-6 bg-gray-50/50 dark:bg-gray-950/50">
+                      <Button onClick={() => setShowPaymentPlanDialog(true)} className="w-full">
+                        <CreditCardIcon className="h-4 w-4 mr-2" />
+                        Crear Plan de Pago
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </Card>
+            )}
             <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
               <div className="p-6">
                 <h2 className="text-lg font-semibold mb-4">Configuración de Moneda</h2>
@@ -826,7 +859,55 @@ export function SaleDetails({ sale }: { sale: any }) {
               </div>
             </Card>
 
+            {/* Draft and Donation Status */}
+            
+            <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
+              <div className="p-6">
+                <h2 className="text-lg font-semibold mb-4">Estado de la Venta</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FilePenLine className="h-5 w-5 text-amber-500" />
+                      <div>
+                        <p className="font-medium">Borrador</p>
+                        <p className="text-sm text-muted-foreground">Marcar como borrador pendiente de aprobación</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <Switch
+                        checked={isDraft}
+                        onCheckedChange={handleDraftChange}
+                        disabled={isUpdatingDraft}
+                        className={cn(isDraft ? "bg-amber-500" : "bg-gray-200 dark:bg-gray-700")}
+                      />
+                      {isUpdatingDraft && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Gift className="h-5 w-5 text-purple-500" />
+                      <div>
+                        <p className="font-medium">Donación</p>
+                        <p className="text-sm text-muted-foreground">Marcar como donación (solo admin)</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <Switch
+                        checked={isDonation}
+                        onCheckedChange={handleDonationChange}
+                        disabled={isUpdatingDonation}
+                        className={cn(isDonation ? "bg-purple-500" : "bg-gray-200 dark:bg-gray-700")}
+                      />
+                      {isUpdatingDonation && <Clock className="ml-2 h-3 w-3 animate-spin text-muted-foreground" />}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
             {/* Status Timeline */}
+            
             <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
               <div className="p-6">
                 <h2 className="text-lg font-semibold mb-4">Estado del Pedido</h2>
@@ -972,11 +1053,9 @@ export function SaleDetails({ sale }: { sale: any }) {
                       const numericRate = Number(sale.conversionRate) || 1
                       const altCurrencyType = sale.currencyType === "USD" ? "BS" : "USD"
 
-                      // Check if this item is part of a bundle
                       const isPartOfBundle = item.metadata && item.metadata.bundleId
                       const bundleId = isPartOfBundle ? item.metadata.bundleId : null
 
-                      // If this is a bundled item and not the first one of its bundle, skip rendering
                       if (
                         isPartOfBundle &&
                         index > 0 &&
@@ -986,7 +1065,6 @@ export function SaleDetails({ sale }: { sale: any }) {
                         return null
                       }
 
-                      // If this is a bundle, find all items in this bundle
                       const bundleItems = isPartOfBundle
                         ? currentItems.filter((i: any) => i.metadata && i.metadata.bundleId === bundleId)
                         : []
@@ -1081,17 +1159,18 @@ export function SaleDetails({ sale }: { sale: any }) {
                                       <span className="font-medium">
                                         {formatSaleCurrency(item.unitPrice, sale.currencyType, numericRate)} c/u
                                       </span>
-                                      <span className="text-xs ml-1 text-gray-400">
-                                        (
-                                        {formatSaleCurrency(
-                                          sale.currencyType === "USD"
-                                            ? item.unitPrice * numericRate
-                                            : item.unitPrice / numericRate,
-                                          altCurrencyType,
-                                          1,
-                                        )}
-                                        )
-                                      </span>
+                                      {sale.currencyType === "USD" && (
+                            <span className="text-xs ml-1 text-gray-400">
+                              (
+                              {formatSaleCurrency(
+                                item.unitPrice * numericRate,
+                                "BS",
+                                1
+                              )}
+                              )
+                            
+                            </span>
+                            )}
                                     </div>
                                   </>
                                 )}
@@ -1163,7 +1242,6 @@ export function SaleDetails({ sale }: { sale: any }) {
                     <span className="text-2xl font-bold">
                       {formatSaleCurrency(
                         currentItems.reduce((sum: number, item: any) => {
-                          // Si es parte de un bundle pero no es el item principal del bundle, no sumarlo al total
                           if (item.metadata && item.metadata.bundleId && item.metadata.isPartOfBundle) {
                             return sum
                           }
@@ -1177,14 +1255,12 @@ export function SaleDetails({ sale }: { sale: any }) {
                       {formatSaleCurrency(
                         sale.currencyType === "USD"
                           ? currentItems.reduce((sum: number, item: any) => {
-                              // Si es parte de un bundle pero no es el item principal del bundle, no sumarlo al total
                               if (item.metadata && item.metadata.bundleId && item.metadata.isPartOfBundle) {
                                 return sum
                               }
                               return sum + item.quantity * item.unitPrice
                             }, 0) * Number(sale.conversionRate || 1)
                           : currentItems.reduce((sum: number, item: any) => {
-                              // Si es parte de un bundle pero no es el item principal del bundle, no sumarlo al total
                               if (item.metadata && item.metadata.bundleId && item.metadata.isPartOfBundle) {
                                 return sum
                               }
@@ -1199,127 +1275,7 @@ export function SaleDetails({ sale }: { sale: any }) {
               </div>
             </Card>
 
-            {/* Payments */}
-            {(payments.length > 0 || sale.saleType === "PRESALE" || remainingBalance) && (
-              <Card className="overflow-hidden border-none bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl">
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold">Pagos</h2>
-                    <div className="flex items-center gap-2">
-                      {paymentPlan && (
-                        <Badge variant="outline" className="px-3 py-1.5">
-                          Plan: {paymentPlan.installmentCount} cuotas{" "}
-                          {paymentPlan.installmentFrequency === "WEEKLY"
-                            ? "semanales"
-                            : paymentPlan.installmentFrequency === "BIWEEKLY"
-                              ? "quincenales"
-                              : "mensuales"}
-                        </Badge>
-                      )}
-
-                      {remainingBalance && remainingBalance.remainingAmount > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (currencyType !== sale.currencyType) {
-                              setShowPaymentCurrencyDialog(true)
-                            } else {
-                              setShowPartialPaymentDialog(true)
-                            }
-                          }}
-                        >
-                          <Coins className="mr-2 h-4 w-4" />
-                          Registrar Abono
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {remainingBalance && (
-                    <div className="bg-muted/30 p-4 rounded-lg mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total</p>
-                        <p className="text-lg font-bold">
-                          {formatSaleCurrency(
-                            remainingBalance.totalAmount,
-                            remainingBalance.currencyType,
-                            Number(remainingBalance.conversionRate),
-                          )}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatSaleCurrency(
-                            remainingBalance.currencyType === "USD"
-                              ? remainingBalance.totalAmount * Number(remainingBalance.conversionRate || 1)
-                              : remainingBalance.totalAmount / Number(remainingBalance.conversionRate || 1),
-                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
-                            1,
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Pagado</p>
-                        <p className="text-lg font-bold">
-                          {formatSaleCurrency(
-                            remainingBalance.totalPaid,
-                            remainingBalance.currencyType,
-                            Number(remainingBalance.conversionRate),
-                          )}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatSaleCurrency(
-                            remainingBalance.currencyType === "USD"
-                              ? remainingBalance.totalPaid * Number(remainingBalance.conversionRate || 1)
-                              : remainingBalance.totalPaid / Number(remainingBalance.conversionRate || 1),
-                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
-                            1,
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Pendiente</p>
-                        <p className="text-lg font-bold">
-                          {formatSaleCurrency(
-                            remainingBalance.remainingAmount,
-                            remainingBalance.currencyType,
-                            Number(remainingBalance.conversionRate),
-                          )}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {formatSaleCurrency(
-                            remainingBalance.currencyType === "USD"
-                              ? remainingBalance.remainingAmount * Number(remainingBalance.conversionRate || 1)
-                              : remainingBalance.remainingAmount / Number(remainingBalance.conversionRate || 1),
-                            remainingBalance.currencyType === "USD" ? "BS" : "USD",
-                            1,
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {isLoadingPayments ? (
-                    <div className="flex justify-center items-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                  ) : (
-                    <PaymentsTable payments={payments} onPaymentUpdated={fetchPayments} />
-                  )}
-                </div>
-
-                {sale.saleType === "PRESALE" && !paymentPlan && (
-                  <>
-                    <Separator />
-                    <div className="p-6 bg-gray-50/50 dark:bg-gray-950/50">
-                      <Button onClick={() => setShowPaymentPlanDialog(true)} className="w-full">
-                        <CreditCardIcon className="h-4 w-4 mr-2" />
-                        Crear Plan de Pago
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </Card>
-            )}
+            
           </div>
 
           {/* Sidebar */}
@@ -1499,6 +1455,7 @@ export function SaleDetails({ sale }: { sale: any }) {
                   <SelectContent>
                     <SelectItem value="USD">USD</SelectItem>
                     <SelectItem value="BS">BS</SelectItem>
+                  
                   </SelectContent>
                 </Select>
               </div>
@@ -1587,7 +1544,7 @@ export function SaleDetails({ sale }: { sale: any }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        {/* Añadir este diálogo al final del componente SaleDetails */}
+
         <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
