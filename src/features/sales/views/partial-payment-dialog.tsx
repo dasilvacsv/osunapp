@@ -23,9 +23,6 @@ interface PartialPaymentDialogProps {
   onOpenChange: (open: boolean) => void
   purchaseId: string
   onSuccess?: () => void
-  initialCurrency?: string
-  initialAmount?: string
-  initialConvertedAmount?: string
 }
 
 export function PartialPaymentDialog({
@@ -33,18 +30,14 @@ export function PartialPaymentDialog({
   onOpenChange,
   purchaseId,
   onSuccess,
-  initialCurrency,
-  initialAmount,
-  initialConvertedAmount,
 }: PartialPaymentDialogProps) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [loadingBalance, setLoadingBalance] = useState(false)
   const [loadingBCV, setLoadingBCV] = useState(false)
-  const [amount, setAmount] = useState(initialAmount || "")
-  const [bsAmount, setBsAmount] = useState(initialConvertedAmount || "")
+  const [amount, setAmount] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("CASH")
-  const [currencyType, setCurrencyType] = useState(initialCurrency || "USD")
+  const [currencyType, setCurrencyType] = useState("USD")
   const [conversionRate, setConversionRate] = useState("1")
   const [transactionReference, setTransactionReference] = useState("")
   const [notes, setNotes] = useState("")
@@ -60,25 +53,14 @@ export function PartialPaymentDialog({
   const [error, setError] = useState<string | null>(null)
 
   const fetchRemainingBalance = async () => {
-    if (!purchaseId) {
-      console.error("No purchaseId provided")
-      setError("ID de venta no proporcionado")
-      return
-    }
+    if (!purchaseId) return
 
-    console.log("Fetching balance for purchaseId:", purchaseId)
     try {
       setLoadingBalance(true)
       setError(null)
-
       const result = await getRemainingBalance(purchaseId)
-      console.log("Balance result:", result)
-
-      if (!result) {
-        throw new Error("No se pudo obtener el saldo")
-      }
-
-      if (result.success && result.data) {
+      
+      if (result?.success && result.data) {
         const data = {
           totalAmount: Number(result.data.totalAmount),
           totalPaid: Number(result.data.totalPaid || 0),
@@ -88,148 +70,73 @@ export function PartialPaymentDialog({
           conversionRate: Number(result.data.conversionRate || 1),
         }
 
-        console.log("Processed balance data:", data)
         setRemainingBalance(data)
-
-        // Only set currency type if not already set from props
-        if (!initialCurrency) {
-          setCurrencyType(data.currencyType)
-        }
-
-        setConversionRate(data.conversionRate.toString())
-      } else {
-        throw new Error(result.error || "Error al obtener el saldo")
+        setCurrencyType(data.currencyType)
+        if (data.currencyType === "BS") setConversionRate("1")
       }
     } catch (error) {
-      console.error("Error in fetchRemainingBalance:", error)
-      const errorMessage = error instanceof Error ? error.message : "Error al obtener el saldo pendiente"
+      const errorMessage = error instanceof Error ? error.message : "Error al obtener el saldo"
       setError(errorMessage)
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: errorMessage, variant: "destructive" })
     } finally {
       setLoadingBalance(false)
     }
   }
 
-  // Update the fetchBCVRate function to use your existing implementation
   const fetchBCVRate = async () => {
     try {
       setLoadingBCV(true)
       const rateInfo = await getBCVRate()
       setConversionRate(rateInfo.rate.toString())
-
-      // Update amounts based on new rate
-      if (currencyType === "BS" && amount) {
-        const bsValue = (Number(amount) * rateInfo.rate).toFixed(2)
-        setBsAmount(bsValue)
-      } else if (currencyType === "BS" && bsAmount) {
-        const usdValue = (Number(bsAmount) / rateInfo.rate).toFixed(2)
-        setAmount(usdValue)
-      }
-
-      toast({
-        title: "Tasa BCV actualizada",
-        description: `Tasa actual: ${rateInfo.rate} Bs/USD (${rateInfo.isError ? "tasa de respaldo" : "actualizada: " + rateInfo.lastUpdate})`,
-        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
-      })
     } catch (error) {
-      toast({
-        title: "Error",
-        description: "No se pudo obtener la tasa BCV",
-        variant: "destructive",
-      })
+      toast({ title: "Error", description: "No se pudo obtener la tasa BCV", variant: "destructive" })
     } finally {
       setLoadingBCV(false)
     }
   }
 
   useEffect(() => {
-    if (!open) {
-      setError(null)
-      if (!initialAmount) {
-        setAmount("")
-      }
-      if (!initialCurrency) {
-        setPaymentMethod("CASH")
-        setCurrencyType("USD")
-      }
-      setConversionRate("1")
-      setTransactionReference("")
-      setNotes("")
-      setPaymentDate(new Date())
-      setRemainingBalance(null)
-    } else if (purchaseId) {
-      console.log("Dialog opened with purchaseId:", purchaseId)
-      fetchRemainingBalance()
-    }
-  }, [open, purchaseId, initialAmount, initialCurrency])
+    if (open && purchaseId) fetchRemainingBalance()
+  }, [open, purchaseId])
 
   useEffect(() => {
-    if (currencyType === "BS" && open) {
+    if (currencyType === "BS" && remainingBalance?.currencyType === "USD") {
       fetchBCVRate()
     }
-  }, [currencyType, open])
-
-  const handleDialogOpenChange = (open: boolean) => {
-    onOpenChange(open)
-  }
+  }, [currencyType])
 
   const handleSubmit = async () => {
     try {
-      if (!amount || Number(amount) <= 0) {
-        throw new Error("El monto debe ser mayor a cero")
-      }
-
+      if (!amount || Number(amount) <= 0) throw new Error("El monto debe ser mayor a cero")
       setLoading(true)
 
-      // Determine which amount to use based on currency
-      const paymentAmount = Number(amount)
-      let originalAmount = paymentAmount
-
-      // Handle currency conversion if payment currency differs from sale currency
-      if (currencyType !== remainingBalance?.currencyType) {
-        if (currencyType === "BS" && remainingBalance?.currencyType === "USD") {
-          // Converting from BS to USD
-          originalAmount = Number(amount) / Number(conversionRate)
-        } else if (currencyType === "USD" && remainingBalance?.currencyType === "BS") {
-          // Converting from USD to BS
-          originalAmount = Number(amount) * Number(conversionRate)
-        }
+      let originalAmount = Number(amount)
+      
+      // Solo convertir si la venta está en USD y el pago es en BS
+      if (remainingBalance?.currencyType === "USD" && currencyType === "BS") {
+        originalAmount = Number(amount) / Number(conversionRate)
       }
 
-      const result = await addPartialPayment({
+      await addPartialPayment({
         purchaseId,
-        amount: paymentAmount,
+        amount: Number(amount),
         paymentMethod,
         currencyType,
         conversionRate: Number(conversionRate),
         transactionReference: transactionReference || undefined,
         notes: notes || undefined,
-        originalAmount: originalAmount,
-        paymentDate: paymentDate,
+        originalAmount,
+        paymentDate,
       })
 
-      if (result.success) {
-        const message = result.isFullyPaid
-          ? "Pago completado. La venta ha sido marcada como pagada."
-          : `Se ha registrado el pago de ${currencyType === "BS" ? `Bs. ${paymentAmount}` : formatCurrency(paymentAmount)}`
+      toast({
+        title: "Pago registrado",
+        description: `Abono de ${formatCurrency(amount)} ${currencyType} registrado`,
+        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+      })
 
-        toast({
-          title: result.isFullyPaid ? "Pago completado" : "Pago registrado",
-          description: message,
-          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
-        })
-
-        onOpenChange(false)
-        if (onSuccess) {
-          onSuccess()
-        }
-      } else {
-        throw new Error(result.error)
-      }
+      onOpenChange(false)
+      onSuccess?.()
     } catch (error) {
       toast({
         title: "Error",
@@ -241,262 +148,171 @@ export function PartialPaymentDialog({
     }
   }
 
-  const handleBsAmountChange = (value: string) => {
-    setBsAmount(value)
-    if (value && conversionRate) {
-      const usdAmount = (Number(value) / Number(conversionRate)).toFixed(2)
-      setAmount(usdAmount)
-    } else {
-      setAmount("")
-    }
-  }
-
-  const handleAmountChange = (value: string) => {
-    setAmount(value)
-    if (value && conversionRate && currencyType === "BS") {
-      const bsValue = (Number(value) * Number(conversionRate)).toFixed(2)
-      setBsAmount(bsValue)
-    }
-  }
-
-  const handleCurrencyChange = async (value: string) => {
-    setCurrencyType(value)
-    if (value === "BS") {
-      await fetchBCVRate()
-      if (amount) {
-        const bsValue = (Number(amount) * Number(conversionRate)).toFixed(2)
-        setBsAmount(bsValue)
-      }
-    } else {
-      setConversionRate("1")
-      setBsAmount("")
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-      <DialogContent className="sm:max-w-[425px] md:max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="flex-shrink-0 px-1">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px] md:max-w-[500px] max-h-[90vh] flex flex-col">
+        <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
             <CreditCard className="w-5 h-5" />
             Registrar Abono
           </DialogTitle>
         </DialogHeader>
 
-        <div className="overflow-y-auto pr-1 py-2 flex-1">
-          <div className="space-y-4 px-1">
-            {loadingBalance ? (
-              <div className="flex justify-center items-center py-4">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : remainingBalance ? (
+        <div className="overflow-y-auto pr-1 py-2 flex-1 space-y-4">
+          {loadingBalance ? (
+            <div className="flex justify-center items-center py-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : remainingBalance ? (
+            <>
               <div className="bg-muted/50 p-3 rounded-lg border border-border space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <div className="text-sm text-muted-foreground">Monto total</div>
+                    <div className="text-sm text-muted-foreground">Moneda</div>
                     <div className="text-base font-semibold">
-                      {formatCurrency(remainingBalance.totalAmount)} {remainingBalance.currencyType}
+                      {remainingBalance.currencyType}
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-sm text-muted-foreground">Total pagado</div>
-                    <div className="text-base font-semibold">
-                      {formatCurrency(remainingBalance.totalPaid)} {remainingBalance.currencyType}
+                    <div className="text-sm text-muted-foreground">Saldo pendiente</div>
+                    <div className="text-xl font-bold">
+                      {formatCurrency(remainingBalance.remainingAmount)} {remainingBalance.currencyType}
                     </div>
                   </div>
                 </div>
-                <div className="pt-3 border-t border-border space-y-1">
-                  <div className="text-sm text-muted-foreground">Saldo pendiente</div>
-                  <div className="text-xl font-bold">
-                    {formatCurrency(remainingBalance.remainingAmount)} {remainingBalance.currencyType}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <Alert variant="destructive" className="mt-2">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="space-y-4">
-              {/* Fecha de pago */}
-              <div className="space-y-2">
-                <Label htmlFor="paymentDate">Fecha de pago</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal h-10" id="paymentDate">
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {paymentDate ? format(paymentDate, "PPP", { locale: es }) : "Seleccionar fecha"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <CalendarComponent
-                      mode="single"
-                      selected={paymentDate}
-                      onSelect={(date) => date && setPaymentDate(date)}
-                      initialFocus
-                      locale={es}
-                    />
-                  </PopoverContent>
-                </Popover>
               </div>
 
-              {/* Moneda de pago */}
-              {(!remainingBalance || remainingBalance.currencyType === "USD") && (
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="currencyType">Moneda de Pago</Label>
-                  <Select value={currencyType} onValueChange={handleCurrencyChange}>
-                    <SelectTrigger id="currencyType" className="h-10">
-                      <SelectValue placeholder="Seleccionar moneda" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="BS">BS</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Campos de monto */}
-              <div className="space-y-3">
-                {currencyType === "BS" ? (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="bsAmount">Monto en Bs</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-muted-foreground">Bs.</span>
-                        <Input
-                          id="bsAmount"
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={bsAmount}
-                          onChange={(e) => handleBsAmountChange(e.target.value)}
-                          placeholder="0.00"
-                          className="pl-9 h-10"
-                        />
-                      </div>
-                    </div>
-                    {remainingBalance?.currencyType === "USD" && (
-                      <div className="space-y-2">
-                        <Label htmlFor="amount">Equivalente en USD</Label>
-                        <div className="relative">
-                          <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            id="amount"
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            value={amount}
-                            onChange={(e) => handleAmountChange(e.target.value)}
-                            placeholder="0.00"
-                            className="pl-9 h-10"
-                          />
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-muted-foreground">
-                          <span>Tasa: {conversionRate} Bs/USD</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7"
-                            onClick={fetchBCVRate}
-                            disabled={loadingBCV}
-                          >
-                            <RefreshCw className={`h-3.5 w-3.5 ${loadingBCV ? "animate-spin" : ""}`} />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="space-y-2">
-                    <Label htmlFor="amount">Monto en USD</Label>
-                    <div className="relative">
-                      <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="amount"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        value={amount}
-                        onChange={(e) => handleAmountChange(e.target.value)}
-                        placeholder="0.00"
-                        className="pl-9 h-10"
+                  <Label>Fecha de pago</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal h-10">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {format(paymentDate, "PPP", { locale: es })}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <CalendarComponent
+                        mode="single"
+                        selected={paymentDate}
+                        onSelect={(date) => date && setPaymentDate(date)}
+                        initialFocus
+                        locale={es}
                       />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {remainingBalance.currencyType === "USD" && (
+                  <div className="space-y-2">
+                    <Label>Moneda de Pago</Label>
+                    <Select value={currencyType} onValueChange={setCurrencyType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Seleccionar moneda" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="BS">BS</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>
+                    {remainingBalance.currencyType === "BS"
+                      ? "Monto en Bs"
+                      : `Monto en ${currencyType}`}
+                  </Label>
+                  <div className="relative">
+                    {currencyType === "BS" && (
+                      <span className="absolute left-3 top-2.5 text-muted-foreground">Bs.</span>
+                    )}
+                    {currencyType === "USD" && (
+                      <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    )}
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="0.00"
+                      className={currencyType === "BS" ? "pl-9" : "pl-9"}
+                    />
+                  </div>
+                </div>
+
+                {remainingBalance.currencyType === "USD" && currencyType === "BS" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span>Tasa: {conversionRate} Bs/USD</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={fetchBCVRate}
+                        disabled={loadingBCV}
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${loadingBCV ? "animate-spin" : ""}`} />
+                        Actualizar tasa
+                      </Button>
                     </div>
                   </div>
                 )}
-              </div>
 
-              {/* Método de pago */}
-              <div className="space-y-2">
-                <Label htmlFor="paymentMethod">Método de pago</Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger id="paymentMethod" className="h-10">
-                    <SelectValue placeholder="Seleccionar método de pago" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="CASH">Efectivo</SelectItem>
-                    <SelectItem value="CARD">Tarjeta</SelectItem>
-                    <SelectItem value="TRANSFER">Transferencia</SelectItem>
-                    <SelectItem value="OTHER">Otro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Referencia y notas */}
-              <div className="space-y-3">
                 <div className="space-y-2">
-                  <Label htmlFor="transactionReference">Referencia de transacción (opcional)</Label>
+                  <Label>Método de pago</Label>
+                  <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar método" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CASH">Efectivo</SelectItem>
+                      <SelectItem value="CARD">Tarjeta</SelectItem>
+                      <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Referencia (opcional)</Label>
                   <Input
-                    id="transactionReference"
                     value={transactionReference}
                     onChange={(e) => setTransactionReference(e.target.value)}
-                    placeholder="Número de referencia, recibo, etc."
-                    className="h-10"
+                    placeholder="Número de referencia"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="notes">Notas (opcional)</Label>
+                  <Label>Notas (opcional)</Label>
                   <Textarea
-                    id="notes"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Información adicional sobre el pago"
-                    className="min-h-[80px]"
+                    placeholder="Información adicional"
                   />
                 </div>
               </div>
-            </div>
-          </div>
+            </>
+          ) : (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
         </div>
 
-        <DialogFooter className="flex-shrink-0 pt-4 border-t">
-          <div className="flex gap-2 w-full">
-            <Button 
-              variant="outline" 
-              onClick={() => onOpenChange(false)} 
-              disabled={loading}
-              className="flex-1 h-10"
-            >
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleSubmit} 
-              disabled={loading || !remainingBalance}
-              className="flex-1 h-10 gap-2"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-              {loading ? "Procesando..." : "Registrar Abono"}
-            </Button>
-          </div>
+        <DialogFooter className="pt-4 border-t">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit} disabled={loading || !remainingBalance}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            {loading ? "Registrando..." : "Registrar Abono"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-
