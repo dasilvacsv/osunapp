@@ -18,6 +18,7 @@ interface Payment {
   id: string
   purchaseId: string
   amount: string
+  currencyType: "BS" | "USD"
   status: "PENDING" | "PAID" | "OVERDUE" | "CANCELLED"
   paymentDate: Date | null
   dueDate: Date | null
@@ -40,6 +41,12 @@ export function PaymentsTable({ payments, onPaymentUpdated }: PaymentsTableProps
   const [transactionReference, setTransactionReference] = useState("")
   const [paymentNotes, setPaymentNotes] = useState("")
 
+  const formatAmount = (amount: string, currency: "BS" | "USD") => {
+    const numberAmount = Number.parseFloat(amount)
+    const formatted = formatCurrency(numberAmount).replace("$", "").trim()
+    return currency === "BS" ? `Bs ${formatted}` : `$${formatted}`
+  }
+
   const handleRecordPayment = async () => {
     if (!selectedPayment) return
 
@@ -55,7 +62,7 @@ export function PaymentsTable({ payments, onPaymentUpdated }: PaymentsTableProps
       if (result.success) {
         toast({
           title: "Pago registrado",
-          description: `Se ha registrado el pago de ${formatCurrency(Number.parseFloat(selectedPayment.amount))}`,
+          description: `Se ha registrado el pago de ${formatAmount(selectedPayment.amount, selectedPayment.currencyType)}`,
           className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
         })
         onPaymentUpdated()
@@ -154,7 +161,7 @@ export function PaymentsTable({ payments, onPaymentUpdated }: PaymentsTableProps
           <TableBody>
             {payments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={8} className="h-24 text-center">
                   No hay pagos registrados
                 </TableCell>
               </TableRow>
@@ -162,7 +169,7 @@ export function PaymentsTable({ payments, onPaymentUpdated }: PaymentsTableProps
               payments.map((payment) => (
                 <TableRow key={payment.id}>
                   <TableCell className="font-medium">{payment.notes || "Pago"}</TableCell>
-                  <TableCell>{formatCurrency(Number.parseFloat(payment.amount))}</TableCell>
+                  <TableCell>{formatAmount(payment.amount, payment.currencyType)}</TableCell>
                   <TableCell>{getStatusBadge(payment.status)}</TableCell>
                   <TableCell>{payment.dueDate ? formatDate(payment.dueDate) : "-"}</TableCell>
                   <TableCell>{payment.paymentDate ? formatDate(payment.paymentDate) : "-"}</TableCell>
@@ -243,7 +250,7 @@ export function PaymentsTable({ payments, onPaymentUpdated }: PaymentsTableProps
               <div className="bg-muted/50 p-4 rounded-lg border border-border">
                 <div className="text-sm text-muted-foreground">Monto a pagar</div>
                 <div className="text-2xl font-bold mt-1">
-                  {formatCurrency(Number.parseFloat(selectedPayment.amount))}
+                  {formatAmount(selectedPayment.amount, selectedPayment.currencyType)}
                 </div>
                 <div className="text-sm text-muted-foreground mt-2">
                   Fecha de vencimiento:{" "}
@@ -304,4 +311,3 @@ export function PaymentsTable({ payments, onPaymentUpdated }: PaymentsTableProps
     </>
   )
 }
-
