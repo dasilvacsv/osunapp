@@ -41,6 +41,7 @@ import { useState, useEffect } from "react"
 import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { Switch } from "@/components/ui/switch"
 import { updateSaleVendidoStatus, updateSaleDraftStatus, updateSaleDonation } from "@/features/sales/actions"
+import { deletePurchase } from "@/features/sales/views/actions"
 import { useSession } from "next-auth/react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -660,6 +661,7 @@ export const columns: ColumnDef<Sale>[] = [
       const sale = row.original
       const [isDialogOpen, setIsDialogOpen] = useState(false)
       const [isUpdating, setIsUpdating] = useState(false)
+      const { toast } = useToast()
 
       const handleDraftStatusChange = async (isDraft: boolean) => {
         try {
@@ -679,6 +681,31 @@ export const columns: ColumnDef<Sale>[] = [
           console.error("Error updating draft status:", error)
         } finally {
           setIsUpdating(false)
+        }
+      }
+
+      const handleDelete = async () => {
+        if (confirm("¿Estás seguro de eliminar esta venta y todos sus registros relacionados?")) {
+          try {
+            const result = await deletePurchase(sale.id)
+            
+            if (result.success) {
+              toast({
+                title: "Venta eliminada",
+                description: "La venta y sus registros relacionados han sido eliminados exitosamente.",
+                className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+              })
+              window.dispatchEvent(new CustomEvent("sales-updated"))
+            } else {
+              throw new Error(result.error || "Error al eliminar la venta")
+            }
+          } catch (error) {
+            toast({
+              title: "Error",
+              description: error instanceof Error ? error.message : "Error al eliminar la venta",
+              variant: "destructive",
+            })
+          }
         }
       }
 
@@ -743,6 +770,16 @@ export const columns: ColumnDef<Sale>[] = [
                   Marcar como borrador
                 </DropdownMenuItem>
               )}
+
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuItem
+                onClick={handleDelete}
+                className="cursor-pointer text-xs text-red-600 focus:bg-red-50 dark:text-red-400"
+              >
+                <XCircle className="mr-2 h-3.5 w-3.5" />
+                Eliminar con cascade
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -760,4 +797,3 @@ export const columns: ColumnDef<Sale>[] = [
     },
   },
 ]
-
