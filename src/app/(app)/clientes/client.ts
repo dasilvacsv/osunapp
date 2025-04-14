@@ -109,7 +109,6 @@ export async function getClient(id: string) {
   }
 }
 
-
 export async function getOrganizations() {
   return unstable_cache(
     async () => {

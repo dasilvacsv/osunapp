@@ -1,5 +1,3 @@
-"use client"
-
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -8,7 +6,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
 import { DialogFooter } from "@/components/ui/dialog"
-import { Loader2, Search, Check, ChevronDown, ArrowRightLeft } from "lucide-react"
+import { Loader2, Search, Check, ChevronDown } from "lucide-react"
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -16,13 +14,12 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "
 import { cn } from "@/lib/utils"
 import { createBeneficiary, updateBeneficiary } from "@/app/(app)/clientes/client"
 import { getOrganizationSections } from "../organizations/actions"
-import { useSearchParams } from "next/navigation"
 
 const formSchema = z.object({
   clientId: z.string(),
-  organizationId: z.string().min(1, "La organización es requerida"),
+  organizationId: z.string(),
   grade: z.string().min(1, "El grado es requerido"),
-  section: z.string().min(1, "La sección es requerida"),
+  section: z.string(),
   firstName: z.string().min(1, "El nombre es requerido"),
   lastName: z.string().min(1, "El apellido es requerido"),
   school: z.string().min(1, "La escuela es requerida"),
@@ -64,8 +61,6 @@ export default function BeneficiaryForm({
   const [isLoadingSections, setIsLoadingSections] = useState(false)
   const [orgOpen, setOrgOpen] = useState(false)
   const [levelOpen, setLevelOpen] = useState(false)
-  const [swapNames, setSwapNames] = useState(false)
-  const searchParams = useSearchParams()
 
   const form = useForm<BeneficiaryFormData>({
     resolver: zodResolver(formSchema),
@@ -80,22 +75,6 @@ export default function BeneficiaryForm({
       level: initialData?.level || "",
     },
   })
-
-  useEffect(() => {
-    if (swapNames) {
-      const firstName = form.getValues('firstName')
-      const lastName = form.getValues('lastName')
-      form.setValue('firstName', lastName)
-      form.setValue('lastName', firstName)
-      setSwapNames(false)
-    }
-  }, [swapNames, form])
-
-  useEffect(() => {
-    if (searchParams.get('openBeneficiaryForm')) {
-      // Lógica adicional para auto-focus si es necesario
-    }
-  }, [searchParams])
 
   const selectedOrganizationId = form.watch("organizationId")
 
@@ -117,11 +96,6 @@ export default function BeneficiaryForm({
           }
         } catch (error) {
           console.error("Error fetching sections:", error)
-          toast({
-            variant: "destructive",
-            title: "Error",
-            description: "No se pudieron cargar las secciones de la organización",
-          })
         } finally {
           setIsLoadingSections(false)
         }
@@ -130,12 +104,12 @@ export default function BeneficiaryForm({
       fetchSections()
     } else {
       setSections([])
-      form.setValue("school", "")
-      form.setValue("level", "")
+      const selectedOrg = organizations.find((org) => org.id === initialData?.organizationId)
+      if (selectedOrg?.type === "SCHOOL") {
+        form.setValue("school", "")
+      }
     }
-  }, [selectedOrganizationId, organizations, form, toast])
-
-  const uniqueLevels = Array.from(new Set(sections.map(section => section.level)))
+  }, [selectedOrganizationId, organizations, form, initialData])
 
   async function handleSubmit(data: BeneficiaryFormData) {
     if (isSubmitting) return
@@ -169,6 +143,9 @@ export default function BeneficiaryForm({
     }
   }
 
+  // Get unique levels from sections
+  const uniqueLevels = Array.from(new Set(sections.map(section => section.level)))
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="relative flex flex-col h-full">
@@ -185,29 +162,14 @@ export default function BeneficiaryForm({
                 name="lastName"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="relative">
-                      <FormLabel className="text-sm font-medium">Apellidos</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Apellidos"
-                          {...field}
-                          className="transition-all duration-200 focus:ring-2 focus:ring-primary/20 h-9"
-                          onPaste={(e) => {
-                            const pasted = e.clipboardData.getData('text')
-                            form.setValue('lastName', pasted)
-                          }}
-                        />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSwapNames(true)}
-                        className="absolute right-1 top-7 h-7 px-2 text-xs"
-                      >
-                        <ArrowRightLeft className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    <FormLabel className="text-sm font-medium">Apellidos</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Apellidos"
+                        {...field}
+                        className="transition-all duration-200 focus:ring-2 focus:ring-primary/20 h-9"
+                      />
+                    </FormControl>
                     <FormMessage className="text-xs" />
                   </FormItem>
                 )}
@@ -218,29 +180,14 @@ export default function BeneficiaryForm({
                 name="firstName"
                 render={({ field }) => (
                   <FormItem>
-                    <div className="relative">
-                      <FormLabel className="text-sm font-medium">Nombres</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Nombres"
-                          {...field}
-                          className="transition-all duration-200 focus:ring-2 focus:ring-primary/20 h-9"
-                          onPaste={(e) => {
-                            const pasted = e.clipboardData.getData('text')
-                            form.setValue('firstName', pasted)
-                          }}
-                        />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSwapNames(true)}
-                        className="absolute right-1 top-7 h-7 px-2 text-xs"
-                      >
-                        <Swap className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    <FormLabel className="text-sm font-medium">Nombres</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Nombres"
+                        {...field}
+                        className="transition-all duration-200 focus:ring-2 focus:ring-primary/20 h-9"
+                      />
+                    </FormControl>
                     <FormMessage className="text-xs" />
                   </FormItem>
                 )}

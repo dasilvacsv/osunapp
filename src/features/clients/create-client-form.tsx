@@ -8,57 +8,37 @@ import { useToast } from "@/hooks/use-toast"
 import { DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
-import { useRouter } from "next/navigation"
-import { Check, ChevronsUpDown, Copy, Loader2, UserPlus, ClipboardPaste } from "lucide-react"
+import type { Client } from "@/lib/types"
+import { type ClientFormData, getOrganizations } from "@/app/(app)/clientes/client"
+import { useEffect, useState } from "react"
+import { Check, ChevronsUpDown, Copy, Loader2, UserPlus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { checkDocumentExists, validatePhoneNumber } from "./validation"
-import { useState, useEffect } from "react"
-
-const formSchema = z.object({
-  name: z.string().min(1, "El nombre es requerido"),
-  document: z.string()
-    .min(7, "La cédula debe tener al menos 7 dígitos")
-    .max(8, "La cédula no puede exceder 8 dígitos")
-    .refine(async (doc) => {
-      if (doc && typeof window !== 'undefined') {
-        return !(await checkDocumentExists(doc))
-      }
-      return true
-    }, "Esta cédula ya está registrada"),
-  phone: z.string()
-    .min(10, "El teléfono debe tener al menos 10 dígitos")
-    .refine(validatePhoneNumber, "Número de teléfono inválido"),
-  whatsapp: z.string().optional(),
-  contactInfo: z.object({
-    email: z.string().min(1, "El correo es requerido").email("Correo inválido"),
-    phone: z.string().optional(),
-  }),
-  role: z.enum(["PARENT", "EMPLOYEE", "INDIVIDUAL"]),
-  organizationId: z.string(),
-})
-
-type ClientFormData = z.infer<typeof formSchema>
 
 interface ClientFormProps {
   closeDialog: () => void
-  initialData?: any
+  initialData?: Client
   mode: "create" | "edit"
-  onSubmit: (data: ClientFormData) => Promise<string | void>
+  onSubmit: (data: ClientFormData) => Promise<void>
 }
 
 export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientFormProps) {
-  const router = useRouter()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [syncWhatsapp, setSyncWhatsapp] = useState(mode === "create")
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState("")
+
+  useEffect(() => {
+    const loadOrganizations = async () => {
+      const result = await getOrganizations()
+      if (result.data) setOrganizations(result.data)
+    }
+    loadOrganizations()
+  }, [])
+
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<ClientFormData>({
-    resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialData?.name || "",
       document: initialData?.document || "",
@@ -73,73 +53,10 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
     },
   })
 
-  const handlePaste = (pastedData: string) => {
-    try {
-      const lines = pastedData.split('\n').map(line => line.trim())
-      
-      // Procesar nombre
-      const nameLine = lines[0] || ''
-      const [lastName, firstName] = nameLine.split(',').map(s => s.trim())
-      if (lastName && firstName) {
-        form.setValue('name', `${firstName} ${lastName}`)
-      } else {
-        form.setValue('name', nameLine)
-      }
-
-      // Procesar documento
-      if (lines[1]) {
-        const doc = lines[1].replace(/\D/g, '').slice(0, 8)
-        form.setValue('document', doc)
-      }
-
-      // Procesar teléfono
-      if (lines[2]) {
-        const phone = lines[2].replace(/\D/g, '').slice(0, 11)
-        form.setValue('phone', phone)
-        if (syncWhatsapp) form.setValue('whatsapp', phone)
-      }
-
-      // Procesar email
-      if (lines[3]) {
-        form.setValue('contactInfo.email', lines[3].trim())
-      }
-
-      toast({
-        title: "Datos pegados",
-        description: "Campos llenados automáticamente",
-        duration: 2000,
-      })
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Formato incorrecto",
-        description: "Use el formato: Apellidos, Nombres\\nDocumento\\nTeléfono\\nEmail",
-      })
-    }
-  }
-
-  const handlePasteButtonClick = async () => {
-    try {
-      const text = await navigator.clipboard.readText()
-      handlePaste(text)
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error de acceso",
-        description: "Permita el acceso al portapapeles",
-      })
-    }
-  }
-
-  const phoneValue = useWatch({ control: form.control, name: "phone" })
-
-  useEffect(() => {
-    const loadOrganizations = async () => {
-      const result = await getOrganizations()
-      if (result.data) setOrganizations(result.data)
-    }
-    loadOrganizations()
-  }, [])
+  const phoneValue = useWatch({
+    control: form.control,
+    name: "phone",
+  })
 
   useEffect(() => {
     if (syncWhatsapp && phoneValue) {
@@ -153,7 +70,14 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
       form.setValue("whatsapp", phoneNumber)
       toast({
         title: "Copiado",
-        description: "Número copiado a WhatsApp",
+        description: "Número de teléfono copiado a WhatsApp",
+        duration: 2000,
+      })
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No hay número de teléfono para copiar",
         duration: 2000,
       })
     }
@@ -161,15 +85,23 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
 
   async function handleSubmit(data: ClientFormData) {
     if (isSubmitting) return
-    setIsSubmitting(true)
 
+    setIsSubmitting(true)
     try {
-      const result = await onSubmit(data)
-      if (mode === "create" && typeof result === "string") {
-        router.push(`/clientes/${result}?openBeneficiaryForm=true`)
-      } else {
-        closeDialog()
+      const processedData = {
+        ...data,
+        organizationId: data.organizationId === "none" ? undefined : data.organizationId,
       }
+
+      await onSubmit(processedData)
+
+      toast({
+        title: "Éxito",
+        description: `Cliente ${mode === "create" ? "creado" : "actualizado"} correctamente`,
+      })
+
+      form.reset()
+      closeDialog()
     } catch (error) {
       toast({
         variant: "destructive",
@@ -193,7 +125,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
           {mode === "create" ? "Nuevo Cliente" : "Editar Cliente"}
         </DialogTitle>
         <DialogDescription className="text-sm mt-1">
-          Pegue datos en formato: Apellidos, Nombres\\nDocumento\\nTeléfono\\nEmail
+          Complete los datos del cliente. Todos los campos marcados con * son obligatorios.
         </DialogDescription>
       </DialogHeader>
 
@@ -206,26 +138,14 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium">Nombre Completo *</FormLabel>
-                    <div className="relative">
-                      <FormControl>
-                        <Input 
-                          placeholder="Ej: Alvarado Silva, Luis Carlos"
-                          {...field} 
-                          className="bg-background focus:ring-2 focus:ring-blue-500" 
-                          onPaste={(e) => handlePaste(e.clipboardData.getData('text'))}
-                        />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={handlePasteButtonClick}
-                        className="absolute right-1 top-1 h-7 px-2 text-xs"
-                      >
-                        <ClipboardPaste className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    <FormLabel className="text-sm font-medium">Nombre *</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Juan Pérez" 
+                        {...field} 
+                        className="bg-background focus:ring-2 focus:ring-blue-500" 
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -236,16 +156,12 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                 name="document"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium">Documento *</FormLabel>
+                    <FormLabel className="text-sm font-medium">Documento/ID *</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="V-12345678" 
+                        placeholder="123456789" 
                         {...field} 
-                        className="bg-background focus:ring-2 focus:ring-blue-500"
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '')
-                          form.setValue('document', value.slice(0, 8))
-                        }}
+                        className="bg-background focus:ring-2 focus:ring-blue-500" 
                       />
                     </FormControl>
                     <FormMessage />
@@ -262,13 +178,9 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                       <FormLabel className="text-sm font-medium">Teléfono *</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="+584167435109" 
+                          placeholder="+1234567890" 
                           {...field} 
-                          className="bg-background focus:ring-2 focus:ring-blue-500"
-                          onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, '')
-                            form.setValue('phone', value.slice(0, 11))
-                          }}
+                          className="bg-background focus:ring-2 focus:ring-blue-500" 
                         />
                       </FormControl>
                       <FormMessage />
@@ -310,13 +222,14 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                       </div>
                       <FormControl>
                         <Input
-                          placeholder="+584167435109"
+                          placeholder="+1234567890"
                           {...field}
                           className="bg-background focus:ring-2 focus:ring-blue-500"
                           onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, '')
-                            field.onChange(value.slice(0, 11))
-                            if (syncWhatsapp && value !== phoneValue) setSyncWhatsapp(false)
+                            field.onChange(e)
+                            if (syncWhatsapp && e.target.value !== phoneValue) {
+                              setSyncWhatsapp(false)
+                            }
                           }}
                         />
                       </FormControl>
@@ -335,7 +248,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                     <FormControl>
                       <Input 
                         type="email" 
-                        placeholder="ejemplo@correo.com" 
+                        placeholder="juan@ejemplo.com" 
                         {...field} 
                         className="bg-background focus:ring-2 focus:ring-blue-500"
                       />
@@ -354,7 +267,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger className="bg-background focus:ring-2 focus:ring-blue-500">
-                          <SelectValue placeholder="Seleccionar rol" />
+                          <SelectValue placeholder="Seleccionar un rol" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -399,7 +312,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                             placeholder="Buscar organización..."
                             onValueChange={setSearchValue}
                           />
-                          <CommandEmpty>No se encontraron organizaciones</CommandEmpty>
+                          <CommandEmpty>No se encontraron organizaciones.</CommandEmpty>
                           <CommandGroup>
                             <CommandItem
                               value="none"
@@ -442,37 +355,44 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                   </FormItem>
                 )}
               />
-            </div>
 
-            <DialogFooter className="flex space-x-2 mt-1 px-6 py-4 border-t flex-shrink-0">
-              <Button
-                variant="outline"
-                onClick={closeDialog}
-                disabled={isSubmitting}
-                className="flex-1 text-sm hover:bg-blue-50 hover:text-blue-600"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-sm"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {mode === "create" ? "Creando..." : "Actualizando..."}
-                  </>
-                ) : mode === "create" ? (
-                  "Crear Cliente"
-                ) : (
-                  "Actualizar Cliente"
-                )}
-              </Button>
-            </DialogFooter>
+              <div className="bg-blue-50 p-4 rounded-lg mt-6">
+                <p className="text-xs text-blue-800">
+                  Nota: Al crear un cliente, se generará un perfil único en nuestro sistema. 
+                  Asegúrese de que todos los datos sean correctos antes de continuar.
+                </p>
+              </div>
+            </div>
           </form>
         </Form>
       </div>
+
+      <DialogFooter className="flex space-x-2 mt-1 px-6 py-4 border-t flex-shrink-0">
+        <Button
+          variant="outline"
+          onClick={closeDialog}
+          disabled={isSubmitting}
+          className="flex-1 text-sm hover:bg-blue-50 hover:text-blue-600"
+        >
+          Cancelar
+        </Button>
+        <Button
+          onClick={form.handleSubmit(handleSubmit)}
+          disabled={isSubmitting}
+          className="flex-1 bg-blue-600 hover:bg-blue-700 text-sm"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {mode === "create" ? "Creando..." : "Actualizando..."}
+            </>
+          ) : mode === "create" ? (
+            "Crear Cliente"
+          ) : (
+            "Actualizar Cliente"
+          )}
+        </Button>
+      </DialogFooter>
     </div>
   )
 }
