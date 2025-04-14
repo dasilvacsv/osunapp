@@ -11,17 +11,23 @@ export function cn(...inputs: ClassValue[]) {
 // Utility function for currency formatting
 export const formatCurrency = (
   amount: number,
-  currency: "USD" | "BS" = "USD",
-  conversionRate: number = 1
+  currencyType: "USD" | "BS" = "USD"
 ) => {
-  // Si es BS y tenemos tasa de conversión, convertir a USD para el cálculo inverso
-  if (currency === "BS" && conversionRate > 0) {
-    const usdAmount = amount / conversionRate
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(usdAmount)
+  if (currencyType === "BS") {
+    return `Bs ${new Intl.NumberFormat('es-VE', {
+      style: 'decimal',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount)}`;
   }
+
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+};
 
   // Formato base para USD
   const formatter = new Intl.NumberFormat('en-US', {

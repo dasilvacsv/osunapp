@@ -13,6 +13,7 @@ import {
   payments,
   paymentPlans,
   dailySalesReports,
+  certificates,
 } from "@/db/schema"
 import { auth } from "@/features/auth"
 import { and, eq, sql, gte, lte, desc } from "drizzle-orm"
@@ -457,56 +458,60 @@ export async function updatePurchase(id: string, data: any) {
 // Delete a purchase
 export async function deletePurchase(id: string) {
   try {
-    // Start a transaction
-    return await db.transaction(async (tx) => {
-      // Get purchase items to restore inventory
-      const purchaseItemsData = await tx.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, id))
+    // Get purchase items to restore inventory before deleting
+    const purchaseItemsData = await db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, id))
+    
+    // Get the purchase to check if it's a draft
+    const [purchase] = await db.select().from(purchases).where(eq(purchases.id, id))
+    
+    if (!purchase) {
+      throw new Error("Purchase not found")
+    }
 
-      // 1. Delete certificates related to the purchase
-      await tx.delete(certificates).where(eq(certificates.purchaseId, id))
+    // 1. Delete certificates related to the purchase
+    await db.delete(certificates).where(eq(certificates.purchaseId, id))
 
-      // 2. Delete related payments
-      await tx.delete(payments).where(eq(payments.purchaseId, id))
+    // 2. Delete related payments
+    await db.delete(payments).where(eq(payments.purchaseId, id))
 
-      // 3. Delete related payment plans
-      await tx.delete(paymentPlans).where(eq(paymentPlans.purchaseId, id))
+    // 3. Delete related payment plans
+    await db.delete(paymentPlans).where(eq(paymentPlans.purchaseId, id))
 
-      // 4. Delete purchase items
-      await tx.delete(purchaseItems).where(eq(purchaseItems.purchaseId, id))
+    // 4. Delete purchase items
+    await db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, id))
 
-      // 5. Delete the purchase itself
-      const [deletedPurchase] = await tx.delete(purchases).where(eq(purchases.id, id)).returning()
+    // 5. Delete the purchase itself
+    await db.delete(purchases).where(eq(purchases.id, id))
 
-      // Restore inventory for non-draft purchases
-      if (!deletedPurchase.isDraft) {
-        for (const item of purchaseItemsData) {
-          // Create inventory transaction
-          await tx.insert(inventoryTransactions).values({
-            itemId: item.itemId,
-            quantity: item.quantity, // Positive for incoming (restoring)
-            transactionType: "ADJUSTMENT",
-            reference: { deletedPurchaseId: id },
-            notes: `Deleted Sale: ${id}`,
+    // Restore inventory for non-draft purchases
+    if (!purchase.isDraft) {
+      for (const item of purchaseItemsData) {
+        // Create inventory transaction
+        await db.insert(inventoryTransactions).values({
+          itemId: item.itemId,
+          quantity: item.quantity, // Positive for incoming (restoring)
+          transactionType: "ADJUSTMENT",
+          reference: { deletedPurchaseId: id },
+          notes: `Deleted Sale: ${id}`,
+        })
+
+        // Update inventory item stock
+        await db
+          .update(inventoryItems)
+          .set({
+            currentStock: sql`${inventoryItems.currentStock} + ${item.quantity}`,
+            updatedAt: new Date(),
           })
-
-          // Update inventory item stock
-          await tx
-            .update(inventoryItems)
-            .set({
-              currentStock: sql`${inventoryItems.currentStock} + ${item.quantity}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(inventoryItems.id, item.itemId))
-        }
+          .where(eq(inventoryItems.id, item.itemId))
       }
+    }
 
-      revalidatePath("/sales")
+    revalidatePath("/sales")
 
-      return {
-        success: true,
-        data: deletedPurchase,
-      }
-    })
+    return {
+      success: true,
+      data: purchase,
+    }
   } catch (error) {
     console.error("Error deleting purchase:", error)
     return {

@@ -259,7 +259,7 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                           <TableCell>
                             {formatCurrency(
                               Number(sale.totalAmount || 0),
-                              sale.currency || "USD"
+                              sale.currencyType || "USD"
                             )}
                           </TableCell>
                           <TableCell>

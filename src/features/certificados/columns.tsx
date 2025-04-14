@@ -109,9 +109,9 @@ export const columns: ColumnDef<CertificadoSale>[] = [
     accessorKey: "totalAmount",
     header: "Monto",
     cell: ({ row }) => {
-      const amount = parseFloat(row.getValue("totalAmount") || "0");
-      const currency = row.original.currency || "USD";
-      return formatCurrency(amount, currency);
+      const amount = parseFloat(row.getValue("totalAmount") || 0;
+      const currencyType = row.original.currencyType || "USD";
+      return formatCurrency(amount, currencyType);
     },
   },
   {
