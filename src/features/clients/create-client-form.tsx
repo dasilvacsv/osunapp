@@ -11,16 +11,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { useRouter } from "next/navigation"
-import { Check, ChevronsUpDown, Copy, Loader2, UserPlus, ArrowRightLeft } from "lucide-react"
+import { Check, ChevronsUpDown, Copy, Loader2, UserPlus, ClipboardPaste } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { checkDocumentExists, validatePhoneNumber } from "./validation"
-import { getOrganizations } from "@/app/(app)/clientes/client"
 import { useState, useEffect } from "react"
 
 const formSchema = z.object({
   name: z.string().min(1, "El nombre es requerido"),
   document: z.string()
-    .min(1, "La cédula es requerida")
+    .min(7, "La cédula debe tener al menos 7 dígitos")
+    .max(8, "La cédula no puede exceder 8 dígitos")
     .refine(async (doc) => {
       if (doc && typeof window !== 'undefined') {
         return !(await checkDocumentExists(doc))
@@ -28,7 +28,7 @@ const formSchema = z.object({
       return true
     }, "Esta cédula ya está registrada"),
   phone: z.string()
-    .min(1, "El teléfono es requerido")
+    .min(10, "El teléfono debe tener al menos 10 dígitos")
     .refine(validatePhoneNumber, "Número de teléfono inválido"),
   whatsapp: z.string().optional(),
   contactInfo: z.object({
@@ -73,10 +73,65 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
     },
   })
 
-  const phoneValue = useWatch({
-    control: form.control,
-    name: "phone",
-  })
+  const handlePaste = (pastedData: string) => {
+    try {
+      const lines = pastedData.split('\n').map(line => line.trim())
+      
+      // Procesar nombre
+      const nameLine = lines[0] || ''
+      const [lastName, firstName] = nameLine.split(',').map(s => s.trim())
+      if (lastName && firstName) {
+        form.setValue('name', `${firstName} ${lastName}`)
+      } else {
+        form.setValue('name', nameLine)
+      }
+
+      // Procesar documento
+      if (lines[1]) {
+        const doc = lines[1].replace(/\D/g, '').slice(0, 8)
+        form.setValue('document', doc)
+      }
+
+      // Procesar teléfono
+      if (lines[2]) {
+        const phone = lines[2].replace(/\D/g, '').slice(0, 11)
+        form.setValue('phone', phone)
+        if (syncWhatsapp) form.setValue('whatsapp', phone)
+      }
+
+      // Procesar email
+      if (lines[3]) {
+        form.setValue('contactInfo.email', lines[3].trim())
+      }
+
+      toast({
+        title: "Datos pegados",
+        description: "Campos llenados automáticamente",
+        duration: 2000,
+      })
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Formato incorrecto",
+        description: "Use el formato: Apellidos, Nombres\\nDocumento\\nTeléfono\\nEmail",
+      })
+    }
+  }
+
+  const handlePasteButtonClick = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      handlePaste(text)
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error de acceso",
+        description: "Permita el acceso al portapapeles",
+      })
+    }
+  }
+
+  const phoneValue = useWatch({ control: form.control, name: "phone" })
 
   useEffect(() => {
     const loadOrganizations = async () => {
@@ -98,42 +153,21 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
       form.setValue("whatsapp", phoneNumber)
       toast({
         title: "Copiado",
-        description: "Número de teléfono copiado a WhatsApp",
+        description: "Número copiado a WhatsApp",
         duration: 2000,
       })
     }
   }
 
-  const swapNames = () => {
-    const nameParts = form.getValues('name').split(' ')
-    if (nameParts.length > 1) {
-      const lastName = nameParts[0]
-      const firstName = nameParts.slice(1).join(' ')
-      form.setValue('name', `${firstName} ${lastName}`.trim())
-    }
-  }
-
   async function handleSubmit(data: ClientFormData) {
     if (isSubmitting) return
-
     setIsSubmitting(true)
+
     try {
-      const processedData = {
-        ...data,
-        organizationId: data.organizationId === "none" ? undefined : data.organizationId,
-      }
-
-      const result = await onSubmit(processedData)
-      
-      toast({
-        title: "Éxito",
-        description: `Cliente ${mode === "create" ? "creado" : "actualizado"} correctamente`,
-      })
-
+      const result = await onSubmit(data)
       if (mode === "create" && typeof result === "string") {
         router.push(`/clientes/${result}?openBeneficiaryForm=true`)
       } else {
-        form.reset()
         closeDialog()
       }
     } catch (error) {
@@ -159,7 +193,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
           {mode === "create" ? "Nuevo Cliente" : "Editar Cliente"}
         </DialogTitle>
         <DialogDescription className="text-sm mt-1">
-          Complete los datos del cliente. Todos los campos marcados con * son obligatorios.
+          Pegue datos en formato: Apellidos, Nombres\\nDocumento\\nTeléfono\\nEmail
         </DialogDescription>
       </DialogHeader>
 
@@ -172,27 +206,24 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium">Nombre *</FormLabel>
+                    <FormLabel className="text-sm font-medium">Nombre Completo *</FormLabel>
                     <div className="relative">
                       <FormControl>
                         <Input 
-                          placeholder="Juan Pérez" 
+                          placeholder="Ej: Alvarado Silva, Luis Carlos"
                           {...field} 
                           className="bg-background focus:ring-2 focus:ring-blue-500" 
-                          onPaste={(e) => {
-                            const pasted = e.clipboardData.getData('text')
-                            form.setValue('name', pasted)
-                          }}
+                          onPaste={(e) => handlePaste(e.clipboardData.getData('text'))}
                         />
                       </FormControl>
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={swapNames}
+                        onClick={handlePasteButtonClick}
                         className="absolute right-1 top-1 h-7 px-2 text-xs"
                       >
-                        <ArrowRightLeft className="h-3 w-3" />
+                        <ClipboardPaste className="h-3 w-3" />
                       </Button>
                     </div>
                     <FormMessage />
@@ -205,19 +236,15 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                 name="document"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium">Documento/ID *</FormLabel>
+                    <FormLabel className="text-sm font-medium">Documento *</FormLabel>
                     <FormControl>
                       <Input 
                         placeholder="V-12345678" 
                         {...field} 
-                        className="bg-background focus:ring-2 focus:ring-blue-500" 
-                        onPaste={(e) => {
-                          const pasted = e.clipboardData.getData('text')
-                          if (!/^[VE]-\d{6,8}$/i.test(pasted)) {
-                            form.setError('document', { message: 'Formato de cédula inválido' })
-                          } else {
-                            form.setValue('document', pasted.toUpperCase())
-                          }
+                        className="bg-background focus:ring-2 focus:ring-blue-500"
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '')
+                          form.setValue('document', value.slice(0, 8))
                         }}
                       />
                     </FormControl>
@@ -235,9 +262,13 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                       <FormLabel className="text-sm font-medium">Teléfono *</FormLabel>
                       <FormControl>
                         <Input 
-                          placeholder="+1234567890" 
+                          placeholder="+584167435109" 
                           {...field} 
-                          className="bg-background focus:ring-2 focus:ring-blue-500" 
+                          className="bg-background focus:ring-2 focus:ring-blue-500"
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, '')
+                            form.setValue('phone', value.slice(0, 11))
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -279,14 +310,13 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                       </div>
                       <FormControl>
                         <Input
-                          placeholder="+1234567890"
+                          placeholder="+584167435109"
                           {...field}
                           className="bg-background focus:ring-2 focus:ring-blue-500"
                           onChange={(e) => {
-                            field.onChange(e)
-                            if (syncWhatsapp && e.target.value !== phoneValue) {
-                              setSyncWhatsapp(false)
-                            }
+                            const value = e.target.value.replace(/\D/g, '')
+                            field.onChange(value.slice(0, 11))
+                            if (syncWhatsapp && value !== phoneValue) setSyncWhatsapp(false)
                           }}
                         />
                       </FormControl>
@@ -305,7 +335,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                     <FormControl>
                       <Input 
                         type="email" 
-                        placeholder="juan@ejemplo.com" 
+                        placeholder="ejemplo@correo.com" 
                         {...field} 
                         className="bg-background focus:ring-2 focus:ring-blue-500"
                       />
@@ -324,7 +354,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger className="bg-background focus:ring-2 focus:ring-blue-500">
-                          <SelectValue placeholder="Seleccionar un rol" />
+                          <SelectValue placeholder="Seleccionar rol" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -369,7 +399,7 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                             placeholder="Buscar organización..."
                             onValueChange={setSearchValue}
                           />
-                          <CommandEmpty>No se encontraron organizaciones.</CommandEmpty>
+                          <CommandEmpty>No se encontraron organizaciones</CommandEmpty>
                           <CommandGroup>
                             <CommandItem
                               value="none"
@@ -412,13 +442,6 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                   </FormItem>
                 )}
               />
-
-              <div className="bg-blue-50 p-4 rounded-lg mt-6">
-                <p className="text-xs text-blue-800">
-                  Nota: Al crear un cliente, se generará un perfil único en nuestro sistema. 
-                  Asegúrese de que todos los datos sean correctos antes de continuar.
-                </p>
-              </div>
             </div>
 
             <DialogFooter className="flex space-x-2 mt-1 px-6 py-4 border-t flex-shrink-0">

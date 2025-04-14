@@ -154,9 +154,7 @@ export default function NewSaleForm({
       })),
     }
 
-    // Find and remove any existing bundle from the cart
-    const cartWithoutBundle = cartItems.filter(item => !item.isBundle)
-    setCartItems([...cartWithoutBundle, newCartItem])
+    setCartItems([newCartItem])
 
     if (bundle.currencyType) {
       setCurrencyType(bundle.currencyType)
@@ -165,7 +163,11 @@ export default function NewSaleForm({
   }
 
   const handleProductSelect = (productId: string, product: any) => {
-    const existingItemIndex = cartItems.findIndex((item) => !item.isBundle && item.id === product.id)
+    if (selectedBundle) {
+      return
+    }
+
+    const existingItemIndex = cartItems.findIndex((item) => item.id === product.id)
     if (existingItemIndex >= 0) {
       const updatedItems = [...cartItems]
       updatedItems[existingItemIndex].quantity += 1
@@ -199,8 +201,7 @@ export default function NewSaleForm({
     setCurrencyType(value)
     if (selectedBundle && selectedBundle.currencyType !== value) {
       setSelectedBundle(null)
-      // Only remove the bundle from cart, keep other products
-      setCartItems(cartItems.filter(item => !item.isBundle))
+      setCartItems([])
     }
   }
 
@@ -208,18 +209,22 @@ export default function NewSaleForm({
     return cartItems.reduce((total, item) => {
       const itemTotal = item.price * item.quantity
 
+      // If the item is a bundle and in BS, return the price as is
       if (item.isBundle && item.currencyType === "BS") {
         return total + itemTotal
       }
 
+      // For USD items when displaying in BS
       if (currencyType === "BS" && item.currencyType === "USD") {
         return total + itemTotal * conversionRate
       }
 
+      // For BS items when displaying in USD
       if (currencyType === "USD" && item.currencyType === "BS") {
         return total + itemTotal / conversionRate
       }
 
+      // For items in the same currency as display currency
       return total + itemTotal
     }, 0)
   }
@@ -227,18 +232,22 @@ export default function NewSaleForm({
   const formatItemPrice = (item: any) => {
     const itemPrice = item.price * item.quantity
 
+    // If item is in BS and we're showing BS
     if (item.currencyType === "BS" && currencyType === "BS") {
       return `${itemPrice.toFixed(2)} Bs`
     }
 
+    // If item is in USD and we're showing USD
     if (item.currencyType === "USD" && currencyType === "USD") {
       return `$${itemPrice.toFixed(2)}`
     }
 
+    // If item is in BS and we're showing USD
     if (item.currencyType === "BS" && currencyType === "USD") {
       return `$${(itemPrice / conversionRate).toFixed(2)}`
     }
 
+    // If item is in USD and we're showing BS
     if (item.currencyType === "USD" && currencyType === "BS") {
       return `${(itemPrice * conversionRate).toFixed(2)} Bs`
     }
@@ -460,7 +469,14 @@ export default function NewSaleForm({
                   selectedProductId=""
                   onProductSelect={handleProductSelect}
                   initialProducts={products}
+                  disabled={!!selectedBundle}
                 />
+                {selectedBundle && (
+                  <div className="flex items-center mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    <Info className="h-3 w-3 mr-1" />
+                    No se pueden agregar productos individuales cuando hay un paquete seleccionado
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
