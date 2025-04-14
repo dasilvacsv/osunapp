@@ -14,7 +14,7 @@ interface ClientListProps {
   initialClients: Client[]
 }
 
-export default function ClientList({ initialClients}: ClientListProps) {
+export default function ClientList({ initialClients }: ClientListProps) {
   const router = useRouter()
   const [clients, setClients] = useState<Client[]>(initialClients)
   const [selectedClients, setSelectedClients] = useState<string[]>([])
@@ -27,56 +27,64 @@ export default function ClientList({ initialClients}: ClientListProps) {
 
   const handleCreateClient = useCallback(async (data: ClientFormData) => {
     startTransition(async () => {
-      const result = await createClient(data) // Server action call happens here
-      if (result.success && result.data) {
-        setShowCreateDialog(false)
-        setClients(prev => [...prev, result.data]) // Optimistic update
-        router.push(`clientes/${result.data.id}/beneficiarios`)
-      } else {
-        console.error(result.error)
+      try {
+        const result = await createClient(data)
+        if (result?.id) {
+          setShowCreateDialog(false)
+          setClients(prev => [...prev, result])
+          router.push(`/clientes/${result.id}/beneficiarios`) // Ruta absoluta
+        }
+      } catch (error) {
+        console.error("Error creating client:", error)
       }
     })
   }, [router])
-  
+
   const handleUpdateClient = useCallback(async (id: string, data: ClientFormData) => {
     startTransition(async () => {
-      const result = await updateClient(id, data)
-      if (result.success && result.data) {
-        setClients(prev => 
-          prev.map(client => 
-            client.id === id ? { ...client, ...result.data } : client
+      try {
+        const result = await updateClient(id, data)
+        if (result?.id) {
+          setClients(prev => 
+            prev.map(client => 
+              client.id === id ? { ...client, ...result } : client
+            )
           )
-        )
-      } else {
-        console.error(result.error)
+        }
+      } catch (error) {
+        console.error("Error updating client:", error)
       }
     })
   }, [])
 
   const handleDeleteClient = useCallback(async (id: string) => {
     startTransition(async () => {
-      const result = await deleteClient(id)
-      if (result.success) {
+      try {
+        await deleteClient(id)
         refreshClients(clients.filter(client => client.id !== id))
-      } else {
-        console.error(result.error)
+      } catch (error) {
+        console.error("Error deleting client:", error)
       }
     })
   }, [clients, refreshClients])
 
   return (
     <div className="space-y-6">
-      {/* Segundo componente */}
+      {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-start items-center gap-4 bg-white p-4 rounded-lg shadow">
-        <h1 className="text-2xl font-bold text-gray-800">Clients</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Clientes</h1>
         <div className="flex items-center gap-4">
-          <Button onClick={() => setShowCreateDialog(true)}>
+          <Button 
+            onClick={() => setShowCreateDialog(true)}
+            disabled={isPending}
+          >
             <PlusIcon className="mr-2 h-4 w-4" />
-            Crear Cliente
+            {isPending ? "Procesando..." : "Crear Cliente"}
           </Button>
         </div>
       </div>
 
+      {/* Create Client Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>
           <DialogHeader>
@@ -85,11 +93,13 @@ export default function ClientList({ initialClients}: ClientListProps) {
           <ClientForm 
             closeDialog={() => setShowCreateDialog(false)}
             mode="create"
-            onSubmit={handleCreateClient} // Pass the handler to ClientForm
+            onSubmit={handleCreateClient}
+            isSubmitting={isPending}
           />
         </DialogContent>
       </Dialog>
 
+      {/* Clients Table */}
       <ClientTable
         clients={clients}
         isLoading={isPending}
@@ -101,4 +111,3 @@ export default function ClientList({ initialClients}: ClientListProps) {
     </div>
   )
 }
-

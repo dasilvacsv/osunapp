@@ -8,37 +8,57 @@ import { useToast } from "@/hooks/use-toast"
 import { DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import type { Client } from "@/lib/types"
-import { type ClientFormData, getOrganizations } from "@/app/(app)/clientes/client"
-import { useEffect, useState } from "react"
-import { Check, ChevronsUpDown, Copy, Loader2, UserPlus } from "lucide-react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import * as z from "zod"
+import { useRouter } from "next/navigation"
+import { Check, ChevronsUpDown, Copy, Loader2, UserPlus, ArrowRightLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { checkDocumentExists, validatePhoneNumber } from "./validation"
+import { getOrganizations } from "@/app/(app)/clientes/client"
+import { useState, useEffect } from "react"
+
+const formSchema = z.object({
+  name: z.string().min(1, "El nombre es requerido"),
+  document: z.string()
+    .min(1, "La cédula es requerida")
+    .refine(async (doc) => {
+      if (doc && typeof window !== 'undefined') {
+        return !(await checkDocumentExists(doc))
+      }
+      return true
+    }, "Esta cédula ya está registrada"),
+  phone: z.string()
+    .min(1, "El teléfono es requerido")
+    .refine(validatePhoneNumber, "Número de teléfono inválido"),
+  whatsapp: z.string().optional(),
+  contactInfo: z.object({
+    email: z.string().min(1, "El correo es requerido").email("Correo inválido"),
+    phone: z.string().optional(),
+  }),
+  role: z.enum(["PARENT", "EMPLOYEE", "INDIVIDUAL"]),
+  organizationId: z.string(),
+})
+
+type ClientFormData = z.infer<typeof formSchema>
 
 interface ClientFormProps {
   closeDialog: () => void
-  initialData?: Client
+  initialData?: any
   mode: "create" | "edit"
-  onSubmit: (data: ClientFormData) => Promise<void>
+  onSubmit: (data: ClientFormData) => Promise<string | void>
 }
 
 export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientFormProps) {
+  const router = useRouter()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [syncWhatsapp, setSyncWhatsapp] = useState(mode === "create")
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState("")
-
-  useEffect(() => {
-    const loadOrganizations = async () => {
-      const result = await getOrganizations()
-      if (result.data) setOrganizations(result.data)
-    }
-    loadOrganizations()
-  }, [])
-
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const form = useForm<ClientFormData>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       name: initialData?.name || "",
       document: initialData?.document || "",
@@ -59,6 +79,14 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
   })
 
   useEffect(() => {
+    const loadOrganizations = async () => {
+      const result = await getOrganizations()
+      if (result.data) setOrganizations(result.data)
+    }
+    loadOrganizations()
+  }, [])
+
+  useEffect(() => {
     if (syncWhatsapp && phoneValue) {
       form.setValue("whatsapp", phoneValue)
     }
@@ -73,13 +101,15 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
         description: "Número de teléfono copiado a WhatsApp",
         duration: 2000,
       })
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No hay número de teléfono para copiar",
-        duration: 2000,
-      })
+    }
+  }
+
+  const swapNames = () => {
+    const nameParts = form.getValues('name').split(' ')
+    if (nameParts.length > 1) {
+      const lastName = nameParts[0]
+      const firstName = nameParts.slice(1).join(' ')
+      form.setValue('name', `${firstName} ${lastName}`.trim())
     }
   }
 
@@ -93,15 +123,19 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
         organizationId: data.organizationId === "none" ? undefined : data.organizationId,
       }
 
-      await onSubmit(processedData)
-
+      const result = await onSubmit(processedData)
+      
       toast({
         title: "Éxito",
         description: `Cliente ${mode === "create" ? "creado" : "actualizado"} correctamente`,
       })
 
-      form.reset()
-      closeDialog()
+      if (mode === "create" && typeof result === "string") {
+        router.push(`/clientes/${result}?openBeneficiaryForm=true`)
+      } else {
+        form.reset()
+        closeDialog()
+      }
     } catch (error) {
       toast({
         variant: "destructive",
@@ -139,13 +173,28 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium">Nombre *</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Juan Pérez" 
-                        {...field} 
-                        className="bg-background focus:ring-2 focus:ring-blue-500" 
-                      />
-                    </FormControl>
+                    <div className="relative">
+                      <FormControl>
+                        <Input 
+                          placeholder="Juan Pérez" 
+                          {...field} 
+                          className="bg-background focus:ring-2 focus:ring-blue-500" 
+                          onPaste={(e) => {
+                            const pasted = e.clipboardData.getData('text')
+                            form.setValue('name', pasted)
+                          }}
+                        />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={swapNames}
+                        className="absolute right-1 top-1 h-7 px-2 text-xs"
+                      >
+                        <ArrowRightLeft className="h-3 w-3" />
+                      </Button>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -159,9 +208,17 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                     <FormLabel className="text-sm font-medium">Documento/ID *</FormLabel>
                     <FormControl>
                       <Input 
-                        placeholder="123456789" 
+                        placeholder="V-12345678" 
                         {...field} 
                         className="bg-background focus:ring-2 focus:ring-blue-500" 
+                        onPaste={(e) => {
+                          const pasted = e.clipboardData.getData('text')
+                          if (!/^[VE]-\d{6,8}$/i.test(pasted)) {
+                            form.setError('document', { message: 'Formato de cédula inválido' })
+                          } else {
+                            form.setValue('document', pasted.toUpperCase())
+                          }
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -363,36 +420,36 @@ export function ClientForm({ closeDialog, initialData, mode, onSubmit }: ClientF
                 </p>
               </div>
             </div>
+
+            <DialogFooter className="flex space-x-2 mt-1 px-6 py-4 border-t flex-shrink-0">
+              <Button
+                variant="outline"
+                onClick={closeDialog}
+                disabled={isSubmitting}
+                className="flex-1 text-sm hover:bg-blue-50 hover:text-blue-600"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-sm"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {mode === "create" ? "Creando..." : "Actualizando..."}
+                  </>
+                ) : mode === "create" ? (
+                  "Crear Cliente"
+                ) : (
+                  "Actualizar Cliente"
+                )}
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </div>
-
-      <DialogFooter className="flex space-x-2 mt-1 px-6 py-4 border-t flex-shrink-0">
-        <Button
-          variant="outline"
-          onClick={closeDialog}
-          disabled={isSubmitting}
-          className="flex-1 text-sm hover:bg-blue-50 hover:text-blue-600"
-        >
-          Cancelar
-        </Button>
-        <Button
-          onClick={form.handleSubmit(handleSubmit)}
-          disabled={isSubmitting}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 text-sm"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {mode === "create" ? "Creando..." : "Actualizando..."}
-            </>
-          ) : mode === "create" ? (
-            "Crear Cliente"
-          ) : (
-            "Actualizar Cliente"
-          )}
-        </Button>
-      </DialogFooter>
     </div>
   )
 }
