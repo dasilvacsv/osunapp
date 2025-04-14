@@ -458,35 +458,33 @@ export async function updatePurchase(id: string, data: any) {
 // Delete a purchase
 export async function deletePurchase(id: string) {
   try {
-    // Get purchase items to restore inventory before deleting
-    const purchaseItemsData = await db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, id))
-    
-    // Get the purchase to check if it's a draft
+    // 1. Get purchase and items data first
     const [purchase] = await db.select().from(purchases).where(eq(purchases.id, id))
-    
     if (!purchase) {
       throw new Error("Purchase not found")
     }
 
-    // 1. Delete certificates related to the purchase
+    const purchaseItemsData = await db.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, id))
+
+    // 2. Delete certificates first (they depend on purchase)
     await db.delete(certificates).where(eq(certificates.purchaseId, id))
 
-    // 2. Delete related payments
+    // 3. Delete payments (they depend on purchase)
     await db.delete(payments).where(eq(payments.purchaseId, id))
 
-    // 3. Delete related payment plans
+    // 4. Delete payment plans (they depend on purchase)
     await db.delete(paymentPlans).where(eq(paymentPlans.purchaseId, id))
 
-    // 4. Delete purchase items
+    // 5. Delete purchase items (they depend on purchase)
     await db.delete(purchaseItems).where(eq(purchaseItems.purchaseId, id))
 
-    // 5. Delete the purchase itself
+    // 6. Delete the purchase itself
     await db.delete(purchases).where(eq(purchases.id, id))
 
-    // Restore inventory for non-draft purchases
+    // 7. If it wasn't a draft, restore inventory
     if (!purchase.isDraft) {
       for (const item of purchaseItemsData) {
-        // Create inventory transaction
+        // Create inventory transaction for the restoration
         await db.insert(inventoryTransactions).values({
           itemId: item.itemId,
           quantity: item.quantity, // Positive for incoming (restoring)

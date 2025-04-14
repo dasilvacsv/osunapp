@@ -11,6 +11,7 @@ import {
 export type PurchaseStatus = "PENDING" | "APPROVED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 export type PaymentStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED";
 export type CertificateStatus = "GENERATED" | "NOT_GENERATED" | "NEEDS_REVISION" | "APPROVED";
+export type CurrencyType = "USD" | "BS";  // Nuevo tipo para moneda
 
 // Basic types for the certificado feature
 export interface CertificadoSale {
@@ -20,6 +21,7 @@ export interface CertificadoSale {
   status: PurchaseStatus;
   paymentStatus: PaymentStatus | null;
   isPaid: boolean | null;
+  currencyType: CurrencyType;  // Nuevo campo
   
   // Client info
   clientId: string;
@@ -54,17 +56,22 @@ export interface OrganizationSalesGroup {
   sales: CertificadoSale[];
   totalSales: number;
   totalAmount: number;
+  currencyType: CurrencyType;  // Nuevo campo para totales
 }
 
-// Infer types from schema
+// Infer types from schema (actualizados con currencyType)
 export type Client = typeof clients.$inferSelect;
 export type Organization = typeof organizations.$inferSelect;
 export type Beneficiario = typeof beneficiarios.$inferSelect;
-export type Purchase = typeof purchases.$inferSelect;
-export type Bundle = typeof bundles.$inferSelect;
+export type Purchase = typeof purchases.$inferSelect & {
+  currencyType: CurrencyType;
+};
+export type Bundle = typeof bundles.$inferSelect & {
+  currencyType: CurrencyType;
+};
 export type Certificate = typeof certificates.$inferSelect;
 
-// Form data types
+// Form data types actualizados
 export interface CertificadoFormData {
   clientId: string;
   beneficiarioId?: string;
@@ -75,20 +82,22 @@ export interface CertificadoFormData {
   paymentStatus: PaymentStatus;
   isPaid: boolean;
   purchaseDate: Date;
+  currencyType: CurrencyType;  // Nuevo campo
 }
 
-// Response types
+// Response types actualizados
 export interface CertificadoResponse {
   success: boolean;
   data?: OrganizationSalesGroup[];
   error?: string;
 } 
 
-// Ficha Data for PDF generation
+// Ficha Data for PDF generation actualizado
 export interface BundleItemData {
   name: string;
   description: string;
   quantity: number;
+  currencyType: CurrencyType;  // Nuevo campo
 }
 
 export interface PaymentData {
@@ -96,6 +105,7 @@ export interface PaymentData {
   date: Date | null;
   method: string;
   status: string;
+  currencyType: CurrencyType;  // Nuevo campo
 }
 
 export interface FichaData {
@@ -105,6 +115,7 @@ export interface FichaData {
   totalAmount: number;
   status: PurchaseStatus;
   isPaid: boolean;
+  currencyType: CurrencyType;  // Nuevo campo
   
   // Client info
   clientName: string;
@@ -132,4 +143,4 @@ export interface FichaData {
   totalPaid: number;
   remaining: number;
   payments: PaymentData[];
-} 
+}
