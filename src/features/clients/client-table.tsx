@@ -84,7 +84,7 @@ export function ClientTable({
 
   if (isLoading && clients.length === 0) {
     return (
-      <div className="space-y-4">
+      <div className="max-w-[1200px] mx-auto px-4 space-y-4">
         <div className="flex items-center justify-between py-4">
           <Skeleton className="h-10 w-[250px]" />
           <Skeleton className="h-10 w-[200px]" />
@@ -92,7 +92,7 @@ export function ClientTable({
         <Card>
           <div className="p-4 space-y-4">
             {[...Array(5)].map((_, i) => (
-              <Skeleton key={i} className="h-16 w-full" />
+              <Skeleton key={i} className="h-12 w-full" />
             ))}
           </div>
         </Card>
@@ -101,7 +101,7 @@ export function ClientTable({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="max-w-[1200px] mx-auto px-4 space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-4">
         <div className="relative w-full sm:w-auto max-w-sm">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
@@ -120,14 +120,14 @@ export function ClientTable({
         </div>
       </div>
 
-      <Card>
-        <div className="rounded-md border">
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="whitespace-nowrap">
+                    <TableHead key={header.id} className="whitespace-nowrap py-2">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -148,7 +148,7 @@ export function ClientTable({
                     className="hover:bg-muted/50 transition-colors"
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="py-3">
+                      <TableCell key={cell.id} className="py-2">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
@@ -156,7 +156,7 @@ export function ClientTable({
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                  <TableCell colSpan={columns.length} className="h-16 text-center">
                     No results found.
                   </TableCell>
                 </TableRow>
@@ -165,9 +165,9 @@ export function ClientTable({
           </Table>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0 p-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between space-y-3 sm:space-y-0 p-4 border-t">
           <div className="flex items-center space-x-2">
-            <p className="text-sm font-medium">Filas por página</p>
+            <p className="text-sm font-medium">Rows per page</p>
             <Select
               value={`${table.getState().pagination.pageSize}`}
               onValueChange={(value) => {
@@ -198,7 +198,7 @@ export function ClientTable({
                 onClick={() => table.setPageIndex(0)}
                 disabled={!table.getCanPreviousPage()}
               >
-                <span className="sr-only">Ve a la primera página</span>
+                <span className="sr-only">Go to first page</span>
                 <ChevronsLeft className="h-4 w-4" />
               </Button>
               <Button
@@ -207,7 +207,7 @@ export function ClientTable({
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
               >
-                <span className="sr-only">Ve a la página anterior</span>
+                <span className="sr-only">Go to previous page</span>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button
@@ -216,7 +216,7 @@ export function ClientTable({
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
               >
-                <span className="sr-only">Ve a la siguiente página</span>
+                <span className="sr-only">Go to next page</span>
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button
@@ -225,7 +225,7 @@ export function ClientTable({
                 onClick={() => table.setPageIndex(table.getPageCount() - 1)}
                 disabled={!table.getCanNextPage()}
               >
-                <span className="sr-only">Ve a la última página</span>
+                <span className="sr-only">Go to last page</span>
                 <ChevronsRight className="h-4 w-4" />
               </Button>
             </div>
