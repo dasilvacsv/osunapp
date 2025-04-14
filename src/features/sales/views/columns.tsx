@@ -1,12 +1,12 @@
 "use client"
 
-import { useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { formatCurrency, formatDate, cn } from "@/lib/utils"
+import { motion } from "framer-motion"
 import {
   FileText,
   ArrowRight,
@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   XCircle,
   Building2,
+  CalendarRange,
   Package2,
   CreditCard,
   MoreHorizontal,
@@ -36,13 +37,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useState, useEffect } from "react"
+import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { Switch } from "@/components/ui/switch"
 import { updateSaleVendidoStatus, updateSaleDraftStatus, updateSaleDonation } from "@/features/sales/actions"
-
-import { deletePurchase } from "./actions"
+import { deletePurchase } from "@/features/sales/views/actions"
 import { useSession } from "next-auth/react"
 import { useToast } from "@/hooks/use-toast"
-import { PaymentPlanDialog } from "./plan/payment-plan-dialog"
 
 export type Sale = {
   id: string
@@ -95,7 +96,7 @@ const StatusIcon = {
   APPROVED: CheckCircle2,
   PENDING: Clock,
   CANCELLED: XCircle,
-} as const
+}
 
 const StatusColors = {
   COMPLETED: "text-green-500 dark:text-green-400",
@@ -103,15 +104,33 @@ const StatusColors = {
   APPROVED: "text-blue-500 dark:text-blue-400",
   PENDING: "text-yellow-500 dark:text-yellow-400",
   CANCELLED: "text-red-500 dark:text-red-400",
-} as const
+}
 
+// Donation Approval Component
 function DonationApprovalActions({ sale }: { sale: Sale }) {
   const [isProcessing, setIsProcessing] = useState(false)
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const { toast } = useToast()
-  const isAdmin = useMemo(() => session?.user?.role === "ADMIN", [session])
 
+  // Add more detailed logging
+  useEffect(() => {
+    console.log("DonationApproval - Session status:", status)
+    console.log("DonationApproval - Session data:", session)
+    console.log("DonationApproval - User role:", session?.user?.role)
+  }, [session, status])
+
+  const isAdmin = session?.user?.role === "ADMIN"
+
+  console.log("DonationApproval - Is admin:", isAdmin)
+  console.log("DonationApproval - Sale:", sale)
+
+  // Only show for admin users and donations that are drafts
   if (!isAdmin || !sale.isDonation || !sale.isDraft) {
+    console.log("DonationApproval - Not showing buttons because:", {
+      isAdmin,
+      isDonation: sale.isDonation,
+      isDraft: sale.isDraft,
+    })
     return null
   }
 
@@ -127,11 +146,11 @@ function DonationApprovalActions({ sale }: { sale: Sale }) {
           className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
         })
 
-        window.dispatchEvent(
-          new CustomEvent("sales-updated", {
-            detail: { id: sale.id, action: "approve-donation" },
-          })
-        )
+        // Dispatch a custom event to refresh the table
+        const event = new CustomEvent("sales-updated", {
+          detail: { id: sale.id, action: "approve-donation" },
+        })
+        window.dispatchEvent(event)
       } else {
         throw new Error(result.error || "Error al aprobar la donación")
       }
@@ -158,11 +177,11 @@ function DonationApprovalActions({ sale }: { sale: Sale }) {
           className: "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800",
         })
 
-        window.dispatchEvent(
-          new CustomEvent("sales-updated", {
-            detail: { id: sale.id, action: "reject-donation" },
-          })
-        )
+        // Dispatch a custom event to refresh the table
+        const event = new CustomEvent("sales-updated", {
+          detail: { id: sale.id, action: "reject-donation" },
+        })
+        window.dispatchEvent(event)
       } else {
         throw new Error(result.error || "Error al rechazar la donación")
       }
@@ -216,8 +235,7 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "id",
     header: "Referencia",
     cell: ({ row }) => {
-      const sale = row.original
-      if (!sale) {
+      if (!row.original) {
         return (
           <div className="flex items-center text-muted-foreground">
             <AlertCircle className="w-4 h-4 mr-2" />
@@ -226,18 +244,32 @@ export const columns: ColumnDef<Sale>[] = [
         )
       }
 
+      const id = row.original.id
+      if (!id) {
+        return (
+          <div className="flex items-center text-muted-foreground">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            <span>ID no disponible</span>
+          </div>
+        )
+      }
+
+      // Add draft badge if it's a draft
+      const isDraft = row.original.isDraft
+      const isDonation = row.original.isDonation
+
       return (
         <Link
-          href={`/sales/${sale.id}`}
+          href={`/sales/${id}`}
           className="group flex items-center gap-2 text-muted-foreground hover:text-foreground transition-all duration-200"
         >
-          {sale.isDraft ? (
+          {isDraft ? (
             <FilePenLine className="h-4 w-4 transition-transform group-hover:scale-110 text-amber-500" />
           ) : (
             <FileText className="h-4 w-4 transition-transform group-hover:scale-110" />
           )}
-          <span className="font-mono">#{sale.id.slice(0, 8).toUpperCase()}</span>
-          {sale.isDonation && <Gift className="h-4 w-4 text-purple-500" />}
+          <span className="font-mono">#{id.slice(0, 8).toUpperCase()}</span>
+          {isDonation && <Gift className="h-4 w-4 text-purple-500" />}
           <ArrowRight className="h-4 w-4 opacity-0 -translate-x-2 transition-all group-hover:opacity-100 group-hover:translate-x-0" />
         </Link>
       )
@@ -247,8 +279,7 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "client.name",
     header: "Cliente",
     cell: ({ row }) => {
-      const sale = row.original
-      if (!sale?.client) {
+      if (!row.original?.client) {
         return (
           <div className="text-muted-foreground text-xs flex items-center">
             <AlertCircle className="w-3 h-3 mr-1" />
@@ -257,22 +288,25 @@ export const columns: ColumnDef<Sale>[] = [
         )
       }
 
+      const clientName = row.original.client?.name
+      const clientId = row.original.client?.id
+
       return (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger>
               <div className="font-medium text-sm hover:text-primary transition-colors cursor-help">
-                {sale.client.name}
-                {sale.organization && (
+                {clientName}
+                {row.original.organization && (
                   <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                     <Building2 className="h-3 w-3" />
-                    {sale.organization.name}
+                    {row.original.organization.name}
                   </div>
                 )}
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="text-xs">
-              <p>ID: {sale.client.id || "No disponible"}</p>
+              <p>ID: {clientId || "No disponible"}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -289,6 +323,7 @@ export const columns: ColumnDef<Sale>[] = [
     ),
     cell: ({ row }) => {
       const beneficiario = row.original?.beneficiario
+
       if (!beneficiario) {
         return <span className="text-muted-foreground text-xs">-</span>
       }
@@ -335,6 +370,7 @@ export const columns: ColumnDef<Sale>[] = [
     ),
     cell: ({ row }) => {
       const bundleName = row.original?.bundle?.name || row.original?.bundleName
+
       if (!bundleName) {
         return <span className="text-muted-foreground text-xs">-</span>
       }
@@ -357,6 +393,7 @@ export const columns: ColumnDef<Sale>[] = [
     ),
     cell: ({ row }) => {
       const organization = row.original?.organization
+
       if (!organization) {
         return <span className="text-muted-foreground text-xs">-</span>
       }
@@ -373,13 +410,14 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "saleType",
     header: () => <span className="text-xs">Tipo</span>,
     cell: ({ row }) => {
-      const sale = row.original
-      const saleType = sale.saleType
-      const allowPreSale = sale.allowPreSale
+      const saleType = row.getValue("saleType") as string
+      const allowPreSale = row.original?.allowPreSale || false
+      const isDraft = row.original?.isDraft || false
+      const isDonation = row.original?.isDonation || false
 
       return (
         <div className="flex items-center gap-1.5">
-          {sale.isDraft && (
+          {isDraft && (
             <Badge
               variant="outline"
               className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 flex items-center gap-1 py-0.5 h-5 text-xs"
@@ -389,7 +427,7 @@ export const columns: ColumnDef<Sale>[] = [
             </Badge>
           )}
 
-          {sale.isDonation && (
+          {isDonation && (
             <Badge
               variant="outline"
               className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 flex items-center gap-1 py-0.5 h-5 text-xs"
@@ -415,7 +453,7 @@ export const columns: ColumnDef<Sale>[] = [
               </>
             ) : (
               <>
-                <Calendar className="h-3 w-3" />
+                <CalendarRange className="h-3 w-3" />
                 <span>Preventa</span>
               </>
             )}
@@ -435,9 +473,8 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "currencyType",
     header: () => <span className="text-xs">Moneda</span>,
     cell: ({ row }) => {
-      const sale = row.original
-      const currencyType = sale.currencyType || "USD"
-      const conversionRate = sale.conversionRate || 1
+      const currencyType = row.original?.currencyType || "USD"
+      const conversionRate = row.original?.conversionRate || 1
 
       return (
         <Badge
@@ -462,7 +499,7 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "vendido",
     header: () => <span className="text-xs">Vendido</span>,
     cell: ({ row }) => {
-      const [vendido, setVendido] = useState(row.original.vendido || false)
+      const [vendido, setVendido] = useState(row.original?.vendido || false)
       const [isUpdating, setIsUpdating] = useState(false)
 
       const handleVendidoChange = async (checked: boolean) => {
@@ -477,6 +514,7 @@ export const columns: ColumnDef<Sale>[] = [
           }
         } catch (error) {
           console.error("Error updating vendido status:", error)
+          // Revert the switch if there was an error
           setVendido(!checked)
         } finally {
           setIsUpdating(false)
@@ -505,12 +543,11 @@ export const columns: ColumnDef<Sale>[] = [
       </div>
     ),
     cell: ({ row }) => {
-      const purchaseDate = row.original?.purchaseDate
-      if (!purchaseDate) {
+      if (!row.original?.purchaseDate) {
         return <div className="text-muted-foreground text-xs">-</div>
       }
 
-      const date = new Date(purchaseDate)
+      const date = new Date(row.original.purchaseDate)
       return (
         <TooltipProvider>
           <Tooltip>
@@ -537,10 +574,15 @@ export const columns: ColumnDef<Sale>[] = [
       </div>
     ),
     cell: ({ row }) => {
-      const sale = row.original
-      const amount = Number(sale.totalAmount)
-      const currencyType = sale.currencyType || "USD"
-      const conversionRate = sale.conversionRate || 1
+      if (!row || typeof row.getValue !== "function") {
+        return <div className="text-muted-foreground text-xs">-</div>
+      }
+
+      const amount = Number(row.getValue("totalAmount"))
+      const currencyType = row.original?.currencyType || "USD"
+      const conversionRate = row.original?.conversionRate || 1
+
+      // Calcular conversión
       const convertedAmount = currencyType === "USD" ? amount * conversionRate : amount / conversionRate
 
       return (
@@ -559,11 +601,11 @@ export const columns: ColumnDef<Sale>[] = [
     accessorKey: "status",
     header: () => <span className="text-xs">Estado</span>,
     cell: ({ row }) => {
-      const status = row.original?.status
-      if (!status) {
+      if (!row.original?.status) {
         return <div className="text-muted-foreground text-xs">-</div>
       }
 
+      const status = row.original.status
       const StatusIconComponent = StatusIcon[status] || AlertCircle
       const statusColor = StatusColors[status] || "text-muted-foreground"
       const variants = {
@@ -582,31 +624,42 @@ export const columns: ColumnDef<Sale>[] = [
       }
 
       return (
-        <div className="flex items-center gap-1">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 200, damping: 12 }}
+          className="flex items-center gap-1"
+        >
           <StatusIconComponent className={`w-3.5 h-3.5 ${statusColor}`} />
-          <Badge variant={variants[status]} className="capitalize text-xs py-0 h-5">
+          <Badge variant={variants[status] || "outline"} className="capitalize text-xs py-0 h-5">
             {labels[status as keyof typeof labels] || status.toLowerCase()}
           </Badge>
-        </div>
+        </motion.div>
       )
     },
   },
+
+  // Add a new column for donation approval actions
   {
     id: "donationApproval",
     header: () => <span className="text-xs">Aprobación</span>,
     cell: ({ row }) => {
       const sale = row.original
+
+      // Only show for donations that are drafts
       if (!sale.isDonation || !sale.isDraft) {
         return null
       }
+
       return <DonationApprovalActions sale={sale} />
     },
   },
+
   {
     id: "actions",
     cell: ({ row }) => {
       const sale = row.original
-      const [showPaymentPlanDialog, setShowPaymentPlanDialog] = useState(false)
+      const [isDialogOpen, setIsDialogOpen] = useState(false)
       const [isUpdating, setIsUpdating] = useState(false)
       const { toast } = useToast()
 
@@ -616,11 +669,11 @@ export const columns: ColumnDef<Sale>[] = [
           const result = await updateSaleDraftStatus(sale.id, isDraft)
 
           if (result.success) {
-            window.dispatchEvent(
-              new CustomEvent("sales-updated", {
-                detail: { id: sale.id, isDraft },
-              })
-            )
+            // Dispatch a custom event to refresh the table
+            const event = new CustomEvent("sales-updated", {
+              detail: { id: sale.id, isDraft },
+            })
+            window.dispatchEvent(event)
           } else {
             throw new Error(result.error)
           }
@@ -632,29 +685,27 @@ export const columns: ColumnDef<Sale>[] = [
       }
 
       const handleDelete = async () => {
-        if (!confirm("¿Estás seguro de eliminar esta venta y todos sus registros relacionados?")) {
-          return
-        }
-
-        try {
-          const result = await deletePurchase(sale.id)
-          
-          if (result.success) {
+        if (confirm("¿Estás seguro de eliminar esta venta y todos sus registros relacionados?")) {
+          try {
+            const result = await deletePurchase(sale.id)
+            
+            if (result.success) {
+              toast({
+                title: "Venta eliminada",
+                description: "La venta y sus registros relacionados han sido eliminados exitosamente.",
+                className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+              })
+              window.dispatchEvent(new CustomEvent("sales-updated"))
+            } else {
+              throw new Error(result.error || "Error al eliminar la venta")
+            }
+          } catch (error) {
             toast({
-              title: "Venta eliminada",
-              description: "La venta y sus registros relacionados han sido eliminados exitosamente.",
-              className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+              title: "Error",
+              description: error instanceof Error ? error.message : "Error al eliminar la venta",
+              variant: "destructive",
             })
-            window.dispatchEvent(new CustomEvent("sales-updated"))
-          } else {
-            throw new Error(result.error || "Error al eliminar la venta")
           }
-        } catch (error) {
-          toast({
-            title: "Error",
-            description: error instanceof Error ? error.message : "Error al eliminar la venta",
-            variant: "destructive",
-          })
         }
       }
 
@@ -680,7 +731,7 @@ export const columns: ColumnDef<Sale>[] = [
               <DropdownMenuSeparator />
 
               {!sale.isPaid && !sale.paymentPlan && (
-                <DropdownMenuItem onClick={() => setShowPaymentPlanDialog(true)} className="cursor-pointer text-xs">
+                <DropdownMenuItem onClick={() => setIsDialogOpen(true)} className="cursor-pointer text-xs">
                   <CreditCard className="mr-2 h-3.5 w-3.5" />
                   Crear plan de pago
                 </DropdownMenuItem>
@@ -732,18 +783,15 @@ export const columns: ColumnDef<Sale>[] = [
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {showPaymentPlanDialog && (
-            <PaymentPlanDialog
-              open={showPaymentPlanDialog}
-              onOpenChange={setShowPaymentPlanDialog}
-              purchaseId={sale.id}
-              totalAmount={sale.totalAmount}
-              onSuccess={() => {
-                setShowPaymentPlanDialog(false)
-                window.dispatchEvent(new CustomEvent("sales-updated"))
-              }}
-            />
-          )}
+          <PaymentPlanDialog
+            open={isDialogOpen}
+            onOpenChange={setIsDialogOpen}
+            purchaseId={sale.id}
+            totalAmount={sale.totalAmount}
+            onSuccess={() => {
+              setIsDialogOpen(false)
+            }}
+          />
         </>
       )
     },
