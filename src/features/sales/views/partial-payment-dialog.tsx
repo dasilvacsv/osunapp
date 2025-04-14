@@ -52,6 +52,16 @@ export function PartialPaymentDialog({
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  const resetForm = () => {
+    setAmount("")
+    setPaymentMethod("CASH")
+    setTransactionReference("")
+    setNotes("")
+    setPaymentDate(new Date())
+    setConversionRate("1")
+    setError(null)
+  }
+
   const fetchRemainingBalance = async () => {
     if (!purchaseId) return
 
@@ -96,7 +106,10 @@ export function PartialPaymentDialog({
   }
 
   useEffect(() => {
-    if (open && purchaseId) fetchRemainingBalance()
+    if (open && purchaseId) {
+      resetForm()
+      fetchRemainingBalance()
+    }
   }, [open, purchaseId])
 
   useEffect(() => {
@@ -112,7 +125,6 @@ export function PartialPaymentDialog({
 
       let originalAmount = Number(amount)
       
-      // Solo convertir si la venta está en USD y el pago es en BS
       if (remainingBalance?.currencyType === "USD" && currencyType === "BS") {
         originalAmount = Number(amount) / Number(conversionRate)
       }
