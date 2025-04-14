@@ -462,16 +462,19 @@ export async function deletePurchase(id: string) {
       // Get purchase items to restore inventory
       const purchaseItemsData = await tx.select().from(purchaseItems).where(eq(purchaseItems.purchaseId, id))
 
-      // Delete related payments
+      // 1. Delete certificates related to the purchase
+      await tx.delete(certificates).where(eq(certificates.purchaseId, id))
+
+      // 2. Delete related payments
       await tx.delete(payments).where(eq(payments.purchaseId, id))
 
-      // Delete related payment plans
+      // 3. Delete related payment plans
       await tx.delete(paymentPlans).where(eq(paymentPlans.purchaseId, id))
 
-      // Delete purchase items
+      // 4. Delete purchase items
       await tx.delete(purchaseItems).where(eq(purchaseItems.purchaseId, id))
 
-      // Delete the purchase
+      // 5. Delete the purchase itself
       const [deletedPurchase] = await tx.delete(purchases).where(eq(purchases.id, id)).returning()
 
       // Restore inventory for non-draft purchases

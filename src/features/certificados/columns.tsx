@@ -110,7 +110,8 @@ export const columns: ColumnDef<CertificadoSale>[] = [
     header: "Monto",
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("totalAmount") || "0");
-      return formatCurrency(amount);
+      const currency = row.original.currency || "USD";
+      return formatCurrency(amount, currency);
     },
   },
   {

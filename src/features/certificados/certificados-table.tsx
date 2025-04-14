@@ -257,7 +257,10 @@ export function CertificadosTable({ salesGroups }: CertificadosTableProps) {
                             )}
                           </TableCell>
                           <TableCell>
-                            {formatCurrency(Number(sale.totalAmount || 0))}
+                            {formatCurrency(
+                              Number(sale.totalAmount || 0),
+                              sale.currency || "USD"
+                            )}
                           </TableCell>
                           <TableCell>
                             {getStatusBadge(sale.status)}
