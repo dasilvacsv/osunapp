@@ -298,6 +298,7 @@ export async function createSale(data: {
     quantity: number
     overridePrice?: number
     metadata?: any
+    currencyType?: string
   }>
   bundleId?: string
   beneficiaryId?: string
@@ -322,34 +323,34 @@ export async function createSale(data: {
     // Calculate the total price based on items
     let totalAmount = 0
     let bundleItems: any[] = []
+    let regularItems: any[] = []
     let isBundle = false
 
-    // Check if we're dealing with a bundle
-    if (data.bundleId && data.items.length > 0 && data.items[0].metadata?.isBundle) {
-      isBundle = true
-      // For bundles, use the override price directly as the bundle price
-      totalAmount = data.items[0].quantity * (data.items[0].overridePrice || 0)
-
-      // Store the bundle items for later processing
-      if (data.items[0].metadata?.bundleItems) {
-        bundleItems = data.items[0].metadata.bundleItems
+    // Separate bundle items from regular items
+    data.items.forEach(item => {
+      if (item.metadata?.isBundle) {
+        isBundle = true
+        bundleItems = item.metadata?.bundleItems || []
+        totalAmount += item.quantity * (item.overridePrice || 0)
+      } else {
+        regularItems.push(item)
       }
-    } else {
-      // Calculate total from regular items
-      for (const item of data.items) {
-        const inventoryItem = await db
-          .select({ basePrice: inventoryItems.basePrice })
-          .from(inventoryItems)
-          .where(eq(inventoryItems.id, item.itemId))
-          .limit(1)
+    })
 
-        if (!inventoryItem.length) {
-          throw new Error(`Producto no encontrado: ${item.itemId}`)
-        }
+    // Calculate total from regular items
+    for (const item of regularItems) {
+      const inventoryItem = await db
+        .select({ basePrice: inventoryItems.basePrice })
+        .from(inventoryItems)
+        .where(eq(inventoryItems.id, item.itemId))
+        .limit(1)
 
-        const price = item.overridePrice || Number(inventoryItem[0].basePrice)
-        totalAmount += price * item.quantity
+      if (!inventoryItem.length) {
+        throw new Error(`Producto no encontrado: ${item.itemId}`)
       }
+
+      const price = item.overridePrice || Number(inventoryItem[0].basePrice)
+      totalAmount += price * item.quantity
     }
 
     // If this is a bundle sale, check if the bundle has a specific currency type
@@ -367,21 +368,16 @@ export async function createSale(data: {
         .limit(1)
 
       if (bundleResult.length > 0) {
-        // If the bundle has a currency type, use it
         if (bundleResult[0].currencyType) {
           currencyType = bundleResult[0].currencyType
-
-          // If the bundle has a conversion rate, use it
           if (bundleResult[0].conversionRate) {
             conversionRate = Number(bundleResult[0].conversionRate)
           } else if (currencyType === "BS") {
-            // If no conversion rate but currency is BS, get BCV rate
             try {
               const rateInfo = await getBCVRate()
               conversionRate = rateInfo.rate
             } catch (error) {
               console.error("Error getting BCV rate:", error)
-              // Default to 35 if BCV rate fetch fails
               conversionRate = 35
             }
           }
@@ -404,12 +400,10 @@ export async function createSale(data: {
         organizationId: data.organizationId === "none" ? null : data.organizationId,
         transactionReference: data.transactionReference,
         bookingMethod: data.saleType,
-        // Store saleType in paymentMetadata
         paymentMetadata: {
           saleType: data.saleType,
           isBundle: isBundle,
         },
-        // Add new fields
         isDraft: data.isDraft || false,
         vendido: data.vendido || false,
         isDonation: data.isDonation || false,
@@ -422,149 +416,130 @@ export async function createSale(data: {
       throw new Error("Error al crear el registro de venta")
     }
 
-    // Process each item individually
+    // Process bundle items if present
     if (isBundle) {
-      // For bundles, first insert the main bundle item
-      const mainItem = data.items[0]
-      await db.insert(purchaseItems).values({
-        purchaseId: purchase.id,
-        itemId: mainItem.itemId,
-        quantity: mainItem.quantity,
-        unitPrice: (mainItem.overridePrice || 0).toString(),
-        totalPrice: (mainItem.quantity * (mainItem.overridePrice || 0)).toString(),
-        metadata: {
-          isBundle: true,
-          bundleId: data.bundleId,
-          bundleName: mainItem.metadata?.bundleName || "Bundle",
-        },
-      })
-
-      // Then insert all bundle items with the bundle metadata
-      for (const bundleItem of bundleItems) {
-        const inventoryItem = await db
-          .select()
-          .from(inventoryItems)
-          .where(eq(inventoryItems.id, bundleItem.itemId))
-          .limit(1)
-
-        if (!inventoryItem.length) {
-          console.warn(`Bundle item not found: ${bundleItem.itemId}`)
-          continue
-        }
-
-        // Insert each bundle item with metadata linking it to the bundle
+      // Insert the main bundle item
+      const mainItem = data.items.find(item => item.metadata?.isBundle)
+      if (mainItem) {
         await db.insert(purchaseItems).values({
           purchaseId: purchase.id,
-          itemId: bundleItem.itemId,
-          quantity: bundleItem.quantity,
-          unitPrice: bundleItem.price.toString(),
-          totalPrice: (bundleItem.quantity * bundleItem.price).toString(),
+          itemId: mainItem.itemId,
+          quantity: mainItem.quantity,
+          unitPrice: (mainItem.overridePrice || 0).toString(),
+          totalPrice: (mainItem.quantity * (mainItem.overridePrice || 0)).toString(),
           metadata: {
+            isBundle: true,
             bundleId: data.bundleId,
             bundleName: mainItem.metadata?.bundleName || "Bundle",
-            isPartOfBundle: true,
           },
         })
 
-        // Update inventory for bundle items if not a draft
-        if (!data.isDraft && data.saleType !== "PRESALE") {
-          // Decrease stock
-          await db
-            .update(inventoryItems)
-            .set({
-              currentStock: sql`${inventoryItems.currentStock} - ${bundleItem.quantity}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(inventoryItems.id, bundleItem.itemId))
-
-          // Record transaction
-          await db.insert(inventoryTransactions).values({
+        // Process bundle items
+        for (const bundleItem of bundleItems) {
+          await db.insert(purchaseItems).values({
+            purchaseId: purchase.id,
             itemId: bundleItem.itemId,
-            quantity: -bundleItem.quantity,
-            transactionType: "OUT",
-            reference: { purchaseId: purchase.id, bundleId: data.bundleId },
-            notes: `Venta de Bundle #${purchase.id}`,
+            quantity: bundleItem.quantity,
+            unitPrice: bundleItem.price.toString(),
+            totalPrice: (bundleItem.quantity * bundleItem.price).toString(),
+            metadata: {
+              bundleId: data.bundleId,
+              bundleName: mainItem.metadata?.bundleName || "Bundle",
+              isPartOfBundle: true,
+            },
           })
-        } else if (!data.isDraft && data.saleType === "PRESALE") {
-          // For presales, reserve the stock
-          await db
-            .update(inventoryItems)
-            .set({
-              reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${bundleItem.quantity}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(inventoryItems.id, bundleItem.itemId))
 
-          // Record reservation transaction
-          await db.insert(inventoryTransactions).values({
-            itemId: bundleItem.itemId,
-            quantity: -bundleItem.quantity,
-            transactionType: "RESERVATION",
-            reference: { purchaseId: purchase.id, bundleId: data.bundleId },
-            notes: `Pre-venta de Bundle #${purchase.id}`,
-          })
+          // Update inventory for bundle items if not a draft
+          if (!data.isDraft && data.saleType !== "PRESALE") {
+            await db
+              .update(inventoryItems)
+              .set({
+                currentStock: sql`${inventoryItems.currentStock} - ${bundleItem.quantity}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(inventoryItems.id, bundleItem.itemId))
+
+            await db.insert(inventoryTransactions).values({
+              itemId: bundleItem.itemId,
+              quantity: -bundleItem.quantity,
+              transactionType: "OUT",
+              reference: { purchaseId: purchase.id, bundleId: data.bundleId },
+              notes: `Venta de Bundle #${purchase.id}`,
+            })
+          } else if (!data.isDraft && data.saleType === "PRESALE") {
+            await db
+              .update(inventoryItems)
+              .set({
+                reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${bundleItem.quantity}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(inventoryItems.id, bundleItem.itemId))
+
+            await db.insert(inventoryTransactions).values({
+              itemId: bundleItem.itemId,
+              quantity: -bundleItem.quantity,
+              transactionType: "RESERVATION",
+              reference: { purchaseId: purchase.id, bundleId: data.bundleId },
+              notes: `Pre-venta de Bundle #${purchase.id}`,
+            })
+          }
         }
       }
-    } else {
-      // Process regular items
-      for (const item of data.items) {
-        const inventoryItem = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId)).limit(1)
+    }
 
-        if (!inventoryItem.length) {
-          throw new Error(`Producto no encontrado: ${item.itemId}`)
-        }
+    // Process regular items
+    for (const item of regularItems) {
+      const inventoryItem = await db.select().from(inventoryItems).where(eq(inventoryItems.id, item.itemId)).limit(1)
 
-        const price = item.overridePrice || Number(inventoryItem[0].basePrice)
+      if (!inventoryItem.length) {
+        throw new Error(`Producto no encontrado: ${item.itemId}`)
+      }
 
-        // Insert purchase item
-        await db.insert(purchaseItems).values({
-          purchaseId: purchase.id,
+      const price = item.overridePrice || Number(inventoryItem[0].basePrice)
+
+      // Insert purchase item
+      await db.insert(purchaseItems).values({
+        purchaseId: purchase.id,
+        itemId: item.itemId,
+        quantity: item.quantity,
+        unitPrice: price.toString(),
+        totalPrice: (price * item.quantity).toString(),
+        metadata: item.metadata || {},
+      })
+
+      // Update inventory if not a draft
+      if (!data.isDraft && data.saleType !== "PRESALE") {
+        await db
+          .update(inventoryItems)
+          .set({
+            currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(inventoryItems.id, item.itemId))
+
+        await db.insert(inventoryTransactions).values({
           itemId: item.itemId,
-          quantity: item.quantity,
-          unitPrice: price.toString(),
-          totalPrice: (price * item.quantity).toString(),
-          metadata: item.metadata || {},
+          quantity: -item.quantity,
+          transactionType: "OUT",
+          reference: { purchaseId: purchase.id },
+          notes: `Venta #${purchase.id}`,
         })
-
-        // If not a draft and not a presale, update inventory immediately
-        if (!data.isDraft && data.saleType !== "PRESALE") {
-          // Decrease stock
-          await db
-            .update(inventoryItems)
-            .set({
-              currentStock: sql`${inventoryItems.currentStock} - ${item.quantity}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(inventoryItems.id, item.itemId))
-
-          // Record transaction
-          await db.insert(inventoryTransactions).values({
-            itemId: item.itemId,
-            quantity: -item.quantity,
-            transactionType: "OUT",
-            reference: { purchaseId: purchase.id },
-            notes: `Venta #${purchase.id}`,
+      } else if (!data.isDraft && data.saleType === "PRESALE") {
+        await db
+          .update(inventoryItems)
+          .set({
+            reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${item.quantity}`,
+            updatedAt: new Date(),
           })
-        } else if (!data.isDraft && data.saleType === "PRESALE") {
-          // For presales, reserve the stock
-          await db
-            .update(inventoryItems)
-            .set({
-              reservedStock: sql`COALESCE(${inventoryItems.reservedStock}, 0) + ${item.quantity}`,
-              updatedAt: new Date(),
-            })
-            .where(eq(inventoryItems.id, item.itemId))
+          .where(eq(inventoryItems.id, item.itemId))
 
-          // Record reservation transaction
-          await db.insert(inventoryTransactions).values({
-            itemId: item.itemId,
-            quantity: -item.quantity,
-            transactionType: "RESERVATION",
-            reference: { purchaseId: purchase.id },
-            notes: `Pre-venta #${purchase.id}`,
-          })
-        }
-        // For drafts, don't update inventory
+        await db.insert(inventoryTransactions).values({
+          itemId: item.itemId,
+          quantity: -item.quantity,
+          transactionType: "RESERVATION",
+          reference: { purchaseId: purchase.id },
+          notes: `Pre-venta #${purchase.id}`,
+        })
       }
     }
 
@@ -610,51 +585,51 @@ export async function createSale(data: {
 
     // Get the full purchase details with relations for the response
     const purchaseDetails = await db
-      .select({
-        purchase: purchases,
-        client: clients,
-        beneficiary: beneficiarios,
-        organization: organizations,
-        bundle: bundles,
-      })
-      .from(purchases)
-      .leftJoin(clients, eq(purchases.clientId, clients.id))
-      .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
-      .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
-      .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
-      .where(eq(purchases.id, purchase.id))
-      .limit(1)
+    .select({
+      purchase: purchases,
+      client: clients,
+      beneficiary: beneficiarios,
+      organization: organizations,
+      bundle: bundles,
+    })
+    .from(purchases)
+    .leftJoin(clients, eq(purchases.clientId, clients.id))
+    .leftJoin(beneficiarios, eq(purchases.beneficiarioId, beneficiarios.id))
+    .leftJoin(organizations, eq(purchases.organizationId, organizations.id))
+    .leftJoin(bundles, eq(purchases.bundleId, bundles.id))
+    .where(eq(purchases.id, purchase.id))
+    .limit(1)
 
-    if (!purchaseDetails.length) {
-      throw new Error("Error al recuperar detalles de la venta")
-    }
-
-    // Get purchase items
-    const items = await db
-      .select({
-        item: purchaseItems,
-        inventoryItem: inventoryItems,
-      })
-      .from(purchaseItems)
-      .leftJoin(inventoryItems, eq(purchaseItems.itemId, inventoryItems.id))
-      .where(eq(purchaseItems.purchaseId, purchase.id))
-
-    // Revalidate paths
-    revalidatePath("/sales")
-    revalidatePath("/inventory")
-
-    return {
-      success: true,
-      data: {
-        ...purchaseDetails[0],
-        items,
-        saleType: data.saleType,
-      },
-    }
-  } catch (error) {
-    console.error("Error al crear venta:", error)
-    return { success: false, error: error instanceof Error ? error.message : "Error desconocido" }
+  if (!purchaseDetails.length) {
+    throw new Error("Error al recuperar detalles de la venta")
   }
+
+  // Get purchase items
+  const items = await db
+    .select({
+      item: purchaseItems,
+      inventoryItem: inventoryItems,
+    })
+    .from(purchaseItems)
+    .leftJoin(inventoryItems, eq(purchaseItems.itemId, inventoryItems.id))
+    .where(eq(purchaseItems.purchaseId, purchase.id))
+
+  // Revalidate paths
+  revalidatePath("/sales")
+  revalidatePath("/inventory")
+
+  return {
+    success: true,
+    data: {
+      ...purchaseDetails[0],
+      items,
+      saleType: data.saleType,
+    },
+  }
+} catch (error) {
+  console.error("Error al crear venta:", error)
+  return { success: false, error: error instanceof Error ? error.message : "Error desconocido" }
+}
 }
 
 export async function getBeneficiariesByClient(clientId: string) {
