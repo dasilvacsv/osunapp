@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { DataTable } from "@/features/sales/views/data-table"
 import { columns } from "@/features/sales/views/columns"
 import { Button } from "@/components/ui/button"
@@ -9,23 +9,25 @@ import { DeletePackageDialog } from "@/features/sales/delete-package-dialog"
 import { PaymentPlanDialog } from "@/features/sales/views/plan/payment-plan-dialog"
 import { PaymentTable } from "@/features/sales/views/payment-table"
 import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
 import { getSalesData2, getDraftSalesData, getDonationSalesData } from "@/features/sales/views/actions"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { DailySalesReport } from "@/features/sales/views/daily-sales-report"
 import { useSession } from "next-auth/react"
 
+// Update the type definition to include "payments" and "reports"
 type TabType = "sales" | "drafts" | "donations" | "payments" | "reports"
 
 export default function SalesPageContent({
   initialSales,
   viewType = "sales",
-}: {
-  initialSales: any[]
-  viewType?: TabType
-}) {
+}: { initialSales: any[]; viewType?: TabType }) {
   const [sales, setSales] = useState<any[]>(initialSales)
+  const [showDialog, setShowDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showPaymentPlanDialog, setShowPaymentPlanDialog] = useState(false)
+  const [selectedBundle, setSelectedBundle] = useState<{ id: string; name: string } | null>(null)
   const [selectedSale, setSelectedSale] = useState<{ id: string; amount: number } | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -34,13 +36,12 @@ export default function SalesPageContent({
   const router = useRouter()
   const { toast } = useToast()
   const { data: session } = useSession()
+  const isAdmin = session?.user?.role === "ADMIN"
 
-  // Memoize session-related values
-  const isAdmin = useMemo(() => session?.user?.role === "ADMIN", [session])
+  console.log("Current session:", session) // Debug log to check session data
+  console.log("Is admin:", isAdmin) // Debug log to check admin status
 
   const refreshSales = useCallback(async () => {
-    if (isRefreshing) return // Prevent multiple simultaneous refreshes
-
     setIsRefreshing(true)
     try {
       let result
@@ -71,8 +72,13 @@ export default function SalesPageContent({
 
         setSales(formattedSales)
       }
+
+      toast({
+        title: "Datos actualizados",
+        description: "La lista ha sido actualizada",
+        className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+      })
     } catch (error) {
-      console.error("Error refreshing sales:", error)
       toast({
         title: "Error",
         description: "No se pudieron cargar los datos",
@@ -81,101 +87,55 @@ export default function SalesPageContent({
     } finally {
       setIsRefreshing(false)
     }
-  }, [activeTab, isRefreshing, toast])
+  }, [activeTab, toast])
 
-  // Optimized effect for sales updates
-  useEffect(() => {
-    const handleSalesUpdated = (event: CustomEvent) => {
-      const { action } = event.detail
-      if (action === "approve-donation" || action === "reject-donation") {
-        refreshSales()
-      }
-    }
-
-    window.addEventListener("sales-updated", handleSalesUpdated as EventListener)
-    return () => {
-      window.removeEventListener("sales-updated", handleSalesUpdated as EventListener)
-    }
-  }, [refreshSales])
-
-  // Load initial data
   useEffect(() => {
     refreshSales()
   }, [activeTab, refreshSales])
 
-  const handleSaleSelect = useCallback((sale: { id: string; amount: number }) => {
-    setSelectedSale(sale)
-    setActiveTab("payments")
-  }, [])
+  // Listen for sales-updated events
+  useEffect(() => {
+    const handleSalesUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent
+      console.log("Sale updated:", customEvent.detail)
 
-  const handlePaymentPlanSuccess = useCallback(() => {
-    refreshSales()
-    setRefreshTrigger(prev => prev + 1)
-    setSelectedSale(null)
+      // Refresh the sales data when a donation is approved or rejected
+      if (customEvent.detail.action === "approve-donation" || customEvent.detail.action === "reject-donation") {
+        refreshSales()
+      }
+    }
+
+    window.addEventListener("sales-updated", handleSalesUpdated)
+    return () => {
+      window.removeEventListener("sales-updated", handleSalesUpdated)
+    }
   }, [refreshSales])
 
-  // Memoize tab content for better performance
-  const renderTabContent = useMemo(() => {
-    const commonTableProps = {
-      columns,
-      searchKey: "client.name",
-      onSaleSelect: handleSaleSelect,
-    }
+  const handleSaleSuccess = (newSale: any) => {
+    setSales((prev) => [newSale, ...prev])
+    router.refresh()
+  }
 
-    switch (activeTab) {
-      case "sales":
-        return (
-          <DataTable
-            {...commonTableProps}
-            data={sales}
-            title="Ventas"
-            description="Lista completa de ventas"
-          />
-        )
-      case "drafts":
-        return (
-          <DataTable
-            {...commonTableProps}
-            data={sales}
-            title="Borradores"
-            description="Ventas en estado de borrador pendientes de aprobación"
-          />
-        )
-      case "donations":
-        return (
-          <DataTable
-            {...commonTableProps}
-            data={sales}
-            title="Donaciones"
-            description="Lista de ventas marcadas como donación"
-          />
-        )
-      case "payments":
-        return selectedSale ? (
-          <PaymentTable
-            purchaseId={selectedSale.id}
-            refreshTrigger={refreshTrigger}
-            onPaymentUpdated={() => {
-              setRefreshTrigger(prev => prev + 1)
-              refreshSales()
-            }}
-          />
-        ) : (
-          <div className="text-center py-12 text-muted-foreground">
-            Selecciona una venta para ver sus pagos
-          </div>
-        )
-      case "reports":
-        return <DailySalesReport />
-      default:
-        return null
-    }
-  }, [activeTab, sales, selectedSale, refreshTrigger, handleSaleSelect, refreshSales])
+  const handleDeleteSuccess = () => {
+    refreshSales()
+    setSelectedBundle(null)
+  }
+
+  const handlePaymentPlanSuccess = () => {
+    refreshSales()
+    setRefreshTrigger((prev) => prev + 1)
+    setSelectedSale(null)
+  }
+
+  const handleSaleSelect = (sale: { id: string; amount: number }) => {
+    setSelectedSale(sale)
+    setActiveTab("payments")
+  }
 
   return (
-    <div className="p-8 space-y-8">
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-8 space-y-8">
       <div className="flex justify-between items-center mb-8">
-        <div className="flex items-center gap-4">
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-4">
           {activeTab === "donations" ? (
             <Gift className="h-8 w-8 text-purple-500" />
           ) : activeTab === "drafts" ? (
@@ -184,13 +144,9 @@ export default function SalesPageContent({
             <ShoppingCart className="h-8 w-8 text-primary" />
           )}
           <h1 className="text-3xl font-bold tracking-tight">
-            {activeTab === "donations"
-              ? "Donaciones"
-              : activeTab === "drafts"
-              ? "Borradores"
-              : "Registro de Ventas"}
+            {activeTab === "donations" ? "Donaciones" : activeTab === "drafts" ? "Borradores" : "Registro de Ventas"}
           </h1>
-        </div>
+        </motion.div>
         <Button
           variant="outline"
           size="icon"
@@ -202,7 +158,7 @@ export default function SalesPageContent({
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab as any} className="w-full space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
         <div className="space-y-4">
           <TabsList className="flex flex-wrap">
             <TabsTrigger value="sales" className="flex items-center gap-2 px-6 py-2">
@@ -232,10 +188,68 @@ export default function SalesPageContent({
           </Button>
         </div>
 
-        <TabsContent value={activeTab} className="space-y-6">
-          {renderTabContent}
+        <TabsContent value="sales" className="space-y-6">
+          <DataTable
+            columns={columns}
+            data={sales}
+            searchKey="client.name"
+            onSaleSelect={handleSaleSelect}
+            title="Ventas"
+            description="Lista completa de ventas"
+          />
+        </TabsContent>
+
+        <TabsContent value="drafts" className="space-y-6">
+          <DataTable
+            columns={columns}
+            data={sales}
+            searchKey="client.name"
+            onSaleSelect={handleSaleSelect}
+            title="Borradores"
+            description="Ventas en estado de borrador pendientes de aprobación"
+          />
+        </TabsContent>
+
+        <TabsContent value="donations" className="space-y-6">
+          <DataTable
+            columns={columns}
+            data={sales}
+            searchKey="client.name"
+            onSaleSelect={handleSaleSelect}
+            title="Donaciones"
+            description="Lista de ventas marcadas como donación"
+          />
+        </TabsContent>
+
+        <TabsContent value="payments" className="space-y-6">
+          {selectedSale ? (
+            <PaymentTable
+              purchaseId={selectedSale.id}
+              refreshTrigger={refreshTrigger}
+              onPaymentUpdated={() => {
+                setRefreshTrigger((prev) => prev + 1)
+                refreshSales()
+              }}
+            />
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">Selecciona una venta para ver sus pagos</div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="reports" className="space-y-6">
+          <DailySalesReport />
         </TabsContent>
       </Tabs>
+
+      {selectedBundle && (
+        <DeletePackageDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          bundleId={selectedBundle.id}
+          bundleName={selectedBundle.name}
+          onSuccess={handleDeleteSuccess}
+        />
+      )}
 
       {selectedSale && (
         <PaymentPlanDialog
@@ -246,6 +260,7 @@ export default function SalesPageContent({
           onSuccess={handlePaymentPlanSuccess}
         />
       )}
-    </div>
+    </motion.div>
   )
 }
+
