@@ -1,8 +1,8 @@
 "use client"
 
-import { ColumnDef } from "@tanstack/react-table"
-import { Badge } from "@/components/ui/badge"
-import { CertificadoSale, PurchaseStatus, PaymentStatus, CertificateStatus } from "./types"
+import { ColumnDef } from "@tanstack/react-table";
+import { Badge } from "@/components/ui/badge";
+import { CertificadoSale, PurchaseStatus, PaymentStatus, CertificateStatus } from "./types";
 import { 
   MoreHorizontal, 
   Receipt,
@@ -13,7 +13,7 @@ import {
   Edit,
   Download,
   FileDigit
-} from "lucide-react"
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,11 +21,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Button } from "@/components/ui/button"
-import { formatCurrency } from "@/lib/utils"
-import Link from "next/link"
-import { FichaTrigger } from "./ficha-pdf"
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/utils";
+import Link from "next/link";
+import { FichaTrigger } from "./ficha-pdf";
 
 export const columns: ColumnDef<CertificadoSale>[] = [
   {
@@ -111,7 +111,25 @@ export const columns: ColumnDef<CertificadoSale>[] = [
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("totalAmount") || "0");
       const currencyType = row.original.currencyType || "USD";
-      return formatCurrency(amount, currencyType);
+      const conversionRate = 35; // You might want to make this configurable
+
+      return (
+        <div className="text-right">
+          <div className="font-medium">
+            {formatCurrency(amount, currencyType)}
+          </div>
+          {currencyType === "BS" && (
+            <div className="text-xs text-muted-foreground">
+              ≈ {formatCurrency(amount / conversionRate, "USD")}
+            </div>
+          )}
+          {currencyType === "USD" && (
+            <div className="text-xs text-muted-foreground">
+              ≈ {formatCurrency(amount * conversionRate, "BS")}
+            </div>
+          )}
+        </div>
+      );
     },
   },
   {
@@ -272,4 +290,4 @@ export const columns: ColumnDef<CertificadoSale>[] = [
       );
     },
   },
-] 
+];
