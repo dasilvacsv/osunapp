@@ -1,97 +1,44 @@
-import { db } from "@/db";
-import { and, eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
-import { organizations, organizationSections, clients, beneficiarios } from "@/db/schema";
+"use server"
+
+import { db } from "@/db"
+import { and, eq } from "drizzle-orm"
+import { revalidatePath } from "next/cache"
+import { organizations, organizationSections } from "@/db/schema"
 
 export type OrganizationFormData = {
-  name: string;
-  type: "SCHOOL" | "COMPANY" | "OTHER";
-  nature: "PUBLIC" | "PRIVATE";
-  address?: string;
-  cityId?: string;
+  name: string
+  type: "SCHOOL" | "COMPANY" | "OTHER"
+  nature: "PUBLIC" | "PRIVATE"
+  address?: string
+  cityId?: string
   contactInfo: {
-    email?: string;
-    phone?: string;
-  };
-};
+    email?: string
+    phone?: string
+  }
+}
 
 export type OrganizationSectionFormData = {
-  name: string;
-  level: string;
-  templateLink?: string;
-  templateStatus: "COMPLETE" | "INCOMPLETE" | "PENDING";
-};
+  name: string
+  level: string
+  templateLink?: string
+  templateStatus: "COMPLETE" | "INCOMPLETE" | "PENDING"
+}
 
 export async function getOrganizations() {
   try {
-    const data = await db
-      .select()
-      .from(organizations)
-      .where(eq(organizations.status, "ACTIVE"));
-
-    // Fetch related data for each organization
-    const enrichedData = await Promise.all(
-      data.map(async (org) => {
-        const sections = await db
-          .select()
-          .from(organizationSections)
-          .where(
-            and(
-              eq(organizationSections.organizationId, org.id),
-              eq(organizationSections.status, "ACTIVE")
-            )
-          );
-
-        const orgClients = await db
-          .select()
-          .from(clients)
-          .where(
-            and(
-              eq(clients.organizationId, org.id),
-              eq(clients.status, "ACTIVE")
-            )
-          );
-
-        const clientsWithBeneficiaries = await Promise.all(
-          orgClients.map(async (client) => {
-            const beneficiariosList = await db
-              .select()
-              .from(beneficiarios)
-              .where(
-                and(
-                  eq(beneficiarios.clientId, client.id),
-                  eq(beneficiarios.status, "ACTIVE")
-                )
-              );
-
-            return {
-              ...client,
-              beneficiarios: beneficiariosList,
-            };
-          })
-        );
-
-        return {
-          ...org,
-          sections,
-          clients: clientsWithBeneficiaries,
-        };
-      })
-    );
-
-    return { data: enrichedData };
+    const data = await db.select().from(organizations).where(eq(organizations.status, "ACTIVE"))
+    return { data }
   } catch (error) {
-    console.error("Error fetching organizations:", error);
-    return { error: "Failed to fetch organizations" };
+    return { error: "Failed to fetch organizations" }
   }
 }
 
 export async function getOrganization(id: string) {
   try {
-    const data = await db.select().from(organizations).where(eq(organizations.id, id));
-    return { data: data[0] };
+    const data = await db.select().from(organizations).where(eq(organizations.id, id))
+    return { data: data[0] }
   } catch (error) {
-    return { error: "Failed to fetch organization" };
+    return { error: "Failed to fetch organization" }
   }
 }
 
@@ -108,12 +55,12 @@ export async function createOrganization(data: OrganizationFormData) {
         nature: data.nature,
         cityId: data.cityId,
       })
-      .returning();
+      .returning()
 
-    revalidatePath("/organizations");
-    return { success: true, data: newOrganization[0] };
+    revalidatePath("/organizations")
+    return { success: "Organization created successfully", data: newOrganization[0] }
   } catch (error) {
-    return { error: "Failed to create organization" };
+    return { error: "Failed to create organization" }
   }
 }
 
@@ -131,12 +78,12 @@ export async function updateOrganization(id: string, data: OrganizationFormData)
         cityId: data.cityId,
       })
       .where(eq(organizations.id, id))
-      .returning();
+      .returning()
 
-    revalidatePath("/organizations");
-    return { success: true, data: updatedOrganization[0] };
+    revalidatePath("/organizations")
+    return { success: "Organization updated successfully", data: updatedOrganization[0] }
   } catch (error) {
-    return { error: "Failed to update organization" };
+    return { error: "Failed to update organization" }
   }
 }
 
@@ -148,36 +95,29 @@ export async function deleteOrganization(id: string) {
         status: "INACTIVE",
         updatedAt: new Date(),
       })
-      .where(eq(organizations.id, id));
+      .where(eq(organizations.id, id))
 
-    revalidatePath("/organizations");
-    return { success: true };
+    revalidatePath("/organizations")
+    return { success: "Organization deleted successfully" }
   } catch (error) {
-    return { error: "Failed to delete organization" };
+    return { error: "Failed to delete organization" }
   }
 }
 
+// Organization Sections
 export async function getOrganizationSections(organizationId: string) {
   try {
     const data = await db
       .select()
       .from(organizationSections)
-      .where(
-        and(
-          eq(organizationSections.organizationId, organizationId),
-          eq(organizationSections.status, "ACTIVE")
-        )
-      );
-    return { data };
+      .where(and(eq(organizationSections.organizationId, organizationId), eq(organizationSections.status, "ACTIVE")))
+    return { data }
   } catch (error) {
-    return { error: "Failed to fetch organization sections" };
+    return { error: "Failed to fetch organization sections" }
   }
 }
 
-export async function createOrganizationSection(
-  organizationId: string,
-  data: OrganizationSectionFormData
-) {
+export async function createOrganizationSection(organizationId: string, data: OrganizationSectionFormData) {
   try {
     const newSection = await db
       .insert(organizationSections)
@@ -189,19 +129,16 @@ export async function createOrganizationSection(
         templateStatus: data.templateStatus,
         status: "ACTIVE",
       })
-      .returning();
+      .returning()
 
-    revalidatePath("/organizations");
-    return { success: true, data: newSection[0] };
+    revalidatePath("/organizations")
+    return { success: "Organization section created successfully", data: newSection[0] }
   } catch (error) {
-    return { error: "Failed to create organization section" };
+    return { error: "Failed to create organization section" }
   }
 }
 
-export async function updateOrganizationSection(
-  id: string,
-  data: OrganizationSectionFormData
-) {
+export async function updateOrganizationSection(id: string, data: OrganizationSectionFormData) {
   try {
     const updatedSection = await db
       .update(organizationSections)
@@ -213,12 +150,12 @@ export async function updateOrganizationSection(
         updatedAt: new Date(),
       })
       .where(eq(organizationSections.id, id))
-      .returning();
+      .returning()
 
-    revalidatePath("/organizations");
-    return { success: true, data: updatedSection[0] };
+    revalidatePath("/organizations")
+    return { success: "Organization section updated successfully", data: updatedSection[0] }
   } catch (error) {
-    return { error: "Failed to update organization section" };
+    return { error: "Failed to update organization section" }
   }
 }
 
@@ -230,11 +167,12 @@ export async function deleteOrganizationSection(id: string) {
         status: "INACTIVE",
         updatedAt: new Date(),
       })
-      .where(eq(organizationSections.id, id));
+      .where(eq(organizationSections.id, id))
 
-    revalidatePath("/organizations");
-    return { success: true };
+    revalidatePath("/organizations")
+    return { success: "Organization section deleted successfully" }
   } catch (error) {
-    return { error: "Failed to delete organization section" };
+    return { error: "Failed to delete organization section" }
   }
 }
+
