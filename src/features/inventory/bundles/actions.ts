@@ -13,6 +13,7 @@ import { eq } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { unstable_noStore as noStore } from "next/cache"
 import type { ActionResponse, CreateBundleInput, BundleWithItems } from "../types"
+import { uuid } from "drizzle-orm/pg-core"
 
 // Obtener todas las categorías de paquetes
 export async function getBundleCategories(): Promise<ActionResponse<{ id: string; name: string }[]>> {
@@ -235,6 +236,64 @@ export async function updateBundle(bundleId: string, input: CreateBundleInput): 
   } catch (error) {
     console.error("Error updating bundle:", error)
     return { success: false, error: "Error al actualizar el paquete" }
+  }
+}
+
+export async function cloneBundle(
+  originalBundleId: string,
+  newName: string
+): Promise<ActionResponse<string>> {
+  try {
+    // Obtener el paquete original con sus relaciones
+    const originalResult = await getBundleById(originalBundleId);
+    if (!originalResult.success || !originalResult.data) {
+      return { success: false, error: "Paquete original no encontrado" };
+    }
+    const originalBundle = originalResult.data;
+
+    // Crear nuevo paquete con los datos esenciales del original
+    const [newBundle] = await db
+      .insert(bundles)
+      .values({
+        // Solo campos necesarios, sin relaciones
+        name: newName,
+        description: originalBundle.description,
+        notes: originalBundle.notes,
+        categoryId: originalBundle.categoryId,
+        type: originalBundle.type,
+        basePrice: originalBundle.basePrice,
+        bundlePrice: originalBundle.bundlePrice,
+        discountPercentage: originalBundle.discountPercentage,
+        currencyType: originalBundle.currencyType,
+        conversionRate: originalBundle.conversionRate,
+        organizationId: originalBundle.organizationId,
+        status: "ACTIVE",
+        // Nuevos campos generados
+        totalSales: 0,
+        lastSaleDate: null,
+        totalRevenue: "0",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning({ id: bundles.id });
+
+    if (!newBundle) throw new Error("No se pudo clonar el paquete");
+
+    // Clonar los items del paquete
+    for (const item of originalBundle.items) {
+      await db.insert(bundleItems).values({
+        bundleId: newBundle.id,
+        itemId: item.itemId,
+        quantity: item.quantity,
+        overridePrice: null,
+      });
+    }
+
+    revalidatePath("/inventario/bundles");
+    return { success: true, data: newBundle.id };
+  } catch (error) {
+    console.error("Error cloning bundle:", error);
+    return { success: false, error: "Error al clonar el paquete" };
   }
 }
 

@@ -1,9 +1,8 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { getBundles, deleteBundle } from "./actions"
+import { getBundles, deleteBundle, cloneBundle } from "./actions"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -29,6 +28,7 @@ import {
   Trash2,
   AlertTriangle,
   Lock,
+  Copy,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import type { BundleWithItems } from "../types"
@@ -50,18 +50,21 @@ export function BundlesList() {
   const [loading, setLoading] = useState(true)
   const [openBundleId, setOpenBundleId] = useState<string | null>(null)
   const { toast } = useToast()
-
-  // Implementar la funcionalidad de "ver más/ver menos" con difuminado
   const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({})
-
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [bundleToDelete, setBundleToDelete] = useState<string | null>(null)
   const [bundleToDeleteName, setBundleToDeleteName] = useState<string>("")
   const [authCode, setAuthCode] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  
+  // Nuevos estados para clonación
+  const [isCloneDialogOpen, setIsCloneDialogOpen] = useState(false)
+  const [bundleToClone, setBundleToClone] = useState<BundleWithItems | null>(null)
+  const [newBundleName, setNewBundleName] = useState("")
+  const [isCloning, setIsCloning] = useState(false)
+  const [cloneError, setCloneError] = useState<string | null>(null)
 
-  // Función para alternar la expansión de la descripción
   const toggleDescription = (bundleId: string) => {
     setExpandedDescriptions((prev) => ({
       ...prev,
@@ -106,7 +109,6 @@ export function BundlesList() {
 
   const formatBundleCurrency = (amount: number, currencyType?: string, conversionRate?: number) => {
     if (currencyType === "BS") {
-      // For BS currency, just display the amount directly without conversion
       return `${amount.toFixed(2)} Bs`
     }
     return formatCurrency(amount)
@@ -135,6 +137,35 @@ export function BundlesList() {
     setIsDeleteDialogOpen(true)
   }
 
+  const handleCloneBundle = async () => {
+    if (!bundleToClone) return
+  
+    try {
+      setIsCloning(true)
+      setCloneError(null)
+  
+      // Usamos directamente la server action
+      const result = await cloneBundle(bundleToClone.id, newBundleName)
+  
+      if (result.success) {
+        toast({
+          title: "Paquete clonado",
+          description: "El paquete ha sido clonado exitosamente",
+          className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
+        })
+        setIsCloneDialogOpen(false)
+        fetchBundles()
+      } else {
+        setCloneError(result.error || "Error al clonar el paquete")
+      }
+    } catch (error) {
+      console.error("Error cloning bundle:", error)
+      setCloneError("Ocurrió un error al clonar el paquete")
+    } finally {
+      setIsCloning(false)
+    }
+  }
+
   const closeDeleteDialog = () => {
     setIsDeleteDialogOpen(false)
     setBundleToDelete(null)
@@ -159,7 +190,7 @@ export function BundlesList() {
           className: "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800",
         })
         closeDeleteDialog()
-        fetchBundles() // Recargar la lista de paquetes
+        fetchBundles()
       } else {
         setDeleteError(result.error || "Error al eliminar el paquete")
       }
@@ -263,6 +294,20 @@ export function BundlesList() {
                         }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setBundleToClone(bundle)
+                          setNewBundleName(`${bundle.name} (Copia)`)
+                          setCloneError(null)
+                          setIsCloneDialogOpen(true)
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
                       </Button>
                       <Link href={`/inventario/bundles/edit/${bundle.id}`}>
                         <Button variant="outline" size="sm" className="h-8 gap-1">
@@ -370,7 +415,6 @@ export function BundlesList() {
                     </div>
                   </div>
 
-                  {/* Mostrar notas si existen */}
                   {bundle.notes && (
                     <div className="bg-amber-50 border border-amber-200 p-3 rounded-md dark:bg-amber-900/20 dark:border-amber-800">
                       <div className="flex items-center gap-2 text-sm font-medium mb-1 text-amber-800 dark:text-amber-400">
@@ -488,7 +532,61 @@ export function BundlesList() {
         </div>
       ))}
 
-      {/* Diálogo de confirmación para eliminar paquete */}
+      {/* Diálogo de clonación */}
+      <Dialog open={isCloneDialogOpen} onOpenChange={setIsCloneDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-primary">
+              <Package className="h-5 w-5" />
+              Clonar Paquete
+            </DialogTitle>
+            <DialogDescription>
+              Estás clonando el paquete: <span className="font-medium">{bundleToClone?.name}</span>
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-3">
+            <div className="space-y-2">
+              <label htmlFor="new-name" className="text-sm font-medium">
+                Nombre del nuevo paquete
+              </label>
+              <Input
+                id="new-name"
+                placeholder="Ingresa el nuevo nombre"
+                value={newBundleName}
+                onChange={(e) => setNewBundleName(e.target.value)}
+                className={cloneError ? "border-destructive" : ""}
+              />
+              {cloneError && <p className="text-sm text-destructive">{cloneError}</p>}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setIsCloneDialogOpen(false)} disabled={isCloning}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleCloneBundle}
+              disabled={isCloning || !newBundleName}
+              className="gap-2"
+            >
+              {isCloning ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  Clonando...
+                </>
+              ) : (
+                <>
+                  <Package className="h-4 w-4" />
+                  Clonar Paquete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de eliminación */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
