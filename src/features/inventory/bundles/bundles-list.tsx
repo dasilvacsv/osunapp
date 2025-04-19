@@ -1,12 +1,17 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
-import { getBundles, deleteBundle, cloneBundle } from "./actions"
+import { useState, useEffect, useRef } from "react"
+import { getBundles, deleteBundle, cloneBundle, getBundleCategories, getOrganizationsWithBundles } from "./actions"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/utils"
+import { useSearchParams, usePathname, useRouter } from "next/navigation"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Check, X } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandInput, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command"
 import {
   Package,
   DollarSign,
@@ -31,7 +36,7 @@ import {
   Copy,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import type { BundleWithItems } from "../types"
+import type { ActionResponse, BundleWithItems } from "../types"
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -46,6 +51,11 @@ import {
 import { Input } from "@/components/ui/input"
 
 export function BundlesList() {
+  const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([])
+  const [searchOrganization, setSearchOrganization] = useState("")
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [groupedBundles, setGroupedBundles] = useState<Record<string, BundleWithItems[]>>({})
   const [loading, setLoading] = useState(true)
   const [openBundleId, setOpenBundleId] = useState<string | null>(null)
@@ -64,11 +74,30 @@ export function BundlesList() {
   const [newBundleName, setNewBundleName] = useState("")
   const [isCloning, setIsCloning] = useState(false)
   const [cloneError, setCloneError] = useState<string | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [contentWidth, setContentWidth] = useState(200);
+  const [open, setOpen] = useState(false);
+  
+  // Nuevos estados para filtración
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({
+    currency: searchParams.get('currency') || '',
+    organization: searchParams.get('organization') || '',
+    category: searchParams.get('category') || ''
+  })
 
   const toggleDescription = (bundleId: string) => {
     setExpandedDescriptions((prev) => ({
       ...prev,
       [bundleId]: !prev[bundleId],
+    }))
+  }
+
+  const handleFilterChange = (type: string, value: string) => {
+    setActiveFilters(prev => ({
+      ...prev,
+      [type]: prev[type as keyof typeof activeFilters] === value ? '' : value
     }))
   }
 
@@ -102,6 +131,74 @@ export function BundlesList() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (triggerRef.current) {
+      const width = triggerRef.current.offsetWidth;
+      setContentWidth(Math.max(width, 200)); // Mínimo 200px
+    }
+  }, [open]);
+
+  useEffect(() => {
+    const fetchOrganizations = async () => {
+      const result = await getOrganizationsWithBundles()
+      if (result.success) setOrganizations(result.data)
+    }
+    fetchOrganizations()
+  }, [])
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        
+        // Obtener categorías
+        const categoriesRes = await getBundleCategories()
+        setCategories(categoriesRes.data || [])
+  
+        // Obtener bundles con filtros
+        const bundlesRes = await getBundles({
+          currencyType: activeFilters.currency as 'BS' | 'USD',
+          organizationId: activeFilters.organization,
+          categoryId: activeFilters.category === 'all' ? undefined : activeFilters.category
+        })
+  
+        if (bundlesRes.success && bundlesRes.data) {
+          const grouped = bundlesRes.data.reduce((acc: Record<string, BundleWithItems[]>, bundle) => {
+            const orgName = bundle.organization?.name || "Sin Organización"
+            if (!acc[orgName]) acc[orgName] = []
+            acc[orgName].push(bundle)
+            return acc
+          }, {})
+          setGroupedBundles(grouped)
+        } else {
+          toast({
+            title: "Error",
+            description: bundlesRes.error || "Error al cargar paquetes",
+            variant: "destructive",
+          })
+        }
+        
+      } catch (error) {
+        console.error("Error fetching data:", error)
+        toast({
+          title: "Error",
+          description: "Error al cargar datos",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    const params = new URLSearchParams(searchParams)
+    Object.entries(activeFilters).forEach(([key, val]) => {
+      val ? params.set(key, val) : params.delete(key)
+    })
+    router.replace(`${pathname}?${params.toString()}`)
+    
+    fetchData()
+  }, [activeFilters])
 
   useEffect(() => {
     fetchBundles()
@@ -201,6 +298,19 @@ export function BundlesList() {
       setIsDeleting(false)
     }
   }
+  // Mantener popover abierto durante la búsqueda
+  const handleInputChange = (value: string) => {
+    setSearchOrganization(value);
+    if (!open) setOpen(true);
+  };
+
+  // Texto display
+  const displayValue = () => {
+    if (activeFilters.organization === 'true') return 'Con Organización';
+    if (activeFilters.organization === 'false') return 'Sin Organización';
+    const org = organizations.find(o => o.id === activeFilters.organization);
+    return org?.name || "Seleccionar organización...";
+  };
 
   if (loading) {
     return (
@@ -212,6 +322,174 @@ export function BundlesList() {
       </div>
     )
   }
+
+  const FilterBar = () => (
+    <div className="mb-8 p-4 bg-muted/30 rounded-lg border border-border/60">
+      <div className="flex flex-wrap gap-4 items-center">
+        {/* Filtro de Moneda */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Moneda</h3>
+          <div className="flex gap-2">
+            {['BS', 'USD'].map(currency => (
+              <Button
+                key={currency}
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "border-2",
+                  activeFilters.currency === currency && "bg-blue-100 dark:bg-blue-900/20"
+                )}
+                onClick={() => handleFilterChange('currency', currency)}
+              >
+                {currency === 'BS' ? <Coins className="h-4 w-4 mr-2" /> : <DollarSign className="h-4 w-4 mr-2" />}
+                {currency}
+              </Button>
+            ))}
+          </div>
+        </div>
+  
+        {/* Filtro de Organización */}
+        <div className="space-y-2">
+      <h3 className="text-sm font-medium">Organización</h3>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            ref={triggerRef}
+            variant="outline"
+            role="combobox"
+            className="w-[200px] justify-between truncate min-w-fit"
+          >
+            {displayValue()}
+          </Button>
+        </PopoverTrigger>
+        
+        <PopoverContent 
+          style={{ width: contentWidth }}
+          className="p-0"
+          align="start"
+          onInteractOutside={(e) => {
+            // Prevenir cierre cuando se interactúa con el input
+            if (e.target instanceof HTMLElement && e.target.closest('.command-input')) return;
+            setOpen(false);
+          }}
+        >
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder="Buscar organización..."
+              value={searchOrganization}
+              onValueChange={handleInputChange}
+              className="command-input"
+            />
+            
+            <CommandEmpty>No se encontraron organizaciones</CommandEmpty>
+            
+            <CommandGroup className="max-h-[300px] overflow-y-auto">
+              {/* Opciones especiales */}
+              <CommandItem
+                value="true"
+                onSelect={() => {
+                  setActiveFilters(prev => ({
+                    ...prev,
+                    organization: prev.organization === 'true' ? '' : 'true'
+                  }));
+                  setOpen(false);
+                }}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    activeFilters.organization === 'true' ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                Con Organización
+              </CommandItem>
+              
+              <CommandItem
+                value="false"
+                onSelect={() => {
+                  setActiveFilters(prev => ({
+                    ...prev,
+                    organization: prev.organization === 'false' ? '' : 'false'
+                  }));
+                  setOpen(false);
+                }}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4",
+                    activeFilters.organization === 'false' ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                Sin Organización
+              </CommandItem>
+
+              {/* Organizaciones */}
+              {organizations
+                .filter(org => 
+                  org.name.toLowerCase().includes(searchOrganization.toLowerCase())
+                )
+                .map(org => (
+                  <CommandItem
+                    key={org.id}
+                    value={org.id}
+                    onSelect={() => {
+                      setActiveFilters(prev => ({
+                        ...prev,
+                        organization: prev.organization === org.id ? '' : org.id
+                      }));
+                      setSearchOrganization("");
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        activeFilters.organization === org.id ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <span className="truncate">{org.name}</span>
+                  </CommandItem>
+                ))}
+            </CommandGroup>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  
+        {/* Filtro de Categorías */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">Categorías</h3>
+          <Select
+  value={activeFilters.category}
+  onValueChange={(value) => handleFilterChange('category', value)}
+>
+  <SelectTrigger className="w-[200px]">
+    <SelectValue placeholder="Todas las categorías" />
+  </SelectTrigger>
+  <SelectContent>
+    <SelectItem value="all">Todas las categorías</SelectItem>
+    {categories.map((category) => (
+      <SelectItem key={category.id} value={category.id}>
+        {category.name}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+        </div>
+  
+        {Object.values(activeFilters).some(Boolean) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setActiveFilters({ currency: '', organization: '', category: '' })}
+          >
+            <X className="h-4 w-4 mr-2" />
+            Limpiar filtros
+          </Button>
+        )}
+      </div>
+    </div>
+  )
 
   if (Object.keys(groupedBundles).length === 0) {
     return (
@@ -235,6 +513,7 @@ export function BundlesList() {
 
   return (
     <div className="space-y-10">
+       <FilterBar />
       {Object.entries(groupedBundles).map(([organization, bundles]) => (
         <div key={organization} className="space-y-6">
           <div className="flex items-center gap-3 border-b pb-3 dark:border-border/30">

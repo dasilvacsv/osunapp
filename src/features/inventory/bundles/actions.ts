@@ -9,12 +9,30 @@ import {
   organizations,
   inventoryTransactions,
 } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { eq, isNotNull, isNull } from "drizzle-orm"
 import { revalidatePath } from "next/cache"
 import { unstable_noStore as noStore } from "next/cache"
 import type { ActionResponse, CreateBundleInput, BundleWithItems } from "../types"
 import { uuid } from "drizzle-orm/pg-core"
 
+export async function getOrganizationsWithBundles(): Promise<ActionResponse<{ id: string; name: string }[]>> {
+  try {
+    const orgs = await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+      })
+      .from(organizations)
+      .innerJoin(bundles, eq(organizations.id, bundles.organizationId))
+      .groupBy(organizations.id)
+      .orderBy(organizations.name)
+
+    return { success: true, data: orgs }
+  } catch (error) {
+    console.error("Error fetching organizations with bundles:", error)
+    return { success: false, error: "Error al obtener organizaciones" }
+  }
+}
 // Obtener todas las categorías de paquetes
 export async function getBundleCategories(): Promise<ActionResponse<{ id: string; name: string }[]>> {
   try {
@@ -358,10 +376,15 @@ export async function getOrganizations(): Promise<ActionResponse<{ id: string; n
 }
 
 // Obtener todos los paquetes con sus items
-export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
+export async function getBundles(filters?: {
+  currencyType?: 'BS' | 'USD';
+  organizationId?: string;
+  categoryId?: string;
+}): Promise<ActionResponse<BundleWithItems[]>> {
   try {
     noStore()
-    const bundlesList = await db
+    
+    let query = db
       .select({
         bundle: bundles,
         organization: {
@@ -372,7 +395,21 @@ export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
       .from(bundles)
       .leftJoin(organizations, eq(bundles.organizationId, organizations.id))
       .where(eq(bundles.status, "ACTIVE"))
-      .orderBy(bundles.createdAt)
+      .$dynamic();
+
+    if (filters) {
+      if (filters.currencyType) {
+        query = query.where(eq(bundles.currencyType, filters.currencyType));
+      }
+      if (filters.organizationId) {
+        query = query.where(eq(bundles.organizationId, filters.organizationId));
+      }
+      if (filters.categoryId) {
+        query = query.where(eq(bundles.categoryId, filters.categoryId));
+      }
+    }
+
+    const bundlesList = await query.orderBy(bundles.createdAt);
 
     const bundlesWithItems = await Promise.all(
       bundlesList.map(async ({ bundle, organization }) => {
@@ -389,35 +426,30 @@ export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
         const margin = Number(bundle.discountPercentage || 0)
         const salePrice = Number(bundle.bundlePrice || 0)
 
-        // Cálculo correcto del costo estimado
+        // Cálculo del costo estimado
         let totalEstimatedCost = 0
         bundleItemsWithDetails.forEach((i) => {
-          // Si costPrice no existe, intentamos calcularlo a partir del basePrice y margin
           let itemCost = 0
           if (i.item.costPrice) {
             itemCost = Number(i.item.costPrice)
           } else if (i.item.basePrice && i.item.margin) {
-            // Si no hay costPrice pero tenemos basePrice y margin, calculamos el costo
             const itemBasePrice = Number(i.item.basePrice)
             const itemMargin = Number(i.item.margin)
             itemCost = itemBasePrice / (1 + itemMargin)
           }
-
           totalEstimatedCost += itemCost * i.bundleItem.quantity
         })
 
         const profit = salePrice - totalEstimatedCost
         const profitPercentage = salePrice > 0 ? (profit / salePrice) * 100 : 0
 
-        // Convertimos el resultado a BundleWithItems
-        const bundleWithItems: BundleWithItems = {
+        return {
           ...bundle,
           organization,
           items: bundleItemsWithDetails.map((i) => ({
             itemId: i.item.id,
             item: i.item,
             quantity: i.bundleItem.quantity,
-            // Calculamos el costo para cada ítem
             costPrice: i.item.costPrice
               ? Number(i.item.costPrice)
               : i.item.basePrice && i.item.margin
@@ -426,23 +458,24 @@ export async function getBundles(): Promise<ActionResponse<BundleWithItems[]>> {
           })),
           totalBasePrice: basePrice,
           totalDiscountedPrice: salePrice,
-          savings: 0, // Ya no calculamos ahorros
-          savingsPercentage: 0, // Ya no calculamos porcentaje de ahorro
+          savings: 0,
+          savingsPercentage: 0,
           totalEstimatedCost,
           profit,
           profitPercentage,
           currencyType: bundle.currencyType || "USD",
           conversionRate: bundle.conversionRate || "1",
         }
-
-        return bundleWithItems
       }),
     )
 
     return { success: true, data: bundlesWithItems }
   } catch (error) {
     console.error("Error fetching bundles:", error)
-    return { success: false, error: "Error al obtener los paquetes" }
+    return { 
+      success: false, 
+      error: "Error al obtener los paquetes: " + (error instanceof Error ? error.message : "Error desconocido")
+    }
   }
 }
 
